@@ -2,6 +2,10 @@
 
 **Your health. Your history. Your control.**
 
+[![CI](https://github.com/akhilabellam0108-ui/niveda/actions/workflows/ci.yml/badge.svg)](https://github.com/akhilabellam0108-ui/niveda/actions/workflows/ci.yml)
+
+**▶ Live demo: <https://akhilabellam0108-ui.github.io/niveda/>** (runs in your browser, demo data only)
+
 Niveda is a privacy-first, patient-controlled **lifelong health record**. It brings a person's medical history — consultations, diagnoses, prescriptions, lab results, scans, surgeries, vaccinations and reports from every hospital and clinic they have ever visited — into one continuous timeline that follows them for life.
 
 The patient owns the record. Doctors can see it only when the patient grants access, only the parts the patient chooses, and only for as long as the patient allows. While they have access, doctors add new information **directly into the patient's existing record** rather than into a separate hospital system. Every entry carries who added it, from which hospital and when, and every view, addition and correction is written to an audit log the patient can read.
@@ -408,3 +412,9 @@ python3 tests/e2e_browser.py
 ---
 
 *Niveda is a prototype. It does not provide medical advice. All demo data is fictional.*
+
+---
+
+## Licence
+
+Copyright © 2026 Akhila Bellam. All rights reserved — see [LICENSE](LICENSE).
