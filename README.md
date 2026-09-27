@@ -135,14 +135,15 @@ Password for all demo accounts: **`demo1234`**. The login page also has one-clic
 
 **Getting started**
 - Landing page, sign-up (name, date of birth, email, phone, password, terms/privacy acknowledgement), log in by email or phone, forgot-password, and one-time-code verification.
-- **Compulsory six-step onboarding** — nobody reaches the dashboard with an empty record:
+- **Compulsory seven-step onboarding** — nobody reaches the dashboard with an empty record (the sign-up page says so up front):
   1. **Blood group** (with "Not sure" as an honest answer) and an optional photo
   2. **Emergency contact** — name, relationship and phone, all required
   3. **Allergies** — allergen, severity and reaction for each
   4. **Ongoing conditions**
   5. **Current medicines** — name, dose, how often, and **reminder times**
   6. **Past surgeries and hospital stays** — what, when and which hospital
-- For steps 3–6 the patient either adds entries or explicitly ticks "I have none". That confirmation is saved and shown to doctors ("No known allergies — confirmed by patient on …"), so an empty section is never ambiguous. The rules are enforced in the service layer, not just the form, and answers survive a page refresh.
+  7. **Medical documents** — at least one upload (lab report, prescription, scan, discharge summary or a photo of a paper record), each with its date and optionally linked to an entry from the earlier steps
+- Documents can't be skipped. For steps 3–6 the patient either adds entries or explicitly ticks "I have none". That confirmation is saved and shown to doctors ("No known allergies — confirmed by patient on …"), so an empty section is never ambiguous. The rules are enforced in the service layer, not just the form, and answers survive a page refresh.
 - The emergency contact can't be removed later — profile and emergency-card edits require one.
 
 **Home dashboard**
@@ -348,7 +349,7 @@ User    1 ── * Notification, Session
 
 **Service tests** — `npm test` (18 checks):
 
-- **Flow A — patient:** sign-up rejects a wrong code and accepts the right one → onboarding refuses missing blood group, missing emergency contact, unanswered sections and medicines without reminder times → a complete onboarding creates entries, declarations and reminders → today's doses can be marked taken → the calendar file contains repeating alarms → the emergency contact can't be removed → an added record appears in the list and its category → incomplete records are rejected.
+- **Flow A — patient:** sign-up rejects a wrong code and accepts the right one → onboarding refuses missing blood group, missing emergency contact, unanswered sections, medicines without reminder times and no uploaded document → a complete onboarding creates entries, declarations, reminders and a document linked to its surgery → today's doses can be marked taken → the calendar file contains repeating alarms → the emergency contact can't be removed → an added record appears in the list and its category → incomplete records are rejected.
 - **Flow B — access:** a doctor can't read the record before access and sees only a masked name → patient grants access with permissions, duration and a code → doctor can now read it.
 - **Flow C — doctor adds:** one consultation creates four linked entries with attribution and an attachment → a correction keeps version 1 and the original author → a lab result completes its order → the patient sees the new medicine, a notification and audit entries → the patient can't alter the doctor's entry or delete the doctor's document.
 - **Flow D — revoke:** after revocation the doctor can't list, open or write → sensitive categories stay hidden → access expires by itself when time runs out.

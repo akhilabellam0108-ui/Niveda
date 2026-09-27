@@ -67,12 +67,14 @@ await step('onboarding is compulsory', async () => {
   const base = {
     bloodGroup: 'O+', emergencyContact: { name: 'Sam', relationship: 'Friend', phone: '+91 90000 00000' },
     allergies: [], noAllergies: false, conditions: [], noConditions: true, medications: [], noMedications: true, history: [], noHistory: true,
+    documents: [{ file: { name: 'r.pdf', type: 'application/pdf', blob: new Blob(['x']), category: 'report' as const }, date: '2024-01-01' }],
   };
   for (const [bad, why] of [
     [{ ...base, noAllergies: false }, 'allergies unanswered'],
     [{ ...base, noAllergies: true, emergencyContact: { name: '', relationship: '', phone: '' } }, 'no emergency contact'],
     [{ ...base, noAllergies: true, bloodGroup: '' }, 'no blood group'],
     [{ ...base, noAllergies: true, noMedications: false, medications: [{ name: 'X', dosage: '1 mg', frequency: 'Twice daily', times: [] }] }, 'medicine without reminder times'],
+    [{ ...base, noAllergies: true, documents: [] }, 'no documents uploaded'],
   ] as const) {
     try { await patientService.completeOnboarding(bad as never); throw new Error(`accepted: ${why}`); }
     catch (e) { assert(e instanceof AppError && e.code === 'VALIDATION', `expected VALIDATION for ${why}`); }
@@ -85,7 +87,10 @@ await step('onboarding turns answers into records and reminders', async () => {
     conditions: [], noConditions: true,
     medications: [{ name: 'Cetirizine', dosage: '10 mg', frequency: 'Twice daily', times: ['07:30', '19:30'] }], noMedications: false,
     history: [{ kind: 'surgery', name: 'Tonsillectomy', date: '2010-06-01', hospital: 'City Hospital' }], noHistory: false,
+    documents: [{ file: { name: 'tonsil-discharge.pdf', type: 'application/pdf', blob: new Blob(['%PDF-1.4 test'], { type: 'application/pdf' }), category: 'discharge' }, date: '2010-06-03', linkTo: 'history:0' }],
   });
+  const docs = await documentService.list();
+  assert(docs.length === 1 && docs[0].recordLabel?.includes('Tonsillectomy'), 'document uploaded and linked to the surgery');
   const me = await patientService.me();
   newPatientCode = me.patientCode;
   newPatientId = me.id;

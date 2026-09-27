@@ -4,6 +4,7 @@ import { nowISO, todayISO } from '../lib/dates';
 import { isSevereAllergy, ALLERGY_SEVERITY_RANK } from '../lib/recordMeta';
 import { AppError, audit, recentlyLogged, requireCtx, requireGrant } from './core';
 import { isMedicationActive, recordService } from './recordService';
+import { documentService, validateFile, type NewFile } from './documentService';
 
 export interface HealthSummary {
   patient: Patient;
@@ -29,6 +30,11 @@ export interface OnboardingInput {
   /** Past surgeries and hospital stays. */
   history: { kind: 'surgery' | 'hospitalization'; name: string; date: string; hospital: string }[];
   noHistory: boolean;
+  /**
+   * Required: at least one existing medical document (report, prescription, scan,
+   * discharge summary…). `linkTo` points at an entry from the earlier steps, e.g. "history:0".
+   */
+  documents: { file: NewFile; date: string; linkTo?: string }[];
   importantNotes?: string;
 }
 
@@ -53,7 +59,9 @@ export function validateOnboarding(i: OnboardingInput): string | undefined {
     ?? (i.medications.some((m) => !m.name.trim() || !m.dosage.trim() || !m.frequency) ? 'Each medicine needs the name, dose and how often you take it.' : undefined)
     ?? (i.medications.some((m) => m.frequency !== 'As needed' && !m.times.length) ? 'Set at least one reminder time for each regular medicine.' : undefined)
     ?? section(i.history, i.noHistory, 'past surgeries or hospital stays')
-    ?? (i.history.some((h) => !h.name.trim() || !h.date || !h.hospital.trim()) ? 'Each surgery or hospital stay needs what it was, the date and the hospital.' : undefined);
+    ?? (i.history.some((h) => !h.name.trim() || !h.date || !h.hospital.trim()) ? 'Each surgery or hospital stay needs what it was, the date and the hospital.' : undefined)
+    ?? (!i.documents?.length ? 'Upload at least one medical document — a lab report, prescription, scan or discharge summary.' : undefined)
+    ?? (i.documents.some((d) => !d.date) ? 'Add the date on each uploaded document.' : undefined);
 }
 
 export function summarise(patient: Patient, records: MedicalRecord[]): Omit<HealthSummary, 'counts'> {
@@ -121,12 +129,17 @@ export const patientService = {
     if (problem) throw new AppError('VALIDATION', problem);
     const today = todayISO();
     const add = (type: MedicalRecord['type'], data: RecordData, date = today, reminderTimes?: string[]) => recordService.create({ type, date, data, reminderTimes });
-    for (const a of input.allergies) await add('allergy', { ...a, notes: 'Added during account setup' });
-    for (const c of input.conditions) await add('diagnosis', { condition: c.condition, status: 'Active', notes: 'Added during account setup' }, c.since || today);
-    for (const m of input.medications) await add('medication', { name: m.name, dosage: m.dosage, frequency: m.frequency }, today, m.times);
-    for (const h of input.history) {
-      if (h.kind === 'surgery') await add('surgery', { procedure: h.name, facility: h.hospital }, h.date);
-      else await add('hospitalization', { reason: h.name, facility: h.hospital }, h.date);
+    for (const d of input.documents) validateFile({ name: d.file.name, type: d.file.type, size: d.file.blob.size });
+    const ids: Record<string, string> = {};
+    for (const [i, a] of input.allergies.entries()) ids[`allergy:${i}`] = (await add('allergy', { ...a, notes: 'Added during account setup' })).id;
+    for (const [i, c] of input.conditions.entries()) ids[`condition:${i}`] = (await add('diagnosis', { condition: c.condition, status: 'Active', notes: 'Added during account setup' }, c.since || today)).id;
+    for (const [i, m] of input.medications.entries()) ids[`medication:${i}`] = (await add('medication', { name: m.name, dosage: m.dosage, frequency: m.frequency }, today, m.times)).id;
+    for (const [i, h] of input.history.entries()) {
+      const r = h.kind === 'surgery' ? await add('surgery', { procedure: h.name, facility: h.hospital }, h.date) : await add('hospitalization', { reason: h.name, facility: h.hospital }, h.date);
+      ids[`history:${i}`] = r.id;
+    }
+    for (const d of input.documents) {
+      await documentService.upload({ file: d.file, date: d.date, recordId: d.linkTo ? ids[d.linkTo] : undefined });
     }
     await mutate((db) => {
       const p = db.patients.find((x) => x.id === ctx.patient!.id)!;

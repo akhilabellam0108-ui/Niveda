@@ -12,6 +12,7 @@ import { todayISO } from '../../lib/dates';
 import { Avatar, Button, Field, InlineError, Input, Select, Textarea } from '../../components/ui';
 import { Brand } from '../../components/ui/Logo';
 import { TimesEditor } from '../../components/medications/TimesEditor';
+import { FilePicker } from '../../components/records/RecordForm';
 
 export const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 const SEVERITIES = ['Mild', 'Moderate', 'Severe', 'Life-threatening'];
@@ -24,6 +25,7 @@ const STEPS = [
   { title: 'Ongoing conditions', intro: 'Long-term or current conditions, such as asthma, diabetes or high blood pressure.' },
   { title: 'Current medicines', intro: 'Everything you take now. We’ll remind you when each dose is due — on this device and, if you add them to your calendar, on your phone and smartwatch.' },
   { title: 'Surgeries & hospital stays', intro: 'Operations and times you were admitted to hospital, so your history is complete from day one.' },
+  { title: 'Upload medical documents', intro: 'Upload the records you already have — lab reports, prescriptions, scans, discharge summaries. At least one is required. Link each to an entry from the earlier steps so it sits in the right place in your timeline.' },
 ];
 
 export function readImage(file: File, max = 320): Promise<string> {
@@ -47,7 +49,7 @@ export function readImage(file: File, max = 320): Promise<string> {
 const empty = (): OnboardingInput => ({
   bloodGroup: '', emergencyContact: { name: '', relationship: '', phone: '' },
   allergies: [], noAllergies: false, conditions: [], noConditions: false,
-  medications: [], noMedications: false, history: [], noHistory: false, importantNotes: '',
+  medications: [], noMedications: false, history: [], noHistory: false, documents: [], importantNotes: '',
 });
 
 /** Checks just the fields on one step, so people see problems before moving on. */
@@ -55,7 +57,7 @@ function stepProblem(step: number, d: OnboardingInput): string | undefined {
   const all = validateOnboarding(d);
   if (!all) return undefined;
   const belongs = [
-    /blood group/i, /emergency contact/i, /allerg/i, /condition/i, /medicine|reminder time/i, /surger|hospital/i,
+    /blood group/i, /emergency contact/i, /allerg/i, /condition/i, /medicine|reminder time/i, /surger|hospital stay/i, /document/i,
   ];
   // Report the first problem only if it belongs to this step or an earlier one.
   const at = belongs.findIndex((re) => re.test(all));
@@ -70,14 +72,14 @@ export function OnboardingPage() {
   const draftKey = `niveda.onboarding.${user?.id}`;
   const [step, setStep] = useState(0);
   const [data, setData] = useState<OnboardingInput>(() => {
-    try { return { ...empty(), ...JSON.parse(perTab.get(draftKey) ?? '{}') }; } catch { return empty(); }
+    try { return { ...empty(), ...JSON.parse(perTab.get(draftKey) ?? '{}'), documents: [] }; } catch { return empty(); }
   });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string>();
   const set = (p: Partial<OnboardingInput>) => { setErr(undefined); setData((d) => ({ ...d, ...p })); };
 
-  // Keep a draft in this tab so a refresh doesn't lose answers (photo excluded to stay small).
-  useEffect(() => { const { photoDataUrl: _p, ...rest } = data; perTab.set(draftKey, JSON.stringify(rest)); }, [data, draftKey]);
+  // Keep a draft in this tab so a refresh doesn't lose answers (photo and files excluded to stay small).
+  useEffect(() => { const { photoDataUrl: _p, documents: _d, ...rest } = data; perTab.set(draftKey, JSON.stringify(rest)); }, [data, draftKey]);
 
   const next = async () => {
     const problem = stepProblem(step, data);
@@ -202,7 +204,25 @@ export function OnboardingPage() {
               <Field label="Anything else doctors should know?" help="Optional. Shown on your emergency card, e.g. pacemaker, pregnancy, carries an inhaler.">
                 {(p) => <Textarea {...p} rows={3} value={data.importantNotes ?? ''} onChange={(e) => set({ importantNotes: e.target.value })} />}
               </Field>
-              <div className="alert alert-accent"><ShieldCheck aria-hidden /><div>You can add reports and older records later from your dashboard. Only doctors you grant access to will see any of this.</div></div>
+            </>
+          )}
+          {step === 6 && (
+            <>
+              <FilePicker files={data.documents.map((d) => d.file)} label="Upload reports, prescriptions or scans"
+                onChange={(files) => set({ documents: files.map((f, i) => ({ date: '', linkTo: '', ...(data.documents.find((d) => d.file === f) ?? (files.length === data.documents.length ? data.documents[i] : undefined)), file: f })) })} />
+              {data.documents.length > 0 && (
+                <div className="stack" style={{ '--gap': '10px' } as React.CSSProperties}>
+                  {data.documents.map((d, i) => (
+                    <div key={i} className="inset form-grid">
+                      <div className="wide small strong truncate">{d.file.name}</div>
+                      <Field label="Date on the document" required>{(p) => <Input {...p} type="date" max={todayISO()} value={d.date} onChange={(e) => set({ documents: data.documents.map((x, j) => (j === i ? { ...x, date: e.target.value } : x)) })} />}</Field>
+                      <Field label="Relates to">{(p) => <Select {...p} value={d.linkTo ?? ''} placeholder="General record" options={linkOptions(data)} onChange={(e) => set({ documents: data.documents.map((x, j) => (j === i ? { ...x, linkTo: e.target.value } : x)) })} />}</Field>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {data.documents.length === 0 && <div className="row xs subtle" style={{ '--gap': '6px' } as React.CSSProperties}><Info size={13} aria-hidden />Required: upload at least one document. A photo of a paper report works too.</div>}
+              <div className="alert alert-accent"><ShieldCheck aria-hidden /><div>Your documents stay private. Only doctors you grant access to can open them, and every time they do it’s logged.</div></div>
             </>
           )}
         </div>
@@ -245,4 +265,13 @@ function Rows<T>({ items, empty, onChange, render, addLabel }: { items: T[]; emp
       <Button icon={Plus} onClick={() => onChange([...items, { ...empty }])} style={{ alignSelf: 'flex-start' }}>{addLabel}</Button>
     </div>
   );
+}
+
+function linkOptions(d: OnboardingInput) {
+  return [
+    ...d.allergies.map((a, i) => ({ value: `allergy:${i}`, label: `Allergy: ${a.allergen}` })),
+    ...d.conditions.map((c, i) => ({ value: `condition:${i}`, label: `Condition: ${c.condition}` })),
+    ...d.medications.map((m, i) => ({ value: `medication:${i}`, label: `Medicine: ${m.name}` })),
+    ...d.history.map((h, i) => ({ value: `history:${i}`, label: `${h.kind === 'surgery' ? 'Surgery' : 'Hospital stay'}: ${h.name}` })),
+  ].filter((o) => !o.label.endsWith(': '));
 }
