@@ -173,7 +173,7 @@ with sync_playwright() as p:
     shot(pt, "record-drawer")
     pt.get_by_role("button", name="Close panel").click()
     pt.goto(BASE + "#/app/medications")
-    expect(pt.get_by_role("button", name="Azithromycin")).to_be_visible()
+    expect(pt.get_by_role("button", name="Azithromycin", exact=True)).to_be_visible()
     expect(pt.get_by_role("region", name="Today’s doses")).to_be_visible()
     shot(pt, "medications-reminders")
     log("medication list updated with reminders")
