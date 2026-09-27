@@ -208,3 +208,30 @@
   .tl-sub .sub-row > span.subtle { min-width: 0 !important; flex: none; font-size: 12px; }
 }
 
+
+/* Medicine reminders */
+.times-editor { border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.times-editor legend { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; padding: 0; }
+.time-chip { display: inline-flex; align-items: center; gap: 2px; padding: 2px 4px 2px 8px; border: 1px solid var(--border-strong); border-radius: var(--r-md); background: var(--surface); }
+.time-chip input { border: 0; background: transparent; font: inherit; font-variant-numeric: tabular-nums; padding: 5px 2px; color: var(--text); min-width: 0; }
+.time-chip input:focus { outline: none; }
+.time-chip:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.time-chip button { border: 0; background: none; color: var(--text-3); cursor: pointer; display: grid; place-items: center; padding: 4px; border-radius: 6px; }
+.time-chip button:hover { background: var(--surface-2); color: var(--text); }
+.none-check { display: flex; gap: 10px; align-items: center; padding: 12px 14px; border: 1px dashed var(--border-strong); border-radius: var(--r-md); background: var(--surface-2); cursor: pointer; font-size: var(--t-sm); font-weight: 550; }
+.none-check input { width: 18px; height: 18px; accent-color: var(--accent); }
+.none-check.on { border-style: solid; border-color: var(--accent); background: var(--accent-soft); }
+.dose-row { display: flex; align-items: center; gap: var(--s3); padding: 12px var(--s5); min-height: 60px; }
+.dose-row + .dose-row { border-top: 1px solid var(--border); }
+.dose-time { width: 70px; flex: none; font-variant-numeric: tabular-nums; font-weight: 600; font-size: var(--t-sm); }
+.dose-row.due { background: color-mix(in srgb, var(--warn-soft) 70%, transparent); }
+.dose-row.missed .dose-time { color: var(--danger); }
+.dose-row.done .dose-name { color: var(--text-3); text-decoration: line-through; text-decoration-thickness: 1px; }
+.alarm-ring { width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; background: var(--warn-soft); color: var(--warn); margin: 0 auto 4px; animation: ring 1.2s ease-in-out infinite; }
+.alarm-ring svg { width: 28px; height: 28px; }
+@keyframes ring { 0%, 100% { transform: rotate(0); } 10%, 30% { transform: rotate(-12deg); } 20%, 40% { transform: rotate(12deg); } 50% { transform: rotate(0); } }
+@media (prefers-reduced-motion: reduce) { .alarm-ring { animation: none; } }
+.adherence { display: flex; align-items: center; gap: 8px; font-size: var(--t-xs); color: var(--text-2); }
+.adherence .bar { width: 64px; height: 5px; border-radius: 3px; background: var(--surface-3); overflow: hidden; }
+.adherence .bar > div { height: 100%; background: var(--ok); }
+.adherence.low .bar > div { background: var(--warn); }

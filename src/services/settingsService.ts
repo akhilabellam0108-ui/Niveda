@@ -3,7 +3,7 @@ import { getDb, mutate } from '../mock/db';
 import { requireCtx } from './core';
 
 
-export const DEFAULT_PREFS: Preferences = { theme: 'system', language: 'en', notifyRecords: true, notifyAccess: true, notifyReminders: true };
+export const DEFAULT_PREFS: Preferences = { theme: 'system', language: 'en', medAlarms: true, medAlarmSound: true, notifyRecords: true, notifyAccess: true, notifyReminders: true };
 
 export const settingsService = {
   async get(): Promise<Preferences> {

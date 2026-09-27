@@ -60,7 +60,7 @@ export function EmergencyPage() {
             )}
             <div className="emergency-section">
               <h3><TriangleAlert size={12} aria-hidden /> Allergies</h3>
-              {e.allergies.length ? <div className="allergy-strip">{e.allergies.map((a) => <span key={a.id} className={`allergy-pill ${isSevereAllergy(a) ? 'severe' : ''}`}>{String(a.data.allergen)}<span className="reaction">· {String(a.data.reaction)}</span></span>)}</div> : <p className="small">No known allergies</p>}
+              {e.allergies.length ? <div className="allergy-strip">{e.allergies.map((a) => <span key={a.id} className={`allergy-pill ${isSevereAllergy(a) ? 'severe' : ''}`}>{String(a.data.allergen)}<span className="reaction">· {String(a.data.reaction)}</span></span>)}</div> : <p className="small">{patient.declarations?.noAllergies ? `No known allergies (confirmed ${fmtDate(patient.declarations.confirmedAt)})` : 'None recorded'}</p>}
             </div>
             <div className="emergency-section">
               <h3><Activity size={12} aria-hidden /> Conditions</h3>
@@ -135,7 +135,7 @@ function EditEmergency({ open, onClose }: { open: boolean; onClose: () => void }
       footer={<><Button onClick={onClose} disabled={busy}>Cancel</Button><Button variant="primary" loading={busy} onClick={async () => {
         setBusy(true);
         try {
-          await patientService.updateProfile({ bloodGroup: blood || undefined, emergencyContact: c.name ? c : undefined, importantNotes: notes.trim() || undefined });
+          await patientService.updateProfile({ bloodGroup: blood || undefined, emergencyContact: c, importantNotes: notes.trim() || undefined });
           toast('Emergency details saved');
           onClose();
         } catch (x) { setErr(friendlyError(x)); } finally { setBusy(false); }
@@ -143,9 +143,9 @@ function EditEmergency({ open, onClose }: { open: boolean; onClose: () => void }
       <div className="stack">
         <Field label="Blood group">{(p) => <Select {...p} value={blood} onChange={(e) => setBlood(e.target.value)} options={BLOOD_GROUPS} placeholder="Unknown" />}</Field>
         <div className="form-grid">
-          <Field label="Emergency contact" className="wide">{(p) => <Input {...p} value={c.name} onChange={(e) => setC({ ...c, name: e.target.value })} />}</Field>
-          <Field label="Relationship">{(p) => <Input {...p} value={c.relationship} onChange={(e) => setC({ ...c, relationship: e.target.value })} />}</Field>
-          <Field label="Phone">{(p) => <Input {...p} type="tel" value={c.phone} onChange={(e) => setC({ ...c, phone: e.target.value })} />}</Field>
+          <Field label="Emergency contact" required className="wide">{(p) => <Input {...p} value={c.name} onChange={(e) => setC({ ...c, name: e.target.value })} />}</Field>
+          <Field label="Relationship" required>{(p) => <Input {...p} value={c.relationship} onChange={(e) => setC({ ...c, relationship: e.target.value })} />}</Field>
+          <Field label="Phone" required>{(p) => <Input {...p} type="tel" value={c.phone} onChange={(e) => setC({ ...c, phone: e.target.value })} />}</Field>
         </div>
         <Field label="Important medical warnings" help="e.g. carries an inhaler, pacemaker, pregnant">{(p) => <Textarea {...p} rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />}</Field>
         <InlineError message={err} />

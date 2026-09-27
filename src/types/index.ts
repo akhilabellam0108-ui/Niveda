@@ -39,7 +39,17 @@ export interface Patient {
   emergencyContact?: EmergencyContact;
   importantNotes?: string;
   emergencyCardEnabled: boolean;
+  /** Things the patient explicitly confirmed they don't have (so "nothing recorded" isn't ambiguous). */
+  declarations?: HealthDeclarations;
   createdAt: ISODateTime;
+}
+
+export interface HealthDeclarations {
+  noAllergies?: boolean;
+  noConditions?: boolean;
+  noMedications?: boolean;
+  noSurgeries?: boolean;
+  confirmedAt: ISODateTime;
 }
 
 export interface Hospital {
@@ -258,9 +268,31 @@ export interface Session {
   current?: boolean;
 }
 
+/** The patient's reminder schedule for one medication. Kept apart from the clinical record so
+ * patients can change times without amending a doctor's prescription. */
+export interface MedicationReminder {
+  recordId: ID;
+  patientId: ID;
+  times: string[]; // "HH:MM", 24-hour, local time
+  enabled: boolean;
+  updatedAt: ISODateTime;
+}
+
+export interface DoseLog {
+  id: ID;
+  patientId: ID;
+  recordId: ID;
+  date: ISODate;
+  time: string; // scheduled "HH:MM"
+  status: 'taken' | 'skipped';
+  loggedAt: ISODateTime;
+}
+
 export interface Preferences {
   theme: 'system' | 'light' | 'dark';
   language: 'en';
+  medAlarms: boolean;
+  medAlarmSound: boolean;
   notifyRecords: boolean;
   notifyAccess: boolean;
   notifyReminders: boolean;
@@ -282,4 +314,6 @@ export interface Database {
   notifications: Notification[];
   sessions: Session[];
   preferences: Record<ID, Preferences>;
+  reminders: MedicationReminder[];
+  doseLogs: DoseLog[];
 }

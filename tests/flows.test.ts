@@ -6,7 +6,7 @@ import { latency } from '../src/mock/db';
 import { advanceClock, todayISO } from '../src/lib/dates';
 import {
   accessService, auditService, authService, documentService, notificationService,
-  patientService, recordService, AppError,
+  patientService, recordService, medicationService, AppError,
 } from '../src/services';
 import { DEMO_PASSWORD } from '../src/mock/seed';
 import { DEFAULT_PERMISSIONS } from '../src/lib/recordMeta';
@@ -37,6 +37,10 @@ async function expectDenied(fn: () => Promise<unknown>, msg: string) {
   }
   throw new Error(`${msg}: expected access to be denied`);
 }
+async function expectRejectsValidation(fn: () => Promise<unknown>, msg: string) {
+  try { await fn(); } catch (e) { if (e instanceof AppError && e.code === 'VALIDATION') return; throw new Error(`${msg}: wrong error`); }
+  throw new Error(`${msg}: expected rejection`);
+}
 async function login(email: string) {
   const c = await authService.startLogin(email, DEMO_PASSWORD);
   await authService.completeLogin(c.id, c.prototypeCode);
@@ -59,17 +63,46 @@ await step('sign-up requires a valid OTP', async () => {
   const u = await authService.completeSignUp(c.id, c.prototypeCode);
   assert(u.role === 'patient' && !u.onboarded, 'new user should need onboarding');
 });
-await step('onboarding turns answers into records', async () => {
+await step('onboarding is compulsory', async () => {
+  const base = {
+    bloodGroup: 'O+', emergencyContact: { name: 'Sam', relationship: 'Friend', phone: '+91 90000 00000' },
+    allergies: [], noAllergies: false, conditions: [], noConditions: true, medications: [], noMedications: true, history: [], noHistory: true,
+  };
+  for (const [bad, why] of [
+    [{ ...base, noAllergies: false }, 'allergies unanswered'],
+    [{ ...base, noAllergies: true, emergencyContact: { name: '', relationship: '', phone: '' } }, 'no emergency contact'],
+    [{ ...base, noAllergies: true, bloodGroup: '' }, 'no blood group'],
+    [{ ...base, noAllergies: true, noMedications: false, medications: [{ name: 'X', dosage: '1 mg', frequency: 'Twice daily', times: [] }] }, 'medicine without reminder times'],
+  ] as const) {
+    try { await patientService.completeOnboarding(bad as never); throw new Error(`accepted: ${why}`); }
+    catch (e) { assert(e instanceof AppError && e.code === 'VALIDATION', `expected VALIDATION for ${why}`); }
+  }
+});
+await step('onboarding turns answers into records and reminders', async () => {
   await patientService.completeOnboarding({
     bloodGroup: 'O+', emergencyContact: { name: 'Sam', relationship: 'Friend', phone: '+91 90000 00000' },
-    allergies: [{ allergen: 'Peanuts', severity: 'Severe', reaction: 'Swelling' }], conditions: [], medications: [{ name: 'Cetirizine', dosage: '10 mg', frequency: 'As needed' }], surgeries: [],
+    allergies: [{ allergen: 'Peanuts', severity: 'Severe', reaction: 'Swelling' }], noAllergies: false,
+    conditions: [], noConditions: true,
+    medications: [{ name: 'Cetirizine', dosage: '10 mg', frequency: 'Twice daily', times: ['07:30', '19:30'] }], noMedications: false,
+    history: [{ kind: 'surgery', name: 'Tonsillectomy', date: '2010-06-01', hospital: 'City Hospital' }], noHistory: false,
   });
   const me = await patientService.me();
   newPatientCode = me.patientCode;
   newPatientId = me.id;
   const s = await patientService.summary();
   assert(s.allergies.length === 1 && s.activeMedications.length === 1, 'allergy + medication should exist');
-  assert(me.bloodGroup === 'O+', 'blood group saved');
+  assert(me.bloodGroup === 'O+' && me.emergencyContact?.name === 'Sam', 'blood group and contact saved');
+  assert(me.declarations?.noConditions === true, 'declaration saved');
+  const sched = await medicationService.schedules();
+  assert(sched[0].reminder.times.join(',') === '07:30,19:30', 'reminder times saved');
+  const today = await medicationService.today();
+  assert(today.length === 2, 'two doses today');
+  await medicationService.logDose(today[0].recordId, today[0].date, today[0].time, 'taken');
+  assert((await medicationService.today())[0].status === 'taken', 'dose logged');
+  const cal = await medicationService.calendarFile();
+  const text = await cal.blob.text();
+  assert(text.includes('BEGIN:VALARM') && text.includes('RRULE:FREQ=DAILY') && cal.count === 2, 'calendar file has repeating alarms');
+  await expectRejectsValidation(() => patientService.updateProfile({ emergencyContact: undefined }), 'removing emergency contact');
 });
 await step('added record appears in timeline and its category', async () => {
   await recordService.create({ type: 'vaccination', date: '2026-01-10', data: { vaccine: 'Hepatitis B', dose: 'Dose 1' } });
@@ -151,6 +184,8 @@ await step('patient sees the entries, medication list and a notification', async
   await authService.startLogin(newPatient.email, newPatient.password).then((c) => authService.completeLogin(c.id, c.prototypeCode));
   const s = await patientService.summary();
   assert(s.activeMedications.some((m) => m.data.name === 'Azithromycin'), 'prescription in active meds');
+  const azi = (await medicationService.schedules()).find((x) => x.record.data.name === 'Azithromycin')!;
+  assert(azi.reminder.enabled && azi.reminder.times.join(',') === '08:00', 'doctor prescription gets a default reminder');
   const notes = await notificationService.list();
   assert(notes.some((n) => n.body.includes('Dr. Priya Sharma added a consultation')), 'notification sent');
   const log = await auditService.forPatient();

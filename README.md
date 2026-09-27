@@ -108,12 +108,13 @@ Password for all demo accounts: **`demo1234`**. The login page also has one-clic
 
 | Who | Email | Good for |
 |---|---|---|
-| **Meera Iyer** (patient) | `meera@example.com` | A 9-year history (2018–2026), a pending access request, and active, expired and revoked doctors |
+| **Meera Iyer** (patient) | `meera@example.com` | A 9-year history (2018–2026), daily medicine reminders with a week of dose history, a pending access request, and active, expired and revoked doctors |
 | **Dr. Priya Sharma** (general physician) | `priya.sharma@lakeview.example` | Has access to Meera and Rohan — try adding a consultation |
 | **Dr. Arvind Rao** (cardiologist) | `arvind.rao@lakeview.example` | Waiting for Meera to approve his request |
 
 - **One-time codes** appear on screen in a yellow "Prototype" box with a *Fill in* button — no SMS is sent.
 - **Doctor access code** for granting access: `PS-4821` (Dr. Priya Sharma).
+- **Sign up as a new patient** to see the compulsory onboarding.
 - **Patient IDs**: `NV-4821-7730` (Meera), `NV-9264-1183` (Fatima — no doctor has access, useful to test that nothing leaks).
 
 **Best way to see it working:** open two browser tabs. Sign in as Meera in one and Dr. Priya in the other. Sessions are per tab and changes appear in the other tab live — grant access, add a consultation, revoke, and watch both sides update.
@@ -122,10 +123,11 @@ Password for all demo accounts: **`demo1234`**. The login page also has one-clic
 
 1. As **Meera**, open *Timeline* — nine years of history, with visits grouped with their diagnoses, prescriptions and lab results.
 2. Go to *Doctors & access → Requests* and approve Dr. Arvind Rao with fewer permissions than he asked for.
-3. As **Dr. Priya**, open Meera → *Add to medical record*. Enter a visit with a diagnosis, a prescription, a lab order and a PDF attachment. Save.
-4. Back as **Meera**: the visit is in the timeline, the medicine is in *Medications*, there's a notification, and the *Access log* shows exactly what happened.
-5. As **Dr. Priya**, open the diagnosis and *Correct this entry*. See the old and new versions side by side.
-6. As **Meera**, revoke Dr. Priya's access. Her tab immediately shows "You don't have access to this record".
+3. On *Medications*, see today's doses, adherence and reminder times; try *Phone & smartwatch*.
+4. As **Dr. Priya**, open Meera → *Add to medical record*. Enter a visit with a diagnosis, a prescription, a lab order and a PDF attachment. Save.
+5. Back as **Meera**: the visit is in the timeline, the medicine is in *Medications* with a reminder already set, there's a notification, and the *Access log* shows exactly what happened.
+6. As **Dr. Priya**, open the diagnosis and *Correct this entry*. See the old and new versions side by side.
+7. As **Meera**, revoke Dr. Priya's access. Her tab immediately shows "You don't have access to this record".
 
 ---
 
@@ -133,7 +135,15 @@ Password for all demo accounts: **`demo1234`**. The login page also has one-clic
 
 **Getting started**
 - Landing page, sign-up (name, date of birth, email, phone, password, terms/privacy acknowledgement), log in by email or phone, forgot-password, and one-time-code verification.
-- Optional five-step onboarding — photo, blood group, emergency contact, allergies, conditions, current medicines, past surgeries, important notes. Every step can be skipped. Answers become real entries in the timeline.
+- **Compulsory six-step onboarding** — nobody reaches the dashboard with an empty record:
+  1. **Blood group** (with "Not sure" as an honest answer) and an optional photo
+  2. **Emergency contact** — name, relationship and phone, all required
+  3. **Allergies** — allergen, severity and reaction for each
+  4. **Ongoing conditions**
+  5. **Current medicines** — name, dose, how often, and **reminder times**
+  6. **Past surgeries and hospital stays** — what, when and which hospital
+- For steps 3–6 the patient either adds entries or explicitly ticks "I have none". That confirmation is saved and shown to doctors ("No known allergies — confirmed by patient on …"), so an empty section is never ambiguous. The rules are enforced in the service layer, not just the form, and answers survive a page refresh.
+- The emergency contact can't be removed later — profile and emergency-card edits require one.
 
 **Home dashboard**
 - Name, photo, age, blood group, patient ID, and a one-tap *Emergency info* button.
@@ -160,13 +170,21 @@ Password for all demo accounts: **`demo1234`**. The login page also has one-clic
 - In-app preview for PDFs and images, download, re-link, delete (with confirmation). Documents added by a doctor stay locked to their entry.
 - Demo documents are real generated PDFs you can open and download.
 
+**Medicine reminders**
+- Every regular medicine gets a reminder schedule automatically — from onboarding, from the patient's own entries, and from **doctors' prescriptions** (default times come from the frequency: once daily 8:00 am, twice daily 8:00 am and 8:00 pm, every night 9:00 pm, and so on). Patients can change the times or turn reminders off without altering the prescription.
+- **Today's doses** on the dashboard and Medications page: each dose shows as upcoming, due now, taken, skipped or missed, with one-tap *Taken* / *Skip* and undo.
+- **Alarm**: when a dose falls due while Niveda is open, it plays a chime, shows a system notification (after the patient allows notifications), and opens a reminder with *Taken*, *Skip* and *Snooze 10 min*.
+- **Adherence**: the share of doses taken over the last 7 days, per medicine.
+- **Phone and smartwatch**: *Phone & smartwatch* downloads a calendar file (.ics) with a repeating event and alarm for every dose. Imported into Google Calendar, Apple Calendar or Outlook, the phone rings at each dose — and a paired watch (Apple Watch, Wear OS, Galaxy Watch, Fitbit and most others) buzzes with it, even when Niveda is closed.
+- Settings → Notifications: turn alarms and sound on or off, allow notifications, and send a test reminder.
+
 **Medications** — current and previous lists, dose, frequency, reason, prescriber, start and end dates; stop a medicine with a reason (it moves to *Previous* and the timeline shows when it stopped); full change history.
 
 **Allergies** — allergen, reaction, severity, date identified, notes; severe and life-threatening allergies are highlighted everywhere, including for doctors.
 
 **Emergency profile** — blood group, important warnings, allergies, conditions, current medicines and emergency contact on one card; a QR code any phone camera can read (even offline) containing only what's on the card; a lock-screen preview; an on/off switch for emergency access.
 
-**Doctors & access** — active grants with permissions and a time-remaining bar; view access (with that doctor's activity on your record), change permissions (sharing *more* needs a one-time code), revoke; incoming requests to approve (optionally with fewer permissions or a shorter time) or decline; sent invitations; previous access with status and dates; your patient ID as a QR code.
+**Doctors & access** — active grants with permissions and a time-remaining bar; view access (with that doctor's activity on your record), change permissions (sharing *more* needs a one-time code), revoke; incoming requests to approve (optionally with fewer permissions or a shorter time) or decline; sent invitations; a permanent **access history** of every doctor who has ever had access — active, expired or revoked — with what they could see, for how long and the dates; your patient ID as a QR code. Grants are never deleted, so the history is complete.
 
 **Grant access** — four ways to find the doctor (scan their QR, type their access code, search the directory, or invite a doctor not yet on Niveda) → choose permissions → choose duration (1 hour, 24 hours, 3 days, 7 days or custom) → review → confirm with a one-time code.
 
@@ -264,6 +282,7 @@ src/
   types/index.ts           the domain model (maps to database tables)
   lib/
     recordMeta.ts          every record type: fields, permission, category, labels — drives all forms
+    reminders.ts           default dose times, today's schedule, adherence
     dates.ts, ids.ts, icons.ts
   services/                the API the UI uses — one module per backend service
     authService.ts         sign-up, log-in, OTP, sessions, password (MOCK — isolated for replacement)
@@ -273,6 +292,7 @@ src/
     patientService.ts      profile, dashboard summary, onboarding, emergency profile
     doctorService.ts       doctor profile, patient overview
     notificationService.ts, auditService.ts, settingsService.ts, exportService.ts, searchService.ts
+    medicationService.ts   reminder schedules, dose logging, adherence, calendar (.ics) export
     otpService.ts          prototype one-time codes
     core.ts                session context, access checks, audit + notification helpers, safe errors
   mock/                    the in-browser "backend": seed data, persistence, cross-tab sync, file store, PDF maker
@@ -283,6 +303,7 @@ src/
     records/               timeline, record card, record drawer, forms, add-record dialog
     access/                grant flow, permission and duration pickers, QR
     documents/             upload dialog, viewer
+    medications/           today's doses, alarm, reminder-time editor
     search/                global search palette
   pages/
     public/                landing, legal
@@ -303,7 +324,9 @@ tests/
 
 Defined in [`src/types/index.ts`](src/types/index.ts):
 
-`User` · `Patient` · `Doctor` · `Hospital` · `MedicalRecord` (with `RecordVersion` history) · `MedicalDocument` · `AccessGrant` · `AccessRequest` · `DoctorInvite` · `AuditLog` · `Notification` · `Session` · `Preferences`
+`User` · `Patient` (with `HealthDeclarations`) · `Doctor` · `Hospital` · `MedicalRecord` (with `RecordVersion` history) · `MedicalDocument` · `AccessGrant` · `AccessRequest` · `DoctorInvite` · `AuditLog` · `Notification` · `Session` · `Preferences` · `MedicationReminder` · `DoseLog`
+
+Reminder schedules (`MedicationReminder`) and dose history (`DoseLog`) are kept separately from the clinical record: the prescription belongs to the record and is only changed through amendments, while the times belong to the patient.
 
 Consultations, diagnoses, medications, allergies, surgeries, procedures, lab tests, lab results, imaging, vaccinations, hospitalisations, mental-health notes, family history, follow-ups and clinical notes are all `MedicalRecord`s with a `type` and type-specific `data`, described in [`src/lib/recordMeta.ts`](src/lib/recordMeta.ts). Adding a new record type means adding one entry there.
 
@@ -315,6 +338,7 @@ Doctor  1 ── * MedicalRecord (createdBy)
 Patient 1 ── * AccessGrant * ── 1 Doctor     (permissions, grantedAt, expiresAt, status, verification)
 Patient 1 ── * AccessRequest * ── 1 Doctor
 Patient 1 ── * AuditLog                      (actor, action, target, timestamp, metadata)
+MedicalRecord (medication) 1 ── 1 MedicationReminder (times, enabled) ── * DoseLog (date, time, taken/skipped)
 User    1 ── * Notification, Session
 ```
 
@@ -322,9 +346,9 @@ User    1 ── * Notification, Session
 
 ## Testing
 
-**Service tests** — `npm test` (17 checks):
+**Service tests** — `npm test` (18 checks):
 
-- **Flow A — patient:** sign-up rejects a wrong code and accepts the right one → onboarding creates allergy and medication entries → an added record appears in the list and its category → incomplete records are rejected.
+- **Flow A — patient:** sign-up rejects a wrong code and accepts the right one → onboarding refuses missing blood group, missing emergency contact, unanswered sections and medicines without reminder times → a complete onboarding creates entries, declarations and reminders → today's doses can be marked taken → the calendar file contains repeating alarms → the emergency contact can't be removed → an added record appears in the list and its category → incomplete records are rejected.
 - **Flow B — access:** a doctor can't read the record before access and sees only a masked name → patient grants access with permissions, duration and a code → doctor can now read it.
 - **Flow C — doctor adds:** one consultation creates four linked entries with attribution and an attachment → a correction keeps version 1 and the original author → a lab result completes its order → the patient sees the new medicine, a notification and audit entries → the patient can't alter the doctor's entry or delete the doctor's document.
 - **Flow D — revoke:** after revocation the doctor can't list, open or write → sensitive categories stay hidden → access expires by itself when time runs out.
@@ -350,6 +374,8 @@ python3 tests/e2e_browser.py
 | Doctor invitations | Recorded but not sent |
 | Camera QR scanning | Uses the browser's BarcodeDetector where available; otherwise type the code |
 | Emergency lock-screen widget | Visual preview; needs a native app |
+| Medicine alarms | Ring only while Niveda is open in a browser tab; for alarms when it's closed, use the calendar export (phone and watch) |
+| Smartwatch | Through the phone's calendar (.ics). No direct watch app or Apple Health / Google Fit / Health Connect connection |
 | Export | Built in the browser; lists documents but doesn't bundle the files |
 | Access expiry | Checked whenever data is read, not by a background job |
 | Close account | Disabled |
@@ -366,7 +392,8 @@ python3 tests/e2e_browser.py
 8. **Compliance** — India's Digital Personal Data Protection Act 2023, ABDM / ABHA integration and consent artefacts, and HIPAA / GDPR where relevant; retention and deletion policies; security audits and penetration testing.
 9. **Interoperability** — FHIR R4 import and export; integrations with labs and hospital systems.
 10. **Operations** — background jobs for expiry and reminders, monitoring and alerting, backups and disaster recovery, rate limiting.
-11. **Mobile app** — for push notifications, the lock-screen emergency card and offline access.
+11. **Mobile app** — for push notifications, the lock-screen emergency card, offline access, and **medicine alarms that ring when the app is closed**.
+12. **Smartwatch integration** — a companion watch app (watchOS / Wear OS) and Apple HealthKit / Google Health Connect so doses can be marked taken from the wrist and schedules stay in sync automatically.
 
 ## Roadmap ideas
 

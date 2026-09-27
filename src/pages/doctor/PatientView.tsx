@@ -91,11 +91,11 @@ export function PatientView() {
 
       {tab === 'overview' && (
         <div className="grid-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}>
-          <SummaryCard title="Allergies" icon={TriangleAlert} tone="tone-danger" empty={g.permissions.includes('allergies') ? 'No known allergies' : 'Not shared with you'}
+          <SummaryCard title="Allergies" icon={TriangleAlert} tone="tone-danger" empty={g.permissions.includes('allergies') ? (o.patient.declarations?.noAllergies ? `No known allergies — confirmed by patient ${fmtDate(o.patient.declarations.confirmedAt)}` : 'None recorded') : 'Not shared with you'}
             items={o.allergies.map((a) => ({ id: a.id, main: String(a.data.allergen), sub: `${a.data.reaction} · ${a.data.severity}`, danger: isSevereAllergy(a) }))} onOpen={open} />
-          <SummaryCard title="Important conditions" icon={Activity} tone="tone-violet" empty={g.permissions.includes('history') ? 'None recorded' : 'Not shared with you'}
+          <SummaryCard title="Important conditions" icon={Activity} tone="tone-violet" empty={g.permissions.includes('history') ? (o.patient.declarations?.noConditions ? 'No ongoing conditions — confirmed by patient' : 'None recorded') : 'Not shared with you'}
             items={o.conditions.map((c) => ({ id: c.id, main: String(c.data.condition), sub: `${c.data.status} · since ${fmtDate(c.date)}` }))} onOpen={open} />
-          <SummaryCard title="Current medications" icon={Pill} tone="tone-info" empty={g.permissions.includes('medications') ? 'None' : 'Not shared with you'}
+          <SummaryCard title="Current medications" icon={Pill} tone="tone-info" empty={g.permissions.includes('medications') ? (o.patient.declarations?.noMedications ? 'Takes no regular medicines — confirmed by patient' : 'None') : 'Not shared with you'}
             items={o.activeMedications.map((m) => ({ id: m.id, main: `${m.data.name} ${m.data.dosage}`, sub: `${m.data.frequency}${m.data.prescriber ? ` · ${m.data.prescriber}` : ''}` }))} onOpen={open} />
           <Card title="Recent history" action={<button className="card-link btn btn-ghost btn-sm" onClick={() => setTab('timeline')}>Timeline</button>}>
             {!records.data ? <SkeletonList rows={3} card={false} /> : (

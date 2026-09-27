@@ -4,11 +4,13 @@
  * an expired and a revoked grant plus a pending request.
  */
 import type {
+  DoseLog, MedicationReminder,
   AccessGrant, AccessRequest, Actor, AuditLog, Database, Doctor, Hospital, MedicalDocument,
   MedicalRecord, Notification, Patient, PermissionKey, RecordData, RecordType, Session, User,
 } from '../types';
 import { DEFAULT_PERMISSIONS, cleanData, recordTitle } from '../lib/recordMeta';
-import { addHours } from '../lib/dates';
+import { addHours, addDays, toISODate } from '../lib/dates';
+import { defaultTimes } from '../lib/reminders';
 import { hashPassword } from '../lib/ids';
 
 export const DEMO_PASSWORD = 'demo1234';
@@ -101,6 +103,7 @@ export async function buildSeed(): Promise<Database> {
   rec('r_asthma', meera, 'diagnosis', '2020-05-10', { condition: 'Mild persistent asthma', status: 'Managed', severity: 'Mild', doctor: 'Dr. Kavya Menon', facility: 'Greenfield Chest Clinic', notes: 'Triggered by dust and cold air. Spirometry reversible.' }, kavya, { org: 'h_greenfield' });
   rec('r_med_salbutamol', meera, 'medication', '2020-05-10', { name: 'Salbutamol inhaler', dosage: '100 mcg, 2 puffs', frequency: 'As needed', prescriber: 'Dr. Kavya Menon', reason: 'Asthma — reliever', instructions: 'Use when wheezy or before exercise. Seek help if needed more than 3 times a week.' }, kavya, { org: 'h_greenfield', parentId: 'r_asthma' });
   rec('r_med_montelukast', meera, 'medication', '2020-05-10', { name: 'Montelukast', dosage: '10 mg', frequency: 'Every night', prescriber: 'Dr. Kavya Menon', reason: 'Asthma — preventer', instructions: 'Take at bedtime.' }, kavya, { org: 'h_greenfield', parentId: 'r_asthma' });
+  rec('r_med_cetirizine', meera, 'medication', '2026-09-01', { name: 'Levocetirizine', dosage: '5 mg', frequency: 'Once daily', endDate: '2026-11-30', prescriber: 'Dr. Priya Sharma', reason: 'Dust-mite allergy (seasonal)', instructions: 'Take in the morning.' }, priya, { org: 'h_lakeview', enteredAt: '2026-09-01T06:00:00.000Z' });
   rec('r_vax_c1', meera, 'vaccination', '2021-05-18', { vaccine: 'COVID-19 (Covishield)', dose: 'Dose 1', facility: 'Lakeview Hospital', batch: 'CV-21A-0931' }, me);
   rec('r_vax_c2', meera, 'vaccination', '2021-08-12', { vaccine: 'COVID-19 (Covishield)', dose: 'Dose 2', facility: 'Lakeview Hospital', batch: 'CV-21C-1182' }, me);
   rec('r_vax_c3', meera, 'vaccination', '2022-02-03', { vaccine: 'COVID-19 (Covishield)', dose: 'Booster', facility: 'Lakeview Hospital', batch: 'CV-22A-0412' }, me);
@@ -212,11 +215,27 @@ export async function buildSeed(): Promise<Database> {
     { id: 's_seed_laptop', userId: 'u_meera', device: 'Windows laptop · Edge', location: 'Hyderabad, IN', createdAt: ago(200), lastActiveAt: ago(80), expiresAt: addHours(ago(200), 24 * 14) },
   ];
 
+  /* ---- Medication reminders + a week of dose history ---- */
+  const reminders: MedicationReminder[] = [];
+  const doseLogs: DoseLog[] = [];
+  const nowD = new Date();
+  for (const r of records.filter((x) => x.type === 'medication')) {
+    const times = defaultTimes(String(r.data.frequency));
+    reminders.push({ recordId: r.id, patientId: r.patientId, times, enabled: times.length > 0, updatedAt: r.createdAt });
+  }
+  // Meera took most doses; a couple were skipped or missed.
+  for (let i = 1; i <= 7; i++) {
+    const date = toISODate(addDays(nowD, -i));
+    if (i !== 3) doseLogs.push({ id: `dl_c_${i}`, patientId: meera.id, recordId: 'r_med_cetirizine', date, time: '08:00', status: 'taken', loggedAt: `${date}T08:0${i}:00` });
+    doseLogs.push({ id: `dl_m_${i}`, patientId: meera.id, recordId: 'r_med_montelukast', date, time: '21:00', status: i === 5 ? 'skipped' : 'taken', loggedAt: `${date}T21:1${i}:00` });
+  }
+
   return {
     schemaVersion: SCHEMA_VERSION,
+    reminders, doseLogs,
     users, patients, doctors, hospitals, records, documents, grants, requests, invites: [],
     audit, notifications, sessions, preferences: {},
   };
 }
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;

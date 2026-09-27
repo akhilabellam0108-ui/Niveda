@@ -223,10 +223,4 @@ export const authService = {
     });
   },
 
-  async markOnboarded(): Promise<void> {
-    const ctx = await requireCtx();
-    await mutate((db) => {
-      db.users.find((u) => u.id === ctx.user.id)!.onboarded = true;
-    });
-  },
 };

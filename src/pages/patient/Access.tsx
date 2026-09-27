@@ -33,6 +33,7 @@ export function AccessPage() {
   const [decline, setDecline] = useState<RequestView>();
   const [showId, setShowId] = useState(false);
   const d = data.data;
+  const everyone = d ? [...d.active, ...d.past].sort((a, b) => b.grantedAt.localeCompare(a.grantedAt)) : [];
 
   return (
     <>
@@ -46,7 +47,7 @@ export function AccessPage() {
       <Tabs label="Access" value={tab} onChange={setTab} tabs={[
         { value: 'active', label: 'Active', count: d?.active.length },
         { value: 'requests', label: 'Requests', count: d?.requests.length },
-        { value: 'history', label: 'Previous', count: d?.past.length },
+        { value: 'history', label: 'Access history', count: d ? d.active.length + d.past.length : undefined },
       ]} />
 
       {data.error ? <ErrorState error={data.error} title="Unable to load doctor access" onRetry={data.reload} /> : !d ? <SkeletonList rows={3} /> : tab === 'active' ? (
@@ -95,21 +96,21 @@ export function AccessPage() {
             ))}
           </div>
         )
-      ) : d.past.length === 0 ? (
-        <div className="card"><EmptyState icon={History} title="No previous access" body="Doctors whose access has ended or been revoked will be listed here." /></div>
+      ) : everyone.length === 0 ? (
+        <div className="card"><EmptyState icon={History} title="No one has had access yet" body="Every doctor you grant access to is kept here permanently — active, expired or revoked." /></div>
       ) : (
         <Card>
           <div className="table-wrap">
             <table className="table">
-              <thead><tr><th>Doctor</th><th>Access</th><th>Duration</th><th>Status</th><th>Dates</th></tr></thead>
+              <thead><tr><th>Doctor</th><th>What they could see</th><th>Duration</th><th>Status</th><th>Dates</th></tr></thead>
               <tbody>
-                {d.past.map((g) => (
+                {everyone.map((g) => (
                   <tr key={g.id}>
                     <td><div className="strong">{g.doctor.fullName}</div><div className="xs muted">{g.hospital?.name}</div></td>
                     <td style={{ maxWidth: 280 }}><PermissionBadges value={g.permissions} max={3} /></td>
                     <td className="nowrap">{durationLabel(Math.round((parseDate(g.expiresAt).getTime() - parseDate(g.grantedAt).getTime()) / 3600000))}</td>
-                    <td>{g.status === 'revoked' ? <Badge tone="danger">Revoked</Badge> : <Badge>Expired</Badge>}</td>
-                    <td className="nowrap xs"><div>Granted {fmtDate(g.grantedAt)}</div><div className="muted">{g.status === 'revoked' ? `Revoked ${fmtDateTime(g.revokedAt)}` : `Ended ${fmtDateTime(g.expiresAt)}`}</div></td>
+                    <td>{g.status === 'active' ? <Badge tone="ok" dot>Active</Badge> : g.status === 'revoked' ? <Badge tone="danger">Revoked</Badge> : <Badge>Expired</Badge>}</td>
+                    <td className="nowrap xs"><div>Granted {fmtDate(g.grantedAt)}</div><div className="muted">{g.status === 'active' ? `Ends ${fmtDateTime(g.expiresAt)}` : g.status === 'revoked' ? `Revoked ${fmtDateTime(g.revokedAt)}` : `Ended ${fmtDateTime(g.expiresAt)}`}</div></td>
                   </tr>
                 ))}
               </tbody>

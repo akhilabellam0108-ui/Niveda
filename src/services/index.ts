@@ -11,6 +11,9 @@ export { documentService, DOC_CATEGORY_LABEL, ACCEPT_ATTR, guessCategory, valida
 export type { NewFile, DocumentView } from './documentService';
 export { patientService } from './patientService';
 export type { HealthSummary, OnboardingInput } from './patientService';
+export { validateOnboarding } from './patientService';
+export { medicationService } from './medicationService';
+export type { MedicationSchedule, Dose } from './medicationService';
 export { doctorService } from './doctorService';
 export { notificationService } from './notificationService';
 export { auditService } from './auditService';

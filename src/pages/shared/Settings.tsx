@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, useNavigate, useParams, Link } from 'react-router-dom';
-import { Camera, Copy, UserRound, LockKeyhole, ShieldCheck, Bell, Palette, Languages, Download, LifeBuoy, LogOut, FlaskConical, FileJson, FileText, CheckCircle2, RotateCcw } from 'lucide-react';
+import { BellRing, Camera, Copy, UserRound, LockKeyhole, ShieldCheck, Bell, Palette, Languages, Download, LifeBuoy, LogOut, FlaskConical, FileJson, FileText, CheckCircle2, RotateCcw } from 'lucide-react';
 import type { Preferences } from '../../types';
 import { exportService, patientService, resetDemoData, settingsService, EXPORT_SCOPES, friendlyError } from '../../services';
 import { useSession, applyTheme } from '../../state/SessionContext';
@@ -11,6 +11,8 @@ import { ageFrom, fmtDate } from '../../lib/dates';
 import { Avatar, Button, Card, ConfirmDialog, Field, InlineError, Input, Select, Skeleton } from '../../components/ui';
 import { downloadBlob } from '../../components/documents/DocumentViewer';
 import { BLOOD_GROUPS, readImage } from '../auth/Onboarding';
+import { NotificationPrompt } from '../patient/Medications';
+import { testAlarm } from '../../components/medications/Doses';
 
 /* ---------------- Profile ---------------- */
 
@@ -34,7 +36,7 @@ export function ProfilePage() {
     try {
       await patientService.updateProfile({
         fullName: f.fullName, dateOfBirth: f.dateOfBirth, sex: f.sex as 'female' | 'male' | 'other' | '', phone: f.phone, email: f.email, bloodGroup: f.bloodGroup || undefined,
-        emergencyContact: f.ecName ? { name: f.ecName, relationship: f.ecRel, phone: f.ecPhone } : undefined,
+        emergencyContact: { name: f.ecName, relationship: f.ecRel, phone: f.ecPhone },
       });
       toast('Profile saved');
     } catch (x) { setErr(friendlyError(x)); } finally { setBusy(false); }
@@ -70,9 +72,9 @@ export function ProfilePage() {
         </div>
         <h2 style={{ fontSize: 'var(--t-md)', marginTop: 8 }}>Emergency contact</h2>
         <div className="form-grid">
-          <Field label="Name" className="wide">{(p) => <Input {...p} value={f.ecName} onChange={set('ecName')} />}</Field>
-          <Field label="Relationship">{(p) => <Input {...p} value={f.ecRel} onChange={set('ecRel')} />}</Field>
-          <Field label="Phone">{(p) => <Input {...p} type="tel" value={f.ecPhone} onChange={set('ecPhone')} />}</Field>
+          <Field label="Name" required className="wide">{(p) => <Input {...p} value={f.ecName} onChange={set('ecName')} />}</Field>
+          <Field label="Relationship" required>{(p) => <Input {...p} value={f.ecRel} onChange={set('ecRel')} />}</Field>
+          <Field label="Phone" required>{(p) => <Input {...p} type="tel" value={f.ecPhone} onChange={set('ecPhone')} />}</Field>
         </div>
         <InlineError message={err} />
         <div><Button type="submit" variant="primary" loading={busy}>Save changes</Button></div>
@@ -121,6 +123,20 @@ export function SettingsPage({ base = '/app/settings', role = 'patient' }: { bas
                 {role === 'patient' && <li className="list-item"><div className="grow"><div className="small strong">Doctors & access</div><div className="xs muted">Grant, change or revoke access</div></div><Link className="btn btn-sm btn-secondary" to="/app/access"><ShieldCheck aria-hidden />Open</Link></li>}
                 <li className="list-item"><div className="grow"><div className="small strong">Close account</div><div className="xs muted">Needs identity checks and a retention policy — available once a real backend exists.</div></div><Button size="sm" disabled>Unavailable in prototype</Button></li>
               </ul>
+            </Card>
+          )}
+          {section === 'notifications' && role === 'patient' && (
+            <Card title="Medicine reminders" pad>
+              <div className="stack">
+                <NotificationPrompt />
+                <label className="check"><input type="checkbox" checked={prefs.medAlarms} onChange={(e) => setPref({ medAlarms: e.target.checked })} /><span><span className="strong">Remind me when a dose is due</span><br /><span className="xs muted">Opens a reminder with Taken, Skip and Snooze while {brand.name} is open, and a system notification if allowed</span></span></label>
+                <label className="check"><input type="checkbox" checked={prefs.medAlarmSound} disabled={!prefs.medAlarms} onChange={(e) => setPref({ medAlarmSound: e.target.checked })} /><span><span className="strong">Play a sound</span></span></label>
+                <div className="row-wrap">
+                  <Button size="sm" icon={BellRing} onClick={() => testAlarm(prefs.medAlarmSound)}>Test reminder</Button>
+                  <Link className="btn btn-sm btn-ghost" to="/app/medications">Set times for each medicine</Link>
+                </div>
+                <p className="xs subtle">A web page can only ring while it’s open. For reminders when the app is closed, add your schedule to your phone’s calendar from Medications → Phone & smartwatch.</p>
+              </div>
             </Card>
           )}
           {section === 'notifications' && (

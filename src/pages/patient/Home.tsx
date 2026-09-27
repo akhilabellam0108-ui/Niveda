@@ -2,7 +2,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
   FilePlus2, Upload, Pill, TriangleAlert, ShieldCheck, Clock3, Siren, Droplet, CalendarDays, IdCard, ArrowRight, CalendarClock, Activity, Inbox,
 } from 'lucide-react';
-import { accessService, patientService, recordService } from '../../services';
+import { accessService, medicationService, patientService, recordService } from '../../services';
+import { DoseList, useClock } from '../../components/medications/Doses';
 import { useLive, useDocumentTitle } from '../../state/hooks';
 import { useSession } from '../../state/SessionContext';
 import { ageFrom, fmtDate, fmtMonthYear, timeLeft, now } from '../../lib/dates';
@@ -26,6 +27,8 @@ export function PatientHome() {
   const summary = useLive(() => patientService.summary(), []);
   const records = useLive(() => recordService.list(), []);
   const access = useLive(() => accessService.listForPatient(), []);
+  const tick = useClock(60000);
+  const doses = useLive(() => medicationService.today(), [tick]);
   if (!patient) return null;
   const s = summary.data;
   const age = ageFrom(patient.dateOfBirth);
@@ -131,6 +134,9 @@ export function PatientHome() {
         </Card>
 
         <div className="stack">
+          <Card title="Today’s medicines" action={<Link className="card-link" to="/app/medications">Reminders <ArrowRight aria-hidden /></Link>}>
+            {!doses.data ? <SkeletonList rows={2} card={false} /> : <DoseList doses={doses.data} compact />}
+          </Card>
           <Card title="Doctors with access" action={<Link className="card-link" to="/app/access">Manage <ArrowRight aria-hidden /></Link>}>
             {!access.data ? <SkeletonList rows={2} card={false} /> : access.data.active.length === 0 ? (
               <EmptyState compact icon={ShieldCheck} title="No one has access" body="Your record is private. Grant access when you visit a doctor." action={<Button icon={ShieldCheck} onClick={ui.grantAccess}>Grant access</Button>} />

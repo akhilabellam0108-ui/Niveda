@@ -5,6 +5,7 @@ import { uid } from '../lib/ids';
 import { RECORD_TYPES, cleanData, recordTitle, validateData } from '../lib/recordMeta';
 import { AppError, audit, notify, patientUserId, recentlyLogged, requireCtx, requireGrant, type Ctx } from './core';
 import { storeFile, type NewFile } from './documentService';
+import { ensureReminder } from './medicationService';
 
 export interface NewRecordInput {
   patientId?: string; // doctors must pass it; patients default to themselves
@@ -14,6 +15,8 @@ export interface NewRecordInput {
   parentId?: string;
   files?: NewFile[];
   attachDocumentIds?: string[];
+  /** For medications: reminder times ("HH:MM"). Defaults from the frequency. */
+  reminderTimes?: string[];
 }
 
 export interface PrescriptionInput {
@@ -168,6 +171,7 @@ export const recordService = {
     return mutate((db) => {
       db.records.push(record);
       linkDocs(db, record, docIds);
+      ensureReminder(db, record, input.reminderTimes);
       logAndNotifyAdd(db, ctx, [record]);
       return record;
     });
@@ -217,6 +221,7 @@ export const recordService = {
     await mutate((db) => {
       db.records.push(...created);
       linkDocs(db, consultation, docIds);
+      created.forEach((r) => ensureReminder(db, r));
       const parts = [
         'a consultation',
         created.some((r) => r.type === 'diagnosis') && 'a diagnosis',
@@ -225,7 +230,7 @@ export const recordService = {
         docIds.length && `${docIds.length} attachment${docIds.length > 1 ? 's' : ''}`,
       ].filter(Boolean) as string[];
       const list = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : parts[0];
-      logAndNotifyAdd(db, ctx, created, `${doctorName} added ${list} to your medical record.`);
+      logAndNotifyAdd(db, ctx, created, `${doctorName} added ${list} to your medical record.${input.prescriptions.length ? ' Reminders are set for the new medicines — you can change the times in Medications.' : ''}`);
     });
     return { consultation, created };
   },
