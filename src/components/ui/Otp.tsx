@@ -48,6 +48,8 @@ export function OtpInput({ value, onChange, onComplete, disabled, autoFocus = tr
 
 /** Makes clear this code would normally arrive by SMS. */
 export function PrototypeCode({ challenge, onUse }: { challenge: OtpChallenge; onUse?: (code: string) => void }) {
+  // Live backend: the code is emailed, never shown.
+  if (!challenge.prototypeCode) return null;
   return (
     <div className="proto-code" role="note">
       <div className="row" style={{ '--gap': '10px' } as React.CSSProperties}>

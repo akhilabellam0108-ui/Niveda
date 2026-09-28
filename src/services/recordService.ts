@@ -123,6 +123,49 @@ function logAndNotifyAdd(db: Database, ctx: Ctx, records: MedicalRecord[], headl
 
 const aOrAn = (w: string) => (/^[aeiou]/i.test(w) ? `an ${w}` : `a ${w}`);
 
+export interface VisitItem { type: RecordType; date: string; data: RecordData }
+
+/**
+ * The entries one visit becomes: a consultation first, then its diagnosis,
+ * prescriptions, lab orders and follow-up. Shared by the demo and live backends.
+ */
+export function buildVisitItems(input: ConsultationBundleInput, doctorName: string, facility?: string): VisitItem[] {
+  const rxSummary = input.prescriptions.map((p) => `${p.name} ${p.dosage}, ${p.frequency.toLowerCase()}`).join('\n');
+  const items: VisitItem[] = [{
+    type: 'consultation', date: input.date, data: {
+      reason: input.reason, doctor: doctorName, facility, symptoms: input.symptoms, diagnosis: input.diagnosis?.condition,
+      medications: rxSummary || undefined, followUp: input.followUp, notes: input.notes,
+    },
+  }];
+  if (input.diagnosis?.condition?.trim()) {
+    items.push({ type: 'diagnosis', date: input.date, data: { ...input.diagnosis, doctor: doctorName, facility } });
+  }
+  for (const p of input.prescriptions) {
+    const end = p.endDate || (p.durationDays ? toISODate(addDays(new Date(`${p.startDate}T00:00:00`), p.durationDays)) : undefined);
+    items.push({ type: 'medication', date: p.startDate || input.date, data: {
+      name: p.name, dosage: p.dosage, frequency: p.frequency, endDate: end, prescriber: doctorName,
+      reason: p.reason || input.diagnosis?.condition || input.reason, instructions: p.instructions,
+    } });
+  }
+  for (const l of input.labOrders) {
+    items.push({ type: 'lab_test', date: input.date, data: { test: l.test, status: 'Ordered', laboratory: l.laboratory, orderedBy: doctorName, reason: l.reason || input.reason } });
+  }
+  if (input.followUp) {
+    items.push({ type: 'follow_up', date: input.followUp, data: { purpose: `Review: ${input.diagnosis?.condition || input.reason}`, doctor: doctorName, facility } });
+  }
+  return items;
+}
+
+/** Throws the first validation problem, with the app's friendly field labels. */
+export function checkRecord(type: RecordType, date: string, data: RecordData): RecordData {
+  const clean = cleanData(type, data);
+  const errors = validateData(type, clean);
+  if (Object.keys(errors).length) throw new AppError('VALIDATION', Object.values(errors)[0]);
+  if (!date) throw new AppError('VALIDATION', 'Date is required.');
+  if (date > toISODate(addDays(now(), 366))) throw new AppError('VALIDATION', 'That date is too far in the future.');
+  return clean;
+}
+
 export const recordService = {
   async list(patientId?: string): Promise<MedicalRecord[]> {
     await delay();
@@ -193,28 +236,9 @@ export const recordService = {
 
     const doctorName = ctx.actor.name;
     const facility = ctx.actor.organization;
-    const rxSummary = input.prescriptions.map((p) => `${p.name} ${p.dosage}, ${p.frequency.toLowerCase()}`).join('\n');
-    const consultation = buildRecord(ctx, pid, 'consultation', input.date, {
-      reason: input.reason, doctor: doctorName, facility, symptoms: input.symptoms, diagnosis: input.diagnosis?.condition,
-      medications: rxSummary || undefined, followUp: input.followUp, notes: input.notes,
-    });
-    const created: MedicalRecord[] = [consultation];
-    if (input.diagnosis?.condition?.trim()) {
-      created.push(buildRecord(ctx, pid, 'diagnosis', input.date, { ...input.diagnosis, doctor: doctorName, facility }, consultation.id));
-    }
-    for (const p of input.prescriptions) {
-      const end = p.endDate || (p.durationDays ? toISODate(addDays(new Date(`${p.startDate}T00:00:00`), p.durationDays)) : undefined);
-      created.push(buildRecord(ctx, pid, 'medication', p.startDate || input.date, {
-        name: p.name, dosage: p.dosage, frequency: p.frequency, endDate: end, prescriber: doctorName,
-        reason: p.reason || input.diagnosis?.condition || input.reason, instructions: p.instructions,
-      }, consultation.id));
-    }
-    for (const l of input.labOrders) {
-      created.push(buildRecord(ctx, pid, 'lab_test', input.date, { test: l.test, status: 'Ordered', laboratory: l.laboratory, orderedBy: doctorName, reason: l.reason || input.reason }, consultation.id));
-    }
-    if (input.followUp) {
-      created.push(buildRecord(ctx, pid, 'follow_up', input.followUp, { purpose: `Review: ${input.diagnosis?.condition || input.reason}`, doctor: doctorName, facility }, consultation.id));
-    }
+    const [first, ...rest] = buildVisitItems(input, doctorName, facility);
+    const consultation = buildRecord(ctx, pid, first.type, first.date, first.data);
+    const created: MedicalRecord[] = [consultation, ...rest.map((i) => buildRecord(ctx, pid, i.type, i.date, i.data, consultation.id))];
     const docIds: string[] = [];
     for (const f of input.files) docIds.push(await storeFile(ctx, pid, f, input.date));
 

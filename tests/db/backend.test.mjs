@@ -91,7 +91,7 @@ before(async () => {
   const url = new URL(ADMIN_URL);
   url.pathname = `/${DB}`;
   db = new pg.Pool({ connectionString: url.toString(), max: 4 });
-  await db.query(sql('supabase/tests/00_supabase_shim.sql'));
+  await db.query(sql('tests/db/supabase-shim.sql'));
   for (const f of readdirSync(join(root, 'supabase/migrations')).sort()) await db.query(sql(`supabase/migrations/${f}`));
 
   await db.query("insert into public.hospitals (id, name, city, type) values ('hsp_north', 'Northbridge Hospital', 'Hyderabad', 'hospital'), ('hsp_lake', 'Lakeside Clinic', 'Hyderabad', 'clinic')");

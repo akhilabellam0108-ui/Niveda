@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import type { RecordType } from '../../types';
 import { brand, PROTOTYPE_NOTICE } from '../../config/brand';
+import { isLive } from '../../config/backend';
 import { accessService, notificationService } from '../../services';
 import { useSession } from '../../state/SessionContext';
 import { useLive } from '../../state/hooks';
@@ -74,6 +75,7 @@ export function UserMenu({ name, sub, photo, doctor, items }: { name: string; su
 }
 
 export function ProtoBar() {
+  if (isLive) return null;
   return <div className="proto-bar" role="note"><b>Prototype</b> · {PROTOTYPE_NOTICE.replace('Prototype: ', '')}</div>;
 }
 

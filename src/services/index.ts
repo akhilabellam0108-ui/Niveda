@@ -1,27 +1,63 @@
 /**
- * The only entry point the UI uses for data. Each service mirrors an API a
- * real backend would expose; today they run against the in-browser mock.
+ * The only entry point the UI uses for data. Each service has two
+ * implementations with the same shape:
+ *  - demo: runs in the browser with fictional data (the default, and the public demo)
+ *  - live: talks to Supabase, where the database enforces every access rule
+ * The live one is used when VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set.
  */
-export { authService } from './authService';
-export { accessService, DURATIONS, durationLabel, maskName } from './accessService';
+import { isLive } from '../config/backend';
+import { authService as demoAuth } from './authService';
+import { accessService as demoAccess } from './accessService';
+import { recordService as demoRecords } from './recordService';
+import { documentService as demoDocuments } from './documentService';
+import { patientService as demoPatients } from './patientService';
+import { medicationService as demoMedications } from './medicationService';
+import { doctorService as demoDoctors } from './doctorService';
+import { notificationService as demoNotifications } from './notificationService';
+import { auditService as demoAudit } from './auditService';
+import { settingsService as demoSettings } from './settingsService';
+import { exportService as demoExport } from './exportService';
+import { searchPatient as demoSearch } from './searchService';
+import { subscribe as demoSubscribe, resetDemoData as demoReset } from '../mock/db';
+import { remoteAuthService } from './remote/auth';
+import { remoteAccessService } from './remote/access';
+import { remoteRecordService } from './remote/records';
+import { remoteDocumentService } from './remote/documents';
+import { remoteDoctorService, remotePatientService } from './remote/people';
+import {
+  remoteAuditService, remoteExportService, remoteMedicationService, remoteNotificationService, remoteSearchPatient, remoteSettingsService,
+} from './remote/misc';
+import { subscribe as liveSubscribe } from './remote/client';
+
+export { isLive };
+export const authService = isLive ? remoteAuthService : demoAuth;
+export const accessService = isLive ? remoteAccessService : demoAccess;
+export const recordService = isLive ? remoteRecordService : demoRecords;
+export const documentService = isLive ? remoteDocumentService : demoDocuments;
+export const patientService = isLive ? remotePatientService : demoPatients;
+export const medicationService = isLive ? remoteMedicationService : demoMedications;
+export const doctorService = isLive ? remoteDoctorService : demoDoctors;
+export const notificationService = isLive ? remoteNotificationService : demoNotifications;
+export const auditService = isLive ? remoteAuditService : demoAudit;
+export const settingsService = isLive ? remoteSettingsService : demoSettings;
+export const exportService = isLive ? remoteExportService : demoExport;
+export const searchPatient = isLive ? remoteSearchPatient : demoSearch;
+export const subscribe = isLive ? liveSubscribe : demoSubscribe;
+/** Demo only: restores the fictional data. Does nothing on a live backend. */
+export const resetDemoData = isLive ? async () => undefined : demoReset;
+
+export { DURATIONS, durationLabel, maskName } from './accessService';
 export type { GrantView, RequestView, DoctorGrantView } from './accessService';
-export { recordService, isMedicationActive } from './recordService';
+export { isMedicationActive } from './recordService';
 export type { ConsultationBundleInput, PrescriptionInput, NewRecordInput } from './recordService';
-export { documentService, DOC_CATEGORY_LABEL, ACCEPT_ATTR, guessCategory, validateFile, MAX_FILE_BYTES } from './documentService';
+export { DOC_CATEGORY_LABEL, ACCEPT_ATTR, guessCategory, validateFile, MAX_FILE_BYTES } from './documentService';
 export type { NewFile, DocumentView } from './documentService';
-export { patientService } from './patientService';
 export type { HealthSummary, OnboardingInput } from './patientService';
 export { validateOnboarding } from './patientService';
-export { medicationService } from './medicationService';
 export type { MedicationSchedule, Dose } from './medicationService';
-export { doctorService } from './doctorService';
-export { notificationService } from './notificationService';
-export { auditService } from './auditService';
-export { settingsService, DEFAULT_PREFS } from './settingsService';
-export { exportService, EXPORT_SCOPES } from './exportService';
-export { searchPatient } from './searchService';
+export { DEFAULT_PREFS } from './settingsService';
+export { EXPORT_SCOPES } from './exportService';
 export type { SearchResult } from './searchService';
 export { otpService } from './otpService';
 export type { OtpChallenge } from './otpService';
 export { AppError, friendlyError } from './core';
-export { subscribe, resetDemoData } from '../mock/db';

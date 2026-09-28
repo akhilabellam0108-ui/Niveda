@@ -3,3 +3,8 @@ dist
 dist-single
 *.log
 __pycache__
+
+# Local secrets and test logs
+.env.local
+.env.*.local
+tests/live/.auth-migrate.log

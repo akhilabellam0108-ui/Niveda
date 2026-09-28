@@ -13,6 +13,7 @@ import { downloadBlob } from '../../components/documents/DocumentViewer';
 import { BLOOD_GROUPS, readImage } from '../auth/Onboarding';
 import { NotificationPrompt } from '../patient/Medications';
 import { testAlarm } from '../../components/medications/Doses';
+import { isLive } from '../../config/backend';
 
 /* ---------------- Profile ---------------- */
 
@@ -170,8 +171,8 @@ export function SettingsPage({ base = '/app/settings', role = 'patient' }: { bas
               <div className="stack">
                 <p className="small">Questions about your record or privacy? Email <a href={`mailto:${brand.supportEmail}`}>{brand.supportEmail}</a> (placeholder address).</p>
                 <p className="small muted">To report a wrong entry added by a doctor, ask them to correct it — corrections keep the original visible in the history.</p>
-                <div className="alert alert-warn"><FlaskConical aria-hidden /><div><div className="alert-title">Demo tools</div>Reset the prototype to its original demo data. This clears everything created in this browser.</div></div>
-                <div><Button variant="danger-ghost" icon={RotateCcw} onClick={() => setResetOpen(true)}>Reset demo data</Button></div>
+                {!isLive && <div className="alert alert-warn"><FlaskConical aria-hidden /><div><div className="alert-title">Demo tools</div>Reset the prototype to its original demo data. This clears everything created in this browser.</div></div>}
+                {!isLive && <div><Button variant="danger-ghost" icon={RotateCcw} onClick={() => setResetOpen(true)}>Reset demo data</Button></div>}
               </div>
             </Card>
           )}
@@ -222,7 +223,7 @@ function ExportPanel() {
         <InlineError message={err} />
         {done && <div className="alert alert-ok"><CheckCircle2 aria-hidden /><div>Downloaded {done}</div></div>}
         <div><Button variant="primary" icon={Download} loading={busy} disabled={!scopes.length} onClick={run}>Export</Button></div>
-        <p className="xs subtle">Prototype: the file is built in your browser. In production, exports would be prepared on a server (including original document files and a FHIR format) and delivered through a secure, expiring link.</p>
+        <p className="xs subtle">{isLive ? 'The file is built on this device from your record. It lists your documents; download each file from Reports.' : 'Prototype: the file is built in your browser. In production, exports would be prepared on a server (including original document files and a FHIR format) and delivered through a secure, expiring link.'}</p>
       </div>
     </Card>
   );

@@ -59,7 +59,7 @@ export const medicationService = {
     await delay();
     const ctx = await requireCtx('patient');
     const pid = ctx.patient!.id;
-    const today = todayISO();
+  const today = todayISO();
     const records = ctx.db.records.filter((r) => r.patientId === pid);
     const reminders = ctx.db.reminders.filter((r) => r.patientId === pid);
     const logs = ctx.db.doseLogs.filter((l) => l.patientId === pid);
@@ -83,45 +83,50 @@ export const medicationService = {
     });
   },
 
-  /**
-   * An iCalendar file with a repeating event and alarm per reminder time. Importing it into
-   * Google Calendar, Apple Calendar or Outlook makes the phone — and a paired smartwatch — ring.
-   */
+  /** Calendar file with an alarm per dose (see buildCalendar). */
   async calendarFile(): Promise<{ filename: string; blob: Blob; count: number }> {
     const ctx = await requireCtx('patient');
     const pid = ctx.patient!.id;
-    const today = todayISO();
-    const stamp = nowISO().replace(/[-:]/g, '').replace(/\.\d+/, '');
-    const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', `PRODID:-//${brand.name}//Medicine reminders//EN`, 'CALSCALE:GREGORIAN', `X-WR-CALNAME:${brand.name} medicines`];
-    let count = 0;
-    const esc = (s: string) => s.replace(/\\/g, '\\\\').replace(/([,;])/g, '\\$1').replace(/\n/g, '\\n');
-    for (const rem of ctx.db.reminders.filter((r) => r.patientId === pid && r.enabled)) {
-      const rec = ctx.db.records.find((r) => r.id === rem.recordId);
-      if (!rec || !isActive(rec, today)) continue;
-      const start = rec.date > today ? rec.date : today;
-      if (!takenOn(rec, start) && rec.data.frequency !== 'Weekly') continue;
-      for (const t of rem.times) {
-        const [hh, mm] = t.split(':');
-        const d = start.replace(/-/g, '');
-        const weekly = rec.data.frequency === 'Weekly';
-        const firstDate = weekly ? nextWeekday(start, rec.date) : d;
-        const until = rec.data.endDate ? `;UNTIL=${String(rec.data.endDate).replace(/-/g, '')}T235959` : '';
-        lines.push(
-          'BEGIN:VEVENT', `UID:${rec.id}-${t.replace(':', '')}@${brand.name.toLowerCase()}`, `DTSTAMP:${stamp}`,
-          `DTSTART:${firstDate}T${hh}${mm}00`, `DURATION:PT10M`, `RRULE:FREQ=${weekly ? 'WEEKLY' : 'DAILY'}${until}`,
-          `SUMMARY:${esc(`Take ${rec.data.name} ${rec.data.dosage ?? ''}`.trim())}`,
-          `DESCRIPTION:${esc([rec.data.instructions, rec.data.reason ? `For ${rec.data.reason}` : '', `Mark it as taken in ${brand.name}.`].filter(Boolean).join('\n'))}`,
-          'BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${esc(`Time to take ${rec.data.name}`)}`, 'TRIGGER:PT0M', 'END:VALARM',
-          'END:VEVENT',
-        );
-        count++;
-      }
-    }
-    lines.push('END:VCALENDAR');
-    if (!count) throw new AppError('VALIDATION', 'There are no active reminders to add. Set reminder times for a medicine first.');
-    return { filename: `${brand.name.toLowerCase()}-medicine-reminders.ics`, blob: new Blob([lines.join('\r\n')], { type: 'text/calendar' }), count };
+    return buildCalendar(ctx.db.records.filter((r) => r.patientId === pid), ctx.db.reminders.filter((r) => r.patientId === pid));
   },
 };
+
+/**
+ * An iCalendar file with a repeating event and alarm per reminder time. Importing it into
+ * Google Calendar, Apple Calendar or Outlook makes the phone — and a paired smartwatch — ring.
+ */
+export function buildCalendar(records: MedicalRecord[], reminders: MedicationReminder[]): { filename: string; blob: Blob; count: number } {
+  const today = todayISO();
+  const stamp = nowISO().replace(/[-:]/g, '').replace(/\.\d+/, '');
+  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', `PRODID:-//${brand.name}//Medicine reminders//EN`, 'CALSCALE:GREGORIAN', `X-WR-CALNAME:${brand.name} medicines`];
+  let count = 0;
+  const esc = (s: string) => s.replace(/\\/g, '\\\\').replace(/([,;])/g, '\\$1').replace(/\n/g, '\\n');
+  for (const rem of reminders.filter((r) => r.enabled)) {
+    const rec = records.find((r) => r.id === rem.recordId);
+    if (!rec || !isActive(rec, today)) continue;
+    const start = rec.date > today ? rec.date : today;
+    if (!takenOn(rec, start) && rec.data.frequency !== 'Weekly') continue;
+    for (const t of rem.times) {
+      const [hh, mm] = t.split(':');
+      const d = start.replace(/-/g, '');
+      const weekly = rec.data.frequency === 'Weekly';
+      const firstDate = weekly ? nextWeekday(start, rec.date) : d;
+      const until = rec.data.endDate ? `;UNTIL=${String(rec.data.endDate).replace(/-/g, '')}T235959` : '';
+      lines.push(
+        'BEGIN:VEVENT', `UID:${rec.id}-${t.replace(':', '')}@${brand.name.toLowerCase()}`, `DTSTAMP:${stamp}`,
+        `DTSTART:${firstDate}T${hh}${mm}00`, `DURATION:PT10M`, `RRULE:FREQ=${weekly ? 'WEEKLY' : 'DAILY'}${until}`,
+        `SUMMARY:${esc(`Take ${rec.data.name} ${rec.data.dosage ?? ''}`.trim())}`,
+        `DESCRIPTION:${esc([rec.data.instructions, rec.data.reason ? `For ${rec.data.reason}` : '', `Mark it as taken in ${brand.name}.`].filter(Boolean).join('\n'))}`,
+        'BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${esc(`Time to take ${rec.data.name}`)}`, 'TRIGGER:PT0M', 'END:VALARM',
+        'END:VEVENT',
+      );
+      count++;
+    }
+  }
+  lines.push('END:VCALENDAR');
+  if (!count) throw new AppError('VALIDATION', 'There are no active reminders to add. Set reminder times for a medicine first.');
+  return { filename: `${brand.name.toLowerCase()}-medicine-reminders.ics`, blob: new Blob([lines.join('\r\n')], { type: 'text/calendar' }), count };
+}
 
 function nextWeekday(from: string, like: string): string {
   const target = new Date(`${like}T00:00:00`).getDay();

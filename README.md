@@ -10,7 +10,12 @@ Niveda is a privacy-first, patient-controlled **lifelong health record**. It bri
 
 The patient owns the record. Doctors can see it only when the patient grants access, only the parts the patient chooses, and only for as long as the patient allows. While they have access, doctors add new information **directly into the patient's existing record** rather than into a separate hospital system. Every entry carries who added it, from which hospital and when, and every view, addition and correction is written to an audit log the patient can read.
 
-> ⚠️ **This repository is a working prototype, not a production system.** All data is stored in the browser, sign-in and one-time codes are simulated, and every person, doctor, hospital and medical detail in the demo data is fictional. Do not enter real medical information.
+Niveda runs in two modes:
+
+- **Demo** (the default, and the [live demo](https://akhilabellam0108-ui.github.io/niveda/)) — everything runs in your browser with fictional data. Sign-in and one-time codes are simulated. Don't enter real medical information.
+- **Live** — connected to a [Supabase](https://supabase.com) backend: real accounts, codes sent by email, data in Postgres, and every access rule enforced by the database, not the browser. Set it up with **[docs/SUPABASE_SETUP.md](docs/SUPABASE_SETUP.md)**.
+
+> ⚠️ The live backend makes the core security real, but Niveda has not yet had a security review, penetration test or DPDP compliance review. See [what's still needed](#what-must-be-built-before-production) before storing real patients' records.
 
 ---
 
@@ -31,7 +36,7 @@ The patient owns the record. Doctors can see it only when the patient grants acc
 13. [Project structure](#project-structure)
 14. [Data model](#data-model)
 15. [Testing](#testing)
-16. [What is mocked](#what-is-mocked)
+16. [Demo vs live](#demo-vs-live)
 17. [What must be built before production](#what-must-be-built-before-production)
 18. [Roadmap ideas](#roadmap-ideas)
 
@@ -95,12 +100,14 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:5173.
+Open http://localhost:5173. This runs the demo; to connect a Supabase project, follow [docs/SUPABASE_SETUP.md](docs/SUPABASE_SETUP.md).
 
 Other commands:
 
 ```bash
 npm test             # automated tests of the five core flows (runs in Node)
+npm run test:db      # the database's access rules, against a real Postgres (see tests/db)
+npm run test:live    # the live app code against Supabase Auth + PostgREST (see tests/live/README.md)
 npm run build        # type-check + production build into dist/
 npm run build:single # the whole app as ONE self-contained index.html in dist-single/
 npm run preview      # serve the production build
@@ -274,22 +281,26 @@ The interface aims for calm and trustworthy rather than clinical: a deep green a
 | Styling | Plain CSS with design tokens — no CSS framework |
 | Icons | lucide-react |
 | QR codes | qrcode (generation); the browser's BarcodeDetector for scanning where supported |
-| Storage (prototype) | localStorage for data, IndexedDB for files, sessionStorage for per-tab sessions |
-| Tests | Node test runner via esbuild (service flows); Playwright (browser flows) |
+| Backend (live) | Supabase: Postgres with row-level security and SQL functions, Supabase Auth (email codes), Storage (private bucket), Realtime, pg_cron |
+| Storage (demo) | localStorage for data, IndexedDB for files, sessionStorage for per-tab sessions |
+| Tests | Node test runner via esbuild (service flows); Postgres (database access rules); Supabase Auth + PostgREST binaries (live end-to-end); Playwright (browser flows) |
 
-Five runtime dependencies: `react`, `react-dom`, `react-router-dom`, `lucide-react` and `qrcode`.
+Six runtime dependencies: `react`, `react-dom`, `react-router-dom`, `lucide-react`, `qrcode` and `@supabase/supabase-js`.
 
 ## Project structure
 
 ```
 src/
   config/brand.ts          product name, tagline, ID prefix — rename the product here
+  config/backend.ts        demo or live: live when VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set
   types/index.ts           the domain model (maps to database tables)
   lib/
     recordMeta.ts          every record type: fields, permission, category, labels — drives all forms
     reminders.ts           default dose times, today's schedule, adherence
     dates.ts, ids.ts, icons.ts
   services/                the API the UI uses — one module per backend service
+    index.ts               picks the demo or live implementation of every service
+    remote/                the live implementations (Supabase); same functions, same results
     authService.ts         sign-up, log-in, OTP, sessions, password (MOCK — isolated for replacement)
     accessService.ts       grants, requests, invitations, doctor lookup
     recordService.ts       list/get/create, doctor consultation bundle, amendments, lab results
@@ -317,13 +328,20 @@ src/
     doctor/                dashboard, patients, find, patient view, add entry, activity, profile
     shared/                notifications, privacy & security, profile, settings, export
   styles/                  tokens.css, base.css, layout.css, features.css
+supabase/migrations/       the live backend: schema + row-level security, the server API, storage/jobs/privileges
+scripts/
+  create-doctor.mjs        adds a verified doctor (administrators only; uses the service-role key)
+  gen-record-types.mjs     prints the server's record-type rules from recordMeta.ts
+docs/SUPABASE_SETUP.md     step-by-step guide to running Niveda live
 tests/
+  db/backend.test.mjs      the database's access rules, played out by patients, doctors and an attacker
+  live/                    the live app code end-to-end against Supabase Auth, PostgREST and Postgres
   flows.test.ts            service-level tests of flows A–E
   run.mjs                  bundles and runs the Node tests
   e2e_browser.py           Playwright tests of the same flows in a real browser, desktop and mobile
 ```
 
-**Replacing the mock backend.** Pages and components never touch storage; they only call `src/services`. Connecting a real backend means re-implementing those service functions as API calls (or swapping out `src/mock`), keeping the same function signatures. Access checks that live in `services/core.ts` today must move to the server.
+**Two backends, one UI.** Pages and components never touch storage; they only call `src/services`. Each service has a demo implementation (`src/services/*.ts` over `src/mock`) and a live one (`src/services/remote`), with identical signatures checked by TypeScript. In live mode the rules in `services/core.ts` are enforced by the database instead: row-level security decides what each person can read, and every change goes through a SQL function that checks access, sets attribution from the session and writes the audit log in the same transaction.
 
 ## Data model
 
@@ -359,6 +377,12 @@ User    1 ── * Notification, Session
 - **Flow D — revoke:** after revocation the doctor can't list, open or write → sensitive categories stay hidden → access expires by itself when time runs out.
 - **Flow E — audit:** the patient's log contains every expected event with actor and time.
 
+**Database tests** — `npm run test:db` (11 checks, [`tests/db/backend.test.mjs`](tests/db/backend.test.mjs)). The real migrations run on a throwaway Postgres; patients, doctors and an attacker then try everything: a doctor sees nothing before a grant and only the shared categories after; granting needs a fresh code that works once; forged attribution is ignored; nobody can write to tables directly or call internal functions; even the database owner can't rewrite history; revocation and expiry cut access immediately; the audit log is complete, private to each side, append-only, and tampering is detected.
+
+**Live end-to-end tests** — `npm run test:live` (8 checks, [`tests/live`](tests/live/README.md)). A patient and a doctor each run the app's live code against the real Supabase Auth server and PostgREST, reading their codes from the emails the Auth server sends: sign-up, onboarding with an upload, two-step sign-in, granting access, a doctor's visit with a file, corrections, lab results, reminders, export, search, revocation, and password change and reset.
+
+All of these run in CI on every push.
+
 **Browser tests** — `tests/e2e_browser.py` walks the same flows through the real interface (sign-up, onboarding, adding a record, the full grant flow with codes, the doctor adding a visit with a prescription, lab order and PDF in a second tab, the patient seeing it, a correction, revocation, the access log), then checks the demo patient, search, dark mode and the mobile layout.
 
 ```bash
@@ -367,38 +391,47 @@ pip install playwright && python -m playwright install chromium
 python3 tests/e2e_browser.py
 ```
 
-## What is mocked
+## Demo vs live
 
-| Area | Prototype behaviour |
-|---|---|
-| Authentication | Passwords hashed with SHA-256 **in the browser**; sessions in sessionStorage; one-time codes shown on screen |
-| Backend & database | All data in the browser's localStorage; files in IndexedDB; nothing syncs between devices or browsers |
-| Access enforcement | Done in the client-side service layer — correct in behaviour, but not a security boundary |
-| Doctors & hospitals | A fixed fictional directory; no registration checks |
-| Notifications | In-app only; no SMS, email or push |
-| Doctor invitations | Recorded but not sent |
-| Camera QR scanning | Uses the browser's BarcodeDetector where available; otherwise type the code |
-| Emergency lock-screen widget | Visual preview; needs a native app |
-| Medicine alarms | Ring only while Niveda is open in a browser tab; for alarms when it's closed, use the calendar export (phone and watch) |
-| Smartwatch | Through the phone's calendar (.ics). No direct watch app or Apple Health / Google Fit / Health Connect connection |
-| Export | Built in the browser; lists documents but doesn't bundle the files |
-| Access expiry | Checked whenever data is read, not by a background job |
-| Close account | Disabled |
+| Area | Demo | Live (Supabase) |
+|---|---|---|
+| Authentication | Passwords hashed **in the browser**; one-time codes shown on screen | Supabase Auth; password + emailed code at sign-in; emailed code to confirm granting, approving or widening access |
+| Backend & database | Browser storage; nothing syncs between devices | Postgres; synced across devices, live updates via Realtime |
+| Access enforcement | In the browser — correct in behaviour, not a security boundary | **In the database**: row-level security on every table; every change through a server function |
+| Audit log | In the browser | Written by the server with each change; append-only and hash-chained (`verify_audit_chain()`) |
+| Record history & attribution | In the browser | Immutable in the database — even the owner account can't rewrite who added an entry or delete a version |
+| Documents | IndexedDB | Private storage bucket with the same access rules; no public links |
+| Access expiry | Checked when data is read | Checked on every read, plus a pg_cron job every 5 minutes that logs expiry and sends "ends soon" reminders |
+| Doctors & hospitals | Fixed fictional directory | Added by an administrator after checking registration (`scripts/create-doctor.mjs`); no public doctor sign-up |
+| Notifications | In-app | In-app, live across devices; no SMS or push yet |
+| Doctor invitations | Recorded, not sent | Recorded, not sent |
+| Export | Built in the browser; lists documents | Same, from the patient's live data |
+| Medicine alarms, smartwatch | While a tab is open; calendar (.ics) export for phone and watch | Same |
+| Close account | Disabled | An administrator can erase an account deliberately (see the setup guide) |
 
 ## What must be built before production
 
-1. **Identity** — a real identity provider (OIDC), multi-factor authentication, one-time codes sent by an SMS/email provider with rate limits, secure account recovery, device management.
-2. **Server-side authorisation** — every API call checks the user's role and an active grant for that patient and category. The browser is never trusted.
-3. **Database** — the model above in a real database, with the audit log append-only and tamper-evident, and record versions immutable.
-4. **Encryption** — TLS everywhere; encryption at rest; per-patient or field-level encryption for sensitive categories; proper key management.
-5. **Document storage** — private object storage, virus scanning, and short-lived signed download links issued only after a permission check. No public URLs.
-6. **Clinician verification** — checking registration numbers against medical council registries; hospital and organisation accounts.
-7. **Emergency ("break-glass") access** — a policy for access when the patient can't consent, with justification, time limits, immediate patient notification and review.
-8. **Compliance** — India's Digital Personal Data Protection Act 2023, ABDM / ABHA integration and consent artefacts, and HIPAA / GDPR where relevant; retention and deletion policies; security audits and penetration testing.
-9. **Interoperability** — FHIR R4 import and export; integrations with labs and hospital systems.
-10. **Operations** — background jobs for expiry and reminders, monitoring and alerting, backups and disaster recovery, rate limiting.
-11. **Mobile app** — for push notifications, the lock-screen emergency card, offline access, and **medicine alarms that ring when the app is closed**.
-12. **Smartwatch integration** — a companion watch app (watchOS / Wear OS) and Apple HealthKit / Google Health Connect so doses can be marked taken from the wrist and schedules stay in sync automatically.
+Done with the live backend:
+
+- ✅ **Server-side authorisation** — row-level security plus server functions; the browser is never trusted.
+- ✅ **Database** — the full model in Postgres, with an append-only, tamper-evident audit log and immutable record versions.
+- ✅ **Real sign-in and codes** — Supabase Auth with emailed codes and server-side step-up verification for sharing.
+- ✅ **Private document storage** — no public URLs; downloads only after a permission check.
+- ✅ **Background job** for access expiry and reminders.
+- ✅ Encryption in transit and at rest (provided by Supabase).
+
+Still to do:
+
+1. **Identity** — server-enforced multi-factor authentication (Supabase MFA), SMS codes (e.g. MSG91/Twilio), device management beyond sign-out.
+2. **Encryption** — field-level encryption for mental-health and other sensitive categories, with key management.
+3. **Document handling** — virus scanning, and downloads through an Edge Function so document views are logged by the server rather than the app.
+4. **Clinician verification** — checking registration numbers against medical council registries; hospital and organisation accounts.
+5. **Emergency ("break-glass") access** — a policy for access when the patient can't consent, with justification, time limits, immediate patient notification and review.
+6. **Compliance** — India's Digital Personal Data Protection Act 2023, ABDM / ABHA integration and consent artefacts, and HIPAA / GDPR where relevant; retention and deletion policies; security audits and penetration testing.
+7. **Interoperability** — FHIR R4 import and export; integrations with labs and hospital systems.
+8. **Operations** — monitoring and alerting, backups with point-in-time recovery, tuned rate limits, custom email delivery at scale.
+9. **Mobile app** — for push notifications, the lock-screen emergency card, offline access, and **medicine alarms that ring when the app is closed**.
+10. **Smartwatch integration** — a companion watch app (watchOS / Wear OS) and Apple HealthKit / Google Health Connect so doses can be marked taken from the wrist and schedules stay in sync automatically.
 
 ## Roadmap ideas
 

@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, ShieldCheck, Clock3, ScrollText, FlaskConical, Stethoscope, UserRound, Mail } from 'lucide-react';
 import { brand } from '../../config/brand';
-import { authService, friendlyError, type OtpChallenge } from '../../services';
+import { authService, friendlyError, isLive, type OtpChallenge } from '../../services';
 import { DEMO_ACCOUNTS, DEMO_PASSWORD } from '../../mock/seed';
 import { useSession } from '../../state/SessionContext';
 import { useDocumentTitle } from '../../state/hooks';
@@ -24,7 +24,7 @@ export function AuthLayout({ children }: { children: ReactNode }) {
             <div><ScrollText aria-hidden />Every view and every change is logged for you to see</div>
           </div>
         </div>
-        <p className="xs" style={{ position: 'relative' }}>Prototype build · fictional demo data only</p>
+        {!isLive && <p className="xs" style={{ position: 'relative' }}>Prototype build · fictional demo data only</p>}
         <TimelineArt />
       </aside>
       <main className="auth-main">
@@ -74,7 +74,7 @@ export function LoginPage() {
   const submit = async (e?: React.FormEvent, creds?: { id: string; pw: string }) => {
     e?.preventDefault();
     const c = creds ?? { id, pw };
-    if (!c.id.trim() || !c.pw) { setErr('Enter your email or phone and password.'); return; }
+    if (!c.id.trim() || !c.pw) { setErr(isLive ? 'Enter your email and password.' : 'Enter your email or phone and password.'); return; }
     setBusy(true);
     setErr(undefined);
     try {
@@ -96,14 +96,14 @@ export function LoginPage() {
       </div>
       {notice && <div className="alert alert-warn" role="alert"><Clock3 aria-hidden /><div>{notice}</div></div>}
       <form className="stack" onSubmit={submit} noValidate>
-        <Field label="Email or phone number">{(p) => <Input {...p} autoComplete="username" value={id} onChange={(e) => setId(e.target.value)} placeholder="you@example.com" />}</Field>
+        <Field label={isLive ? 'Email' : 'Email or phone number'}>{(p) => <Input {...p} type={isLive ? 'email' : 'text'} autoComplete="username" value={id} onChange={(e) => setId(e.target.value)} placeholder="you@example.com" />}</Field>
         <Field label="Password">{(p) => <PasswordInput {...p} autoComplete="current-password" value={pw} onChange={(e) => setPw(e.target.value)} />}</Field>
         <div className="spread small"><span /><Link to="/forgot-password">Forgot password?</Link></div>
         <InlineError message={err} />
         <Button type="submit" variant="primary" size="lg" block loading={busy}>Log in</Button>
       </form>
       <p className="small muted" style={{ textAlign: 'center' }}>New here? <Link to="/signup">Create an account</Link></p>
-      <div className="demo-box">
+      {!isLive && <div className="demo-box">
         <div className="row xs strong" style={{ color: 'var(--warn)' }}><FlaskConical size={14} aria-hidden />Prototype demo accounts (password {DEMO_PASSWORD})</div>
         {([['patient', UserRound], ['doctor', Stethoscope], ['doctor2', Stethoscope]] as const).map(([k, Icon]) => (
           <button key={k} type="button" className="btn btn-ghost btn-sm" style={{ justifyContent: 'flex-start' }} disabled={busy}
@@ -112,7 +112,7 @@ export function LoginPage() {
           </button>
         ))}
         <p className="xs subtle">Tip: open a second browser tab to be the patient in one and the doctor in the other — changes appear live.</p>
-      </div>
+      </div>}
     </AuthLayout>
   );
 }
@@ -233,7 +233,7 @@ export function VerifyPage() {
       <div>
         <div className="type-icon tone-accent" style={{ marginBottom: 16 }}><Mail aria-hidden /></div>
         <h1>Enter your code</h1>
-        <p className="lede">We sent a 6-digit code to {challenge?.destination}. It expires in 5 minutes.</p>
+        <p className="lede">We sent a 6-digit code to {challenge?.destination}. {isLive ? 'Check your inbox (and spam folder).' : 'It expires in 5 minutes.'}</p>
       </div>
       <OtpInput value={code} onChange={setCode} onComplete={(c) => verify(c)} disabled={busy} />
       {challenge && <PrototypeCode challenge={challenge} onUse={(c) => { setCode(c); void verify(c); }} />}
@@ -243,7 +243,7 @@ export function VerifyPage() {
         <Link to={state.flow === 'signup' ? '/signup' : '/login'}>Back</Link>
         <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => { try { setChallenge(authService.resendCode(state.flow)); setCode(''); setErr(undefined); } catch (x) { setErr(friendlyError(x)); } }}>Send a new code</button>
       </div>
-      <p className="xs subtle">In the real product this code arrives by SMS from a verification provider. Here it’s shown on screen because this is a prototype.</p>
+      {!isLive && <p className="xs subtle">In the real product this code arrives by SMS from a verification provider. Here it’s shown on screen because this is a prototype.</p>}
     </AuthLayout>
   );
 }
@@ -265,7 +265,7 @@ export function ForgotPasswordPage() {
     <AuthLayout>
       <div>
         <h1>Reset your password</h1>
-        <p className="lede">{done ? 'Your password was changed and other devices were signed out.' : 'We’ll send a code to the phone number on your account.'}</p>
+        <p className="lede">{done ? 'Your password was changed and other devices were signed out.' : isLive ? 'We’ll email a code to the address on your account.' : 'We’ll send a code to the phone number on your account.'}</p>
       </div>
       {done ? <Button variant="primary" onClick={() => navigate('/login')}>Log in</Button> : challenge === undefined ? (
         <form className="stack" onSubmit={async (e) => {
@@ -274,7 +274,7 @@ export function ForgotPasswordPage() {
           setErr(undefined);
           try { setChallenge(await authService.startPasswordReset(id)); } catch (x) { setErr(friendlyError(x)); } finally { setBusy(false); }
         }}>
-          <Field label="Email or phone number">{(p) => <Input {...p} value={id} onChange={(e) => setId(e.target.value)} />}</Field>
+          <Field label={isLive ? 'Email' : 'Email or phone number'}>{(p) => <Input {...p} type={isLive ? 'email' : 'text'} value={id} onChange={(e) => setId(e.target.value)} />}</Field>
           <InlineError message={err} />
           <Button type="submit" variant="primary" block loading={busy} disabled={!id.trim()}>Send code</Button>
         </form>

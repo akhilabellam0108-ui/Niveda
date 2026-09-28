@@ -10,10 +10,13 @@
     "typecheck": "tsc --noEmit",
     "test": "node tests/run.mjs",
     "test:db": "node --test --test-concurrency=1 tests/db/backend.test.mjs",
-    "gen:record-types": "node scripts/gen-record-types.mjs"
+    "gen:record-types": "node scripts/gen-record-types.mjs",
+    "test:live": "node --test --test-concurrency=1 tests/live/live.test.mjs",
+    "create-doctor": "node scripts/create-doctor.mjs"
   },
   "license": "UNLICENSED",
   "dependencies": {
+    "@supabase/supabase-js": "^2.117.2",
     "lucide-react": "^1.48.0",
     "qrcode": "^1.5.4",
     "react": "^18.3.1",

@@ -8,6 +8,7 @@ import { Avatar, Button, Field, InlineError, Input, Modal } from '../ui';
 import { OtpInput, PrototypeCode } from '../ui/Otp';
 import { DurationPicker, PermissionBadges, PermissionSelector } from './PermissionSelector';
 import { QrScanner } from './Qr';
+import { isLive } from '../../config/backend';
 
 type DoctorResult = Doctor & { hospital?: Hospital };
 type Step = 'method' | 'find' | 'permissions' | 'duration' | 'review' | 'verify' | 'done' | 'invited';
@@ -152,7 +153,7 @@ export function GrantAccessDialog({ open, onClose, onGranted }: { open: boolean;
           <div className="success-hero" style={{ padding: '8px 0' }}>
             <div className="ok-icon"><CheckCircle2 aria-hidden /></div>
             <h3>Invitation saved</h3>
-            <p className="small muted">In the full product your doctor would receive a link to join. Once they do, you can grant them access here. (Prototype: no message is sent.)</p>
+            <p className="small muted">{isLive ? 'We’ve saved the invitation. Share the Niveda link with your doctor — once they’re verified and join, you can grant them access here.' : 'In the full product your doctor would receive a link to join. Once they do, you can grant them access here. (Prototype: no message is sent.)'}</p>
           </div>
         )}
 

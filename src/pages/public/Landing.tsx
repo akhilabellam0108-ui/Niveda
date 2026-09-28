@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Clock3, ShieldCheck, Stethoscope, ScrollText, Syringe, Scissors, Microscope, TriangleAlert, Lock } from 'lucide-react';
 import { brand } from '../../config/brand';
+import { isLive } from '../../config/backend';
 import { useDocumentTitle } from '../../state/hooks';
 import { Brand } from '../../components/ui/Logo';
 
@@ -16,7 +17,7 @@ export function LandingPage() {
   useDocumentTitle(`${brand.name} — ${brand.tagline}`);
   return (
     <div className="landing">
-      <div className="proto-bar"><b>Prototype</b> · fictional demo data only — don’t enter real medical information</div>
+      {!isLive && <div className="proto-bar"><b>Prototype</b> · fictional demo data only — don’t enter real medical information</div>}
       <header className="landing-nav">
         <Brand />
         <div className="row"><Link to="/login" className="btn btn-ghost">Log in</Link><Link to="/signup" className="btn btn-primary">Get started</Link></div>
@@ -59,7 +60,7 @@ export function LandingPage() {
         <div className="pillar"><Stethoscope aria-hidden /><h3>Doctors add to your record</h3><p>With your permission, doctors add visits, diagnoses and prescriptions straight into your history.</p></div>
         <div className="pillar"><ScrollText aria-hidden /><h3>Nothing hidden</h3><p>Every view, addition and correction is attributed and time-stamped in your access log.</p></div>
       </section>
-      <footer className="landing-foot">© {new Date().getFullYear()} {brand.name} · Prototype · <Link to="/legal/privacy">Privacy</Link> · <Link to="/legal/terms">Terms</Link></footer>
+      <footer className="landing-foot">© {new Date().getFullYear()} {brand.name}{isLive ? '' : ' · Prototype'} · <Link to="/legal/privacy">Privacy</Link> · <Link to="/legal/terms">Terms</Link></footer>
     </div>
   );
 }
