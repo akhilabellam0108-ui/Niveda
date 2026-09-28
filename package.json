@@ -8,7 +8,9 @@
     "build:single": "vite build --mode single",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "node tests/run.mjs"
+    "test": "node tests/run.mjs",
+    "test:db": "node --test --test-concurrency=1 tests/db/backend.test.mjs",
+    "gen:record-types": "node scripts/gen-record-types.mjs"
   },
   "license": "UNLICENSED",
   "dependencies": {
@@ -23,6 +25,7 @@
     "@types/react": "^18.3.31",
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "^4.7.0",
+    "pg": "^8.23.0",
     "typescript": "^5.9.3",
     "vite": "^5.4.21",
     "vite-plugin-singlefile": "^2.3.3"
