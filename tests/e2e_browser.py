@@ -19,10 +19,19 @@ def fill_code(page):
     # Use the on-screen prototype code.
     page.get_by_role("button", name="Fill in").first.click()
 
+def dismiss_medicine_alarm(page):
+    # A dose falls due at 8 am / 8 pm in the demo data, so depending on the time of day the
+    # "Time for your medicine" alarm can pop up over the page. Close it whenever it appears.
+    page.add_locator_handler(
+        page.get_by_role("heading", name="Time for your medicine"),
+        lambda: page.get_by_role("button", name="Later").click(),
+    )
+
 with sync_playwright() as p:
     browser = p.chromium.launch(executable_path="/opt/pw-browsers/chromium-1194/chrome-linux/chrome")
     ctx = browser.new_context(viewport={"width": 1360, "height": 900})
     pt = ctx.new_page()
+    dismiss_medicine_alarm(pt)
     for pg in [pt]:
         pg.on("console", lambda m: errors.append(f"console {m.type}: {m.text}") if m.type == "error" else None)
         pg.on("pageerror", lambda e: errors.append(f"pageerror: {e}"))
@@ -133,6 +142,7 @@ with sync_playwright() as p:
 
     print("Flow C — doctor adds to the existing record")
     dr = ctx.new_page()
+    dismiss_medicine_alarm(dr)
     dr.on("pageerror", lambda e: errors.append(f"doctor pageerror: {e}"))
     dr.on("console", lambda m: errors.append(f"doctor console: {m.text}") if m.type == "error" else None)
     dr.set_default_timeout(8000)
@@ -250,12 +260,15 @@ with sync_playwright() as p:
 
     mob = browser.new_context(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True)
     m = mob.new_page()
+    dismiss_medicine_alarm(m)
     m.on("pageerror", lambda e: errors.append(f"mobile pageerror: {e}"))
     m.goto(BASE + "#/login")
     m.get_by_role("button", name=re.compile("Continue as Meera")).click()
     fill_code(m)
     expect(m.get_by_role("heading", name="Meera Iyer")).to_be_visible()
     shot(m, "mobile-dashboard")
+    if m.evaluate("() => document.documentElement.scrollWidth > window.innerWidth + 1"):
+        errors.append("mobile: horizontal overflow on dashboard")
     m.goto(BASE + "#/app/timeline")
     m.wait_for_timeout(600)
     shot(m, "mobile-timeline")

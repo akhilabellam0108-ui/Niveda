@@ -68,7 +68,7 @@
 .id-strip svg { width: 15px; height: 15px; color: var(--text-3); }
 .id-strip b { color: var(--text); font-weight: 600; }
 .dash-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: var(--s5); align-items: start; }
-@media (max-width: 1080px) { .dash-grid { grid-template-columns: 1fr; } }
+@media (max-width: 1080px) { .dash-grid { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 640px) { .hello { grid-template-columns: 1fr; } .hello h1 { font-size: 28px; } }
 .quick-actions { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--s2); }
 .qa {
