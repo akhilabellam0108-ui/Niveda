@@ -8,6 +8,7 @@ import { useSession } from '../../state/SessionContext';
 import { useDocumentTitle } from '../../state/hooks';
 import { Button, Field, InlineError, Input } from '../../components/ui';
 import { Brand } from '../../components/ui/Logo';
+import { BackButton } from '../../components/ui/BackButton';
 import { OtpInput, PrototypeCode } from '../../components/ui/Otp';
 import { toISODate } from '../../lib/dates';
 
@@ -29,6 +30,7 @@ export function AuthLayout({ children }: { children: ReactNode }) {
       </aside>
       <main className="auth-main">
         <div className="auth-card">
+          <BackButton fallback="/" className="auth-back" />
           <div className="mobile-only"><Brand /></div>
           {children}
         </div>

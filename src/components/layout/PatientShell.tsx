@@ -14,6 +14,7 @@ import { useLive } from '../../state/hooks';
 import { useToast } from '../../state/ToastContext';
 import { Avatar, Badge, Modal } from '../ui';
 import { Brand } from '../ui/Logo';
+import { BackButton } from '../ui/BackButton';
 import { RecordDrawer } from '../records/RecordDrawer';
 import { AddRecordDialog } from '../records/AddRecordDialog';
 import { UploadDialog } from '../documents/UploadDialog';
@@ -109,6 +110,9 @@ const PRIMARY: NavItem[] = [
   { to: '/app/reports', label: 'Reports', icon: FileText },
 ];
 
+/** The shell's home screen, where there is nowhere to go back to. */
+export const isHome = (pathname: string, home: string) => pathname.replace(/\/+$/, '') === home;
+
 export function PatientShell() {
   const { patient, signOut } = useSession();
   const navigate = useNavigate();
@@ -168,6 +172,7 @@ export function PatientShell() {
         } />
         <div className="main">
           <header className="topbar">
+            {!isHome(location.pathname, '/app') && <BackButton fallback="/app" />}
             <span className="mobile-only"><Brand to="/app" size={28} /></span>
             <button className="search-trigger desktop-only" onClick={() => setSearchOpen(true)}><Search aria-hidden />Search your record<kbd>Ctrl K</kbd></button>
             <div className="topbar-actions">

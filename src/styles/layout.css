@@ -34,6 +34,15 @@
 .search-trigger:hover { border-color: var(--border-strong); }
 .search-trigger svg { width: 16px; height: 16px; }
 .search-trigger kbd { margin-left: auto; font-family: inherit; font-size: 11px; padding: 2px 6px; border-radius: 5px; border: 1px solid var(--border); background: var(--surface-2); }
+.back-btn {
+  display: inline-flex; align-items: center; gap: 6px; height: 38px; padding: 0 var(--s3) 0 var(--s2); flex: none;
+  border-radius: var(--r-md); border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  font: inherit; font-size: var(--t-sm); font-weight: 600; cursor: pointer;
+}
+.back-btn:hover { border-color: var(--border-strong); background: var(--surface-2); }
+.back-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.back-btn svg { width: 18px; height: 18px; }
+.auth-back { align-self: flex-start; }
 .topbar-actions { margin-left: auto; display: flex; align-items: center; gap: var(--s1); }
 .icon-btn { position: relative; width: 38px; height: 38px; display: grid; place-items: center; border-radius: var(--r-md); border: 0; background: transparent; color: var(--text-2); cursor: pointer; }
 .icon-btn:hover { background: var(--surface-2); color: var(--text); }
@@ -67,6 +76,8 @@
 @media (max-width: 900px) {
   .shell { grid-template-columns: 1fr; }
   .sidebar { display: none; }
+  .topbar .back-btn { width: 38px; padding: 0; justify-content: center; }
+  .topbar .back-btn-label { display: none; }
   .topbar { padding: 0 var(--s4); padding-top: env(safe-area-inset-top); height: calc(var(--topbar-h) + env(safe-area-inset-top)); }
   .search-trigger kbd { display: none; }
   .content { padding: var(--s5) var(--s4) calc(96px + env(safe-area-inset-bottom)); gap: var(--s5); }

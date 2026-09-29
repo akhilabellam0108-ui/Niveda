@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { House, Users, UserSearch, ScrollText, Bell, UserRound, LockKeyhole, Settings, LogOut, Search, Stethoscope, Ellipsis } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { brand } from '../../config/brand';
@@ -8,11 +8,13 @@ import { useSession } from '../../state/SessionContext';
 import { useLive } from '../../state/hooks';
 import { Badge, Modal } from '../ui';
 import { Brand } from '../ui/Logo';
-import { ProtoBar, SideNav, UserMenu, type NavItem } from './PatientShell';
+import { BackButton } from '../ui/BackButton';
+import { ProtoBar, SideNav, UserMenu, isHome, type NavItem } from './PatientShell';
 
 export function DoctorShell() {
   const { doctor, signOut } = useSession();
   const navigate = useNavigate();
+  const location = useLocation();
   const unread = useLive(() => notificationService.unreadCount(), []);
   const [more, setMore] = useState(false);
   if (!doctor) return null;
@@ -38,6 +40,7 @@ export function DoctorShell() {
         } />
         <div className="main">
           <header className="topbar">
+            {!isHome(location.pathname, '/doctor') && <BackButton fallback="/doctor" />}
             <span className="mobile-only"><Brand to="/doctor" size={28} /></span>
             <button className="search-trigger desktop-only" onClick={() => navigate('/doctor/find')}><Search aria-hidden />Find a patient by ID or QR</button>
             <div className="topbar-actions">
