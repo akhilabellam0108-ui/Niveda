@@ -271,6 +271,19 @@ The interface aims for calm and trustworthy rather than clinical: a deep green a
 - Every list has a useful empty state, every data view has a loading skeleton and a friendly error state with *Try again*, and important actions (revoke, delete, stop a medicine, correct an entry, approve access) ask for confirmation.
 - The product name, tagline and patient-ID prefix live in one file: [`src/config/brand.ts`](src/config/brand.ts). The logo is an original SVG mark in [`src/components/ui/Logo.tsx`](src/components/ui/Logo.tsx).
 
+## Android app
+
+**Download:** <https://github.com/akhilabellam0108-ui/Niveda/releases/download/android-latest/Niveda.apk> — open it on an Android phone and allow installing from that source. `.github/workflows/android.yml` rebuilds it on every push to `main`.
+
+It's the same app, wrapped with [Capacitor](https://capacitorjs.com), plus things a browser can't do:
+
+- **Medicine alarms that ring when Niveda is closed.** Every dose in the next 14 days is scheduled with Android's alarm service (exact, allowed in battery saver, restored after a restart). Courses that end stop ringing, doses already marked taken don't ring, and changing a time moves the alarm. Opening the app rolls the window forward. (`src/lib/alarmPlan.ts`, `src/lib/nativeAlarms.ts`)
+- **Taken / Snooze / Skip on the notification** — and on a paired Wear OS watch.
+- **Privacy:** medicine names are hidden on a secure lock screen, and signing out removes every scheduled alarm.
+- **Saving files** (record export, reports, calendar) opens the phone's share menu.
+
+It connects to the same backend as the website (the `VITE_SUPABASE_*` repository variables). It's a test build signed with a debug key; publishing on the Play Store needs a release key. Local build (Android Studio): `npm run android`.
+
 ## Technology
 
 | | |
@@ -431,8 +444,8 @@ Still to do:
 6. **Compliance** — India's Digital Personal Data Protection Act 2023, ABDM / ABHA integration and consent artefacts, and HIPAA / GDPR where relevant; retention and deletion policies; security audits and penetration testing.
 7. **Interoperability** — FHIR R4 import and export; integrations with labs and hospital systems.
 8. **Operations** — monitoring and alerting, backups with point-in-time recovery, tuned rate limits, custom email delivery at scale.
-9. **Mobile app** — for push notifications, the lock-screen emergency card, offline access, and **medicine alarms that ring when the app is closed**.
-10. **Smartwatch integration** — a companion watch app (watchOS / Wear OS) and Apple HealthKit / Google Health Connect so doses can be marked taken from the wrist and schedules stay in sync automatically.
+9. **Mobile app** — ✅ Android app with medicine alarms that ring when the app is closed (see below). Still to do: a Play Store release (needs a release signing key and a Play Console account), an iPhone app, push notifications from the server, the lock-screen emergency card and offline access.
+10. **Smartwatch integration** — ✅ reminders with Taken / Snooze / Skip appear on paired Wear OS watches through the phone's notifications. Still to do: a dedicated watch app and Apple HealthKit / Google Health Connect sync.
 
 ## Roadmap ideas
 
