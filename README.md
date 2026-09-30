@@ -440,7 +440,7 @@ Still to do:
 2. **Encryption** — field-level encryption for mental-health and other sensitive categories, with key management.
 3. **Document handling** — virus scanning, and downloads through an Edge Function so document views are logged by the server rather than the app.
 4. **Clinician verification** — automatic checks through ABDM's Healthcare Professionals Registry instead of by hand; hospital and organisation accounts.
-5. **Emergency ("break-glass") access** — a policy for access when the patient can't consent, with justification, time limits, immediate patient notification and review.
+5. **Emergency ("break-glass") access** — ✅ built: verified doctors only, a stated reason and justification, a fresh emailed code, allergies/medicines/conditions/surgeries only, 4 hours, at most 3 uses a day, the patient told at once, and every use reviewed by the Niveda team. Still to do: a formal policy reviewed by clinicians and lawyers, and notifying the emergency contact.
 6. **Compliance** — India's Digital Personal Data Protection Act 2023, ABDM / ABHA integration and consent artefacts, and HIPAA / GDPR where relevant; retention and deletion policies; security audits and penetration testing.
 7. **Interoperability** — FHIR R4 import and export; integrations with labs and hospital systems.
 8. **Operations** — monitoring and alerting, backups with point-in-time recovery, tuned rate limits, custom email delivery at scale.

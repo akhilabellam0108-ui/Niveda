@@ -50,7 +50,8 @@ export const adminService = isLive ? remoteAdminService : demoAdmin;
 /** Demo only: restores the fictional data. Does nothing on a live backend. */
 export const resetDemoData = isLive ? async () => undefined : demoReset;
 
-export { DURATIONS, durationLabel, maskName } from './accessService';
+export { DURATIONS, durationLabel, maskName, EMERGENCY_REASONS, EMERGENCY_PERMISSIONS, EMERGENCY_HOURS, emergencyReasonLabel } from './accessService';
+export type { EmergencyReason } from './accessService';
 export type { GrantView, RequestView, DoctorGrantView } from './accessService';
 export { isMedicationActive } from './recordService';
 export type { ConsultationBundleInput, PrescriptionInput, NewRecordInput } from './recordService';

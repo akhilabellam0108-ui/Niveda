@@ -54,7 +54,7 @@ export function toGrant(g: Row): AccessGrant {
     // An active grant past its expiry is shown as expired even before the background job catches up.
     expiresAt: ts(g.expires_at), status: g.status === 'active' && new Date(g.expires_at).getTime() <= Date.now() ? 'expired' : g.status,
     method: g.method, revokedAt: g.revoked_at ? ts(g.revoked_at) : undefined,
-    verification: { method: 'otp', verifiedAt: ts(g.verification?.verifiedAt ?? g.granted_at) },
+    verification: { method: 'otp', verifiedAt: ts(g.verification?.verifiedAt ?? g.granted_at), reason: g.verification?.reason, justification: g.verification?.justification },
     reminderSent: g.reminder_sent, expiryLogged: g.expiry_logged, requestId: opt(g.request_id),
   };
 }

@@ -14,6 +14,7 @@ import { DurationPicker, PermissionBadges, PermissionSelector } from '../../comp
 import { QrCode, QrScanner } from '../../components/access/Qr';
 import { TypeIcon } from '../../components/records/RecordCard';
 import { AuditRow, groupByDay } from '../patient/Activity';
+import { EmergencyAccessPanel } from '../../components/access/EmergencyAccess';
 
 /* ---------------- Dashboard ---------------- */
 
@@ -237,6 +238,7 @@ export function FindPatient() {
           {sent && <div className="alert alert-ok"><CheckCircle2 aria-hidden /><div>Request sent.</div></div>}
         </section>
       )}
+      {result?.status !== 'active' && <EmergencyAccessPanel initialCode={result?.patientCode ?? code} key={result?.patientCode ?? 'none'} />}
     </>
   );
 }

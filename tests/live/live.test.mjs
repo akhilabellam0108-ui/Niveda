@@ -293,3 +293,32 @@ test('a doctor applies in the app and the Niveda team verifies them', async () =
   assert.ok((await apps.patient.accessService.searchDoctors('Rahul')).some((d) => d.fullName === 'Dr. Rahul Verma'));
   assert.equal((await apps.patient.accessService.findDoctorByCode(approved.accessCode)).fullName, 'Dr. Rahul Verma');
 });
+
+test('emergency access on the live backend: code-confirmed, patient told, team review ends it', async () => {
+  const dr = await app('applicant'); // Dr. Rahul Verma, verified in the previous test
+  const p = apps.patient;
+  await new Promise((r) => setTimeout(r, 1200)); // Auth sends at most one email per second per person here
+  const before = stack.mailCount();
+  const c = await dr.accessService.requestEmergencyVerification();
+  assert.equal(c.prototypeCode, '', 'the code is emailed, not shown');
+  const why = 'Brought to A&E unconscious after a road accident; need allergies and medicines before surgery.';
+  await rejectsWith(dr.accessService.emergencyAccess({ patientCode: shared.patientCode, reason: 'unconscious', justification: why, challengeId: c.id, code: '000000' }), /OTP_INVALID/);
+  const r = await dr.accessService.emergencyAccess({ patientCode: shared.patientCode, reason: 'unconscious', justification: why, challengeId: c.id, code: await stack.codeFor('rahul.verma@example.com', before) });
+  assert.equal(r.patientId, shared.patientId);
+  const recs = await dr.recordService.list(shared.patientId);
+  assert.ok(recs.length > 0, 'sees the essentials');
+  assert.ok(!recs.some((x) => ['lab_result', 'lab_test', 'imaging', 'vaccination', 'mental_health', 'other'].includes(x.type)), 'and nothing else');
+  const o = await dr.accessService.listForDoctor();
+  assert.deepEqual(o.active.find((g) => g.patientId === shared.patientId).permissions.sort(), ['allergies', 'history', 'medications', 'surgeries']);
+
+  assert.ok((await p.notificationService.list()).some((n) => n.title === 'Emergency access to your record'));
+  assert.ok((await p.auditService.forPatient()).some((a) => a.action === 'emergency_access' && a.metadata?.justification === why));
+  const mine = await p.accessService.listForPatient();
+  assert.equal(mine.active.find((g) => g.method === 'emergency').verification.reason, 'unconscious');
+
+  const [review] = await p.adminService.emergencyAccesses('pending');
+  assert.equal(review.doctor.name, 'Dr. Rahul Verma');
+  assert.equal(review.justification, why);
+  await p.adminService.reviewEmergency(review.id, 'concern', 'Checking with the hospital.');
+  await rejectsWith(dr.recordService.list(shared.patientId), /ACCESS_DENIED/);
+});

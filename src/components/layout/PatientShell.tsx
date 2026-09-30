@@ -184,7 +184,7 @@ export function PatientShell() {
                 { label: 'Profile', icon: UserRound, to: '/app/profile' },
                 { label: 'Privacy & security', icon: LockKeyhole, to: '/app/privacy' },
                 { label: 'Settings', icon: Settings, to: '/app/settings' },
-                ...(user?.isAdmin ? [{ label: 'Doctor verification', icon: ShieldPlus, to: '/admin' }] : []),
+                ...(user?.isAdmin ? [{ label: 'Niveda team', icon: ShieldPlus, to: '/admin' }] : []),
                 { label: 'Log out', icon: LogOut, onClick: async () => { await signOut(); navigate('/login'); } },
               ]} />
             </div>

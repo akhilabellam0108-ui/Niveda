@@ -143,6 +143,10 @@ npm run create-doctor -- --email dr.meena@hospital.in --name "Dr. Meena Iyer" \
   --hospital "Northbridge Hospital" --city Hyderabad
 ```
 
+### Emergency access reviews
+
+When a patient can't consent, a verified doctor can use **Emergency access** (on *Find a patient*): allergies, medicines, conditions and surgeries only, for 4 hours, with a reason and a fresh code, at most 3 times a day. The patient is told at once. Every use appears under **Niveda team → Emergency access**: mark it appropriate, or raise a concern, which ends the access immediately.
+
 ## 7. Try it end to end
 
 1. Sign up as a patient (use an email you can read) → enter the emailed code → complete the setup (upload any PDF or photo as the document).
@@ -189,7 +193,7 @@ This backend makes the core rules real, but a health-records service needs more 
 - **Doctor invitations** are recorded but not yet emailed.
 - **Automatic doctor verification.** Doctors are verified by an administrator checking the register by hand. Connecting to ABDM's Healthcare Professionals Registry would confirm them automatically.
 - **Virus scanning** of uploads and **field-level encryption** for mental-health and other sensitive records (Supabase already encrypts all data at rest and in transit).
-- Hospital accounts, **break-glass emergency access**, **ABDM/ABHA** and **FHIR**, the **mobile app** (alarms when the app is closed) and **smartwatch** integration.
+- Hospital accounts, **ABDM/ABHA** and **FHIR**, the **mobile app** (alarms when the app is closed) and **smartwatch** integration.
 - **A security review and penetration test**, and a DPDP Act compliance review (consent notices, retention, a grievance officer).
 
 ## Tests

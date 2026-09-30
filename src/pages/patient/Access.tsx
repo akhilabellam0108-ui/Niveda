@@ -233,7 +233,7 @@ function ApproveRequest({ request, onClose }: { request: RequestView; onClose: (
 function AccessDetails({ grant, onClose }: { grant: GrantView; onClose: () => void }) {
   const log = useLive(() => auditService.forPatient(), []);
   const events = useMemo(() => log.data?.filter((a) => a.actor.id === grant.doctorId || a.target?.id === grant.doctorId), [log.data, grant.doctorId]);
-  const methodLabel = useMemo(() => ({ directory: 'Doctor directory', code: 'Doctor access code', qr: 'QR code', invite: 'Invitation', request: 'You approved their request' })[grant.method], [grant.method]);
+  const methodLabel = useMemo(() => ({ directory: 'Doctor directory', code: 'Doctor access code', qr: 'QR code', invite: 'Invitation', request: 'You approved their request', emergency: 'emergency access — you couldn’t consent' })[grant.method], [grant.method]);
   return (
     <Modal open onClose={onClose} size="lg" title={grant.doctor.fullName} description={`${grant.doctor.specialization} · ${grant.hospital?.name} · Reg. ${grant.doctor.registrationNumber}`}>
       <div className="stack">

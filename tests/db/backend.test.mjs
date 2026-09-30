@@ -523,3 +523,62 @@ test('doctors apply, only a Niveda administrator can verify them, and approval m
   const notes = await as('meera', (q) => q('select title from notifications order by created_at'));
   assert.deepEqual(notes.map((n) => n.title), ['Application received', 'Your application needs changes', 'You’re verified on Niveda'.replace('’', "'")]);
 });
+
+/* ---------- Emergency ("break-glass") access ---------- */
+
+test('emergency access: verified doctors only, justified, code-confirmed, limited, logged and reviewable', async () => {
+  // A fresh patient who has shared nothing with Kavya.
+  await addUser('ravi', 'ravi@example.com', { full_name: 'Ravi Kumar', date_of_birth: '1970-06-01', phone: '+91 97777 12345' });
+  const acct = await rpc('ravi', 'complete_signup');
+  const code = (await as('ravi', (q) => q('select patient_code from patients')))[0].patient_code;
+  await db.query("insert into public.records (patient_id, type, date, data, created_by) values ($1, 'allergy', current_date, '{\"allergen\":\"Penicillin\",\"severity\":\"Life-threatening\"}', '{\"id\":\"x\",\"role\":\"patient\",\"name\":\"Ravi Kumar\"}'), ($1, 'mental_health', current_date, '{\"topic\":\"Private\"}', '{\"id\":\"x\",\"role\":\"patient\",\"name\":\"Ravi Kumar\"}')", [acct.profileId]).catch(async () => {
+    // Fall back to the app's own API if the table needs more columns.
+    await rpc('ravi', 'create_record', [null, 'allergy', new Date().toISOString().slice(0, 10), { allergen: 'Penicillin', severity: 'Life-threatening', reaction: 'Anaphylaxis' }, null, [], null]);
+    await rpc('ravi', 'create_record', [null, 'mental_health', new Date().toISOString().slice(0, 10), { topic: 'Private' }, null, [], null]);
+  });
+  const why = 'Brought in unconscious after a road accident; need allergies before giving antibiotics.';
+
+  await rejects(rpc('asha', 'emergency_access', [code, 'unconscious', why]), /isn’t available for your account/, 'patients can’t');
+  await rejects(rpc('kavya', 'emergency_access', [code, 'bored', why], freshCode()), /Choose why/);
+  await rejects(rpc('kavya', 'emergency_access', [code, 'unconscious', 'please'], freshCode()), /at least 20 characters/);
+  await rejects(rpc('kavya', 'emergency_access', ['NV-0000-0000', 'unconscious', why], freshCode()), /No patient matches/);
+  await rejects(rpc('kavya', 'emergency_access', [code, 'unconscious', why]), /code we email you/, 'needs a fresh code');
+  await db.query('update doctors set verified_at = null where id = $1', [users.rohan.doctorId]);
+  await rejects(rpc('rohan', 'emergency_access', [code, 'unconscious', why], freshCode()), /Only verified doctors/);
+  await db.query('update doctors set verified_at = now() where id = $1', [users.rohan.doctorId]);
+
+  const r = await rpc('kavya', 'emergency_access', [code, 'unconscious', why], freshCode());
+  assert.equal(r.patientId, acct.profileId);
+  const hours = (new Date(r.expiresAt) - Date.now()) / 3600000;
+  assert.ok(hours > 3.9 && hours <= 4.01, 'four hours');
+  const seen = await as('kavya', (q) => q('select type from records where patient_id = $1 order by type', [acct.profileId]));
+  assert.deepEqual(seen.map((x) => x.type), ['allergy'], 'emergency essentials only — no mental health');
+  await rejects(rpc('kavya', 'emergency_access', [code, 'unconscious', why], freshCode()), /already have access/);
+
+  const log = await as('ravi', (q) => q("select actor, metadata from audit_log where action = 'emergency_access'"));
+  assert.equal(log.length, 1);
+  assert.equal(log[0].actor.name, 'Dr. Kavya Menon');
+  assert.equal(log[0].metadata.justification, why);
+  const note = await as('ravi', (q) => q("select body from notifications where title = 'Emergency access to your record'"));
+  assert.match(note[0].body, /Dr\. Kavya Menon .* in an emergency: Patient is unconscious\. It ends by itself in 4 hours/);
+  const g = await as('ravi', (q) => q("select id, method from access_grants where method = 'emergency'"));
+  assert.equal(g.length, 1);
+
+  // The team sees and reviews it; a concern ends it immediately.
+  await rejects(rpc('kavya', 'admin_emergency_accesses'), /Only the Niveda team/);
+  const list = await rpc('team', 'admin_emergency_accesses');
+  assert.equal(list.length, 1);
+  assert.equal(list[0].patient.maskedName, 'R••• K••••', 'the team sees who accessed, not the patient’s record');
+  assert.equal(list[0].doctor.name, 'Dr. Kavya Menon');
+  await rejects(rpc('team', 'admin_review_emergency_access', [list[0].id, 'concern', '']), /Write down the concern/);
+  await rpc('team', 'admin_review_emergency_access', [list[0].id, 'concern', 'No matching emergency admission at the hospital.']);
+  assert.equal((await as('kavya', (q) => q('select count(*)::int n from records where patient_id = $1', [acct.profileId])))[0].n, 0, 'access ended');
+  assert.equal((await rpc('team', 'admin_emergency_accesses', ['concern'])).length, 1);
+
+  // At most 3 times in 24 hours.
+  for (let i = 0; i < 2; i++) {
+    await rpc('kavya', 'emergency_access', [code, 'life_threatening', why], freshCode());
+    await db.query("update access_grants set status = 'revoked', revoked_at = now() where doctor_id = $1 and status = 'active' and method = 'emergency'", [users.kavya.doctorId]);
+  }
+  await rejects(rpc('kavya', 'emergency_access', [code, 'life_threatening', why], freshCode()), /3 times in the last 24 hours/);
+});

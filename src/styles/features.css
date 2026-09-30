@@ -246,3 +246,6 @@
 .app-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s3); flex-wrap: wrap; }
 .app-card-actions { display: flex; gap: var(--s2); flex-wrap: wrap; align-items: center; }
 .app-card-actions .grow { flex: 1; min-width: 200px; }
+.emergency-panel { border-color: var(--danger-border); }
+.emergency-panel .row > .btn { flex: none; }
+@media (max-width: 640px) { .emergency-panel .row { flex-wrap: wrap; } .emergency-panel .row > .btn { width: 100%; } }

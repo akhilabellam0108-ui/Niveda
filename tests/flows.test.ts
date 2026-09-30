@@ -9,7 +9,7 @@ import {
   patientService, recordService, medicationService, AppError,
 } from '../src/services';
 import { DEMO_PASSWORD } from '../src/mock/seed';
-import { DEFAULT_PERMISSIONS } from '../src/lib/recordMeta';
+import { DEFAULT_PERMISSIONS, RECORD_TYPES } from '../src/lib/recordMeta';
 
 latency.ms = 0;
 let passed = 0;
@@ -249,6 +249,43 @@ await step('patient sees who did what and when', async () => {
     assert(actions.has(a as never), `missing ${a}`);
   }
   assert(log.every((a) => a.timestamp && a.actor.name), 'entries have actor + time');
+});
+
+console.log('\nEmergency access');
+await step('a doctor can open emergency essentials when the patient can’t consent; the patient is told and it’s logged', async () => {
+  await login('arvind.rao@lakeview.example');
+  const code = 'NV-9264-1183';
+  const look = await accessService.lookupPatient(code);
+  assert(look.status === 'none', 'no access to start with');
+  const bad = await accessService.requestEmergencyVerification();
+  await accessService.emergencyAccess({ patientCode: code, reason: 'unconscious', justification: 'too short', challengeId: bad.id, code: bad.prototypeCode }).then(
+    () => { throw new Error('accepted a short justification'); }, (e) => assert(e instanceof AppError && /20 characters/.test(e.message), (e as Error).message));
+  const c = await accessService.requestEmergencyVerification();
+  const r = await accessService.emergencyAccess({ patientCode: code, reason: 'unconscious', justification: 'Unconscious in A&E after a fall; need allergies before treatment.', challengeId: c.id, code: c.prototypeCode });
+  const hours = (new Date(r.expiresAt).getTime() - Date.now()) / 3600000;
+  assert(hours > 3.9 && hours <= 4.01, 'four hours');
+  const mine = await accessService.listForDoctor();
+  const g = mine.active.find((x) => x.patientId === r.patientId)!;
+  assert(g.method === 'emergency' && g.permissions.join() === 'allergies,medications,history,surgeries', 'emergency essentials only');
+  assert(!g.permissions.includes('mental_health' as never), 'never mental health');
+  const recs = await recordService.list(r.patientId);
+  assert(recs.length > 0, 'sees the essentials');
+  assert(recs.every((x) => g.permissions.includes(RECORD_TYPES[x.type].permission)), `only essentials visible: ${[...new Set(recs.map((x) => x.type))].join(', ')}`);
+  const again = await accessService.requestEmergencyVerification();
+  await accessService.emergencyAccess({ patientCode: code, reason: 'unconscious', justification: 'Unconscious in A&E after a fall; need allergies before treatment.', challengeId: again.id, code: again.prototypeCode }).then(
+    () => { throw new Error('allowed twice'); }, (e) => assert(/already have access/.test((e as Error).message), (e as Error).message));
+  await login('fatima@example.com');
+  const notes = await notificationService.list();
+  assert(notes.some((n) => n.title === 'Emergency access to your record' && /Dr\. Arvind Rao .*Patient is unconscious/.test(n.body)), 'the patient is told at once');
+  const log = await auditService.forPatient();
+  const entry = log.find((a) => a.action === 'emergency_access');
+  assert(entry && entry.actor.name === 'Dr. Arvind Rao' && /A&E/.test(String(entry.metadata?.justification)), 'written to the access log with the reason');
+  const mineP = await accessService.listForPatient();
+  const eg = mineP.active.find((x) => x.method === 'emergency')!;
+  assert(eg.verification.reason === 'unconscious', 'the patient sees why');
+  await accessService.revoke(eg.id);
+  await login('arvind.rao@lakeview.example');
+  await recordService.list(r.patientId).then(() => { throw new Error('still had access'); }, (e) => assert(e instanceof AppError && e.code === 'ACCESS_DENIED', 'the patient can end it'));
 });
 
 console.log('\nPhone alarms (Android app)');

@@ -49,7 +49,7 @@ export function DoctorShell() {
               <UserMenu name={doctor.fullName} sub={`${doctor.specialization} · ${doctor.hospital?.name}`} doctor items={[
                 { label: 'Profile', icon: UserRound, to: '/doctor/profile' },
                 { label: 'Security', icon: LockKeyhole, to: '/doctor/security' },
-                ...(user?.isAdmin ? [{ label: 'Doctor verification', icon: ShieldPlus, to: '/admin' }] : []),
+                ...(user?.isAdmin ? [{ label: 'Niveda team', icon: ShieldPlus, to: '/admin' }] : []),
                 { label: 'Log out', icon: LogOut, onClick: logout },
               ]} />
             </div>

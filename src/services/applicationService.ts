@@ -5,7 +5,7 @@
  * Niveda team), so in the demo they explain that and do nothing. The live
  * versions are in ./remote/applications.ts.
  */
-import type { DoctorApplication, DoctorApplicationInput } from '../types';
+import type { DoctorApplication, DoctorApplicationInput, EmergencyAccessReview } from '../types';
 import { AppError } from './core';
 
 export const DEMO_ONLY_MESSAGE = 'Doctor sign-up works once Niveda is connected to its live backend. In this demo, use the demo doctor account to look around.';
@@ -56,6 +56,12 @@ export const adminService = {
     return [];
   },
   async review(_id: string, _decision: 'approve' | 'decline', _note?: string): Promise<DoctorApplication> {
+    throw new AppError('ACCESS_DENIED', 'Only the Niveda team can do this.');
+  },
+  async emergencyAccesses(_status: 'pending' | 'appropriate' | 'concern' | 'all' = 'pending'): Promise<EmergencyAccessReview[]> {
+    return [];
+  },
+  async reviewEmergency(_id: string, _outcome: 'appropriate' | 'concern', _note?: string): Promise<void> {
     throw new AppError('ACCESS_DENIED', 'Only the Niveda team can do this.');
   },
 };

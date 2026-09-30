@@ -23,6 +23,22 @@ export interface User {
   isAdmin?: boolean;
 }
 
+/** One use of emergency access, as the Niveda team reviews it (no medical details). */
+export interface EmergencyAccessReview {
+  id: ID;
+  createdAt: ISODateTime;
+  reason: string;
+  justification: string;
+  reviewStatus: 'pending' | 'appropriate' | 'concern';
+  reviewNote: string | null;
+  reviewedAt: ISODateTime | null;
+  doctor: { name: string; registrationNumber: string; hospital: string | null; email: string };
+  patient: { code: string; maskedName: string };
+  endedAt: ISODateTime;
+  endedEarly: boolean;
+  doctorUsesLast30Days: number;
+}
+
 /** What a doctor fills in to apply. */
 export interface DoctorApplicationInput {
   fullName: string;
@@ -199,7 +215,7 @@ export interface MedicalDocument {
 
 /* ---------- Access ---------- */
 
-export type GrantMethod = 'directory' | 'code' | 'qr' | 'invite' | 'request';
+export type GrantMethod = 'directory' | 'code' | 'qr' | 'invite' | 'request' | 'emergency';
 export type GrantStatus = 'active' | 'expired' | 'revoked';
 
 export interface AccessGrant {
@@ -212,7 +228,8 @@ export interface AccessGrant {
   status: GrantStatus;
   method: GrantMethod;
   revokedAt?: ISODateTime;
-  verification: { method: 'otp'; verifiedAt: ISODateTime };
+  /** For emergency access, the doctor's stated reason and justification. */
+  verification: { method: 'otp'; verifiedAt: ISODateTime; reason?: string; justification?: string };
   reminderSent?: boolean;
   expiryLogged?: boolean;
   requestId?: ID;
@@ -265,6 +282,7 @@ export type AuditAction =
   | 'document_deleted'
   | 'export_created'
   | 'emergency_viewed'
+  | 'emergency_access'
   | 'invite_sent'
   | 'sessions_revoked';
 

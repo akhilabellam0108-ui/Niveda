@@ -32,8 +32,21 @@ export const durationLabel = (h: number) =>
   DURATIONS.find((d) => d.hours === h)?.label ?? (h % 24 === 0 ? `${h / 24} days` : `${h} hours`);
 
 const METHOD_LABEL: Record<GrantMethod, string> = {
-  directory: 'Doctor directory', code: 'Doctor access code', qr: 'QR code', invite: 'Invitation', request: 'Approved request',
+  directory: 'Doctor directory', code: 'Doctor access code', qr: 'QR code', invite: 'Invitation', request: 'Approved request', emergency: 'Emergency access',
 };
+
+/** Why a patient can't consent. Keys match the database's _emergency_reason_label(). */
+export const EMERGENCY_REASONS = [
+  { value: 'unconscious', label: 'Patient is unconscious' },
+  { value: 'cannot_communicate', label: 'Patient can’t communicate' },
+  { value: 'life_threatening', label: 'Life-threatening emergency' },
+  { value: 'confused', label: 'Patient is confused or disoriented' },
+] as const;
+export type EmergencyReason = (typeof EMERGENCY_REASONS)[number]['value'];
+export const EMERGENCY_PERMISSIONS: PermissionKey[] = ['allergies', 'medications', 'history', 'surgeries'];
+export const EMERGENCY_HOURS = 4;
+export const EMERGENCY_DAILY_LIMIT = 3;
+export const emergencyReasonLabel = (v?: string) => EMERGENCY_REASONS.find((r) => r.value === v)?.label ?? v ?? '';
 
 const withDoctor = <T extends { doctorId: string }>(db: Awaited<ReturnType<typeof requireCtx>>['db'], x: T) => {
   const doctor = db.doctors.find((d) => d.id === x.doctorId)!;
@@ -276,6 +289,53 @@ export const accessService = {
       const pu = patientUserId(db, patientId);
       if (pu) notify(db, { userId: pu, kind: 'request', title: 'Access request', body: `${ctx.doctor!.fullName} (${ctx.actor.organization}) requested access to your ${permissions.map((k) => permissionLabel(k).toLowerCase()).join(', ')} for ${durationLabel(hours)}.`, link: '/app/access?tab=requests' });
       return r;
+    });
+  },
+
+  /* ---------------- Emergency ("break-glass") access ---------------- */
+
+  async requestEmergencyVerification() {
+    const ctx = await requireCtx('doctor');
+    return otpService.request('emergency_access', ctx.doctor!.phone || ctx.user.phone);
+  },
+
+  /** When the patient can't consent: emergency essentials for 4 hours, logged, patient told. */
+  async emergencyAccess(input: { patientCode: string; reason: EmergencyReason; justification: string; challengeId: string; code: string }): Promise<{ patientId: string; expiresAt: string }> {
+    await delay();
+    const ctx = await requireCtx('doctor');
+    const d = ctx.doctor!;
+    // Demo doctors are all verified; the live database checks verified_at.
+    const reason = EMERGENCY_REASONS.find((r) => r.value === input.reason);
+    if (!reason) throw new AppError('VALIDATION', 'Choose why the patient can’t give consent.');
+    const justification = input.justification.trim().replace(/\s+/g, ' ');
+    if (justification.length < 20) throw new AppError('VALIDATION', 'Describe the emergency in a sentence or two (at least 20 characters). The patient and the Niveda team will read it.');
+    const c = input.patientCode.trim().toUpperCase().replace(/[\s-]/g, '');
+    const p = ctx.db.patients.find((x) => x.patientCode.replace(/-/g, '') === c);
+    if (!p) throw new AppError('NOT_FOUND', 'No patient matches that ID. Check the ID on their card or phone.');
+    await mutateQuiet((db) => sweepGrants(db));
+    if (activeGrant(ctx.db, d.id, p.id)) throw new AppError('CONFLICT', 'You already have access to this patient’s record.');
+    const since = now().getTime() - 24 * 3600 * 1000;
+    if (ctx.db.grants.filter((g) => g.doctorId === d.id && g.method === 'emergency' && new Date(g.grantedAt).getTime() > since).length >= EMERGENCY_DAILY_LIMIT) {
+      throw new AppError('ACCESS_DENIED', 'You’ve used emergency access 3 times in the last 24 hours. Contact the Niveda team if you need more.');
+    }
+    otpService.verify(input.challengeId, input.code, 'emergency_access');
+    return mutate((db) => {
+      const t = nowISO();
+      const grant: AccessGrant = {
+        id: uid('grt'), patientId: p.id, doctorId: d.id, permissions: EMERGENCY_PERMISSIONS, grantedAt: t, expiresAt: addHours(t, EMERGENCY_HOURS),
+        status: 'active', method: 'emergency', verification: { method: 'otp', verifiedAt: t, reason: reason.value, justification },
+      };
+      db.grants.push(grant);
+      const hospital = db.hospitals.find((h) => h.id === d.hospitalId)?.name;
+      audit(db, {
+        patientId: p.id, actor: { id: d.id, role: 'doctor', name: d.fullName, organization: hospital },
+        action: 'emergency_access', target: { type: 'doctor', id: d.id, label: d.fullName },
+        metadata: { reason: reason.label, justification, duration: '4 hours', permissions: EMERGENCY_PERMISSIONS.map(permissionLabel), method: 'Emergency access' },
+      });
+      const pu = patientUserId(db, p.id);
+      if (pu) notify(db, { userId: pu, kind: 'access', title: 'Emergency access to your record', link: '/app/access',
+        body: `${d.fullName}${hospital ? ` (${hospital})` : ''} opened your allergies, medicines, conditions and surgeries in an emergency: ${reason.label}. It ends by itself in 4 hours. If you didn’t expect this, end it now.` });
+      return { patientId: p.id, expiresAt: grant.expiresAt };
     });
   },
 

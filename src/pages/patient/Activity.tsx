@@ -30,6 +30,7 @@ export const ACTION_LABEL: Record<AuditAction, string> = {
   document_deleted: 'Deleted a document',
   export_created: 'Exported records',
   emergency_viewed: 'Viewed emergency profile',
+  emergency_access: 'Used emergency access',
   invite_sent: 'Invited a doctor',
   sessions_revoked: 'Signed out a device',
 };
@@ -41,7 +42,7 @@ const ICON: Record<AuditAction, [LucideIcon, string]> = {
   viewed_record: [Eye, 'tone-info'], viewed_history: [Eye, 'tone-info'], viewed_document: [Eye, 'tone-info'],
   record_added: [FilePlus2, 'tone-accent'], record_amended: [PencilLine, 'tone-warn'], medication_discontinued: [Ban, ''],
   document_uploaded: [FileUp, 'tone-accent'], document_deleted: [Trash2, 'tone-danger'], export_created: [Download, ''],
-  emergency_viewed: [Siren, 'tone-danger'], invite_sent: [UserPlus, ''], sessions_revoked: [MonitorSmartphone, 'tone-warn'],
+  emergency_viewed: [Siren, 'tone-danger'], emergency_access: [Siren, 'tone-danger'], invite_sent: [UserPlus, ''], sessions_revoked: [MonitorSmartphone, 'tone-warn'],
 };
 
 const FILTERS: { key: string; label: string; match: (a: AuditLog) => boolean }[] = [

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { FilePlus2, ShieldOff, TriangleAlert, Activity, Pill, Clock3, ShieldCheck, Send, Siren, ArrowLeft, FileText, Lock } from 'lucide-react';
-import { doctorService, documentService, recordService } from '../../services';
+import { doctorService, documentService, recordService, emergencyReasonLabel } from '../../services';
 import { AppError } from '../../services/core';
 import { useLive, useDocumentTitle } from '../../state/hooks';
 import { brand } from '../../config/brand';
@@ -57,6 +57,12 @@ export function PatientView() {
 
   return (
     <>
+      {g.method === 'emergency' && (
+        <div className="alert alert-danger" role="status">
+          <Siren aria-hidden />
+          <div><strong>Emergency access</strong> — {emergencyReasonLabel(g.verification.reason)}. Ends {fmtDateTime(g.expiresAt)} ({timeLeft(g.expiresAt)}). The patient has been told, and everything you open or add is logged and reviewed by the Niveda team.</div>
+        </div>
+      )}
       <section className="card patient-banner">
         <Avatar name={o.patient.fullName} src={o.patient.photoDataUrl} size="lg" />
         <div className="grow" style={{ minWidth: 220 }}>

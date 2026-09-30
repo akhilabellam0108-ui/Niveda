@@ -137,6 +137,15 @@ export const remoteAccessService: typeof MockAccess = {
     return toRequest(row);
   },
 
+  requestEmergencyVerification() {
+    return stepUp.request('emergency_access');
+  },
+
+  async emergencyAccess(input) {
+    await stepUp.verify(input.code);
+    return write<{ patientId: string; expiresAt: string }>('emergency_access', { p_code: input.patientCode, p_reason: input.reason, p_justification: input.justification });
+  },
+
   async cancelRequest(requestId: string) {
     await write('cancel_request', { p_request: requestId });
   },
