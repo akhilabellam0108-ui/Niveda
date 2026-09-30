@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { House, Users, UserSearch, ScrollText, Bell, UserRound, LockKeyhole, Settings, LogOut, Search, Stethoscope, Ellipsis } from 'lucide-react';
+import { House, Users, UserSearch, ScrollText, Bell, UserRound, LockKeyhole, Settings, LogOut, Search, Stethoscope, Ellipsis, ShieldPlus } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { brand } from '../../config/brand';
 import { notificationService } from '../../services';
@@ -12,7 +12,7 @@ import { BackButton } from '../ui/BackButton';
 import { ProtoBar, SideNav, UserMenu, isHome, type NavItem } from './PatientShell';
 
 export function DoctorShell() {
-  const { doctor, signOut } = useSession();
+  const { doctor, signOut, user } = useSession();
   const navigate = useNavigate();
   const location = useLocation();
   const unread = useLive(() => notificationService.unreadCount(), []);
@@ -49,6 +49,7 @@ export function DoctorShell() {
               <UserMenu name={doctor.fullName} sub={`${doctor.specialization} · ${doctor.hospital?.name}`} doctor items={[
                 { label: 'Profile', icon: UserRound, to: '/doctor/profile' },
                 { label: 'Security', icon: LockKeyhole, to: '/doctor/security' },
+                ...(user?.isAdmin ? [{ label: 'Doctor verification', icon: ShieldPlus, to: '/admin' }] : []),
                 { label: 'Log out', icon: LogOut, onClick: logout },
               ]} />
             </div>

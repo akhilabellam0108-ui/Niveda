@@ -112,6 +112,31 @@ after(async () => {
   await admin?.end();
 });
 
+/* ---------- the one-file setup matches the migrations ---------- */
+
+test('supabase/setup.sql is up to date (run: node scripts/build-setup-sql.mjs)', async () => {
+  const { buildSetupSql } = await import(pathToFileURL(join(root, 'scripts/build-setup-sql.mjs')).href);
+  assert.equal(sql('supabase/setup.sql'), buildSetupSql());
+});
+
+test('setup.sql alone builds the whole database', async () => {
+  const name = `${DB}_setup`;
+  await admin.query(`create database ${name}`);
+  const url = new URL(ADMIN_URL);
+  url.pathname = `/${name}`;
+  const c = new pg.Client({ connectionString: url.toString() });
+  try {
+    await c.connect();
+    await c.query(sql('tests/db/supabase-shim.sql'));
+    await c.query(sql('supabase/setup.sql'));
+    const t = (await c.query("select count(*)::int n from information_schema.tables where table_schema = 'public' and table_name in ('patients', 'doctors', 'doctor_applications', 'admins', 'audit_log')")).rows[0].n;
+    assert.equal(t, 5);
+  } finally {
+    await c.end();
+    await admin.query(`drop database if exists ${name} with (force)`);
+  }
+});
+
 /* ---------- the record's rules come from the app's own definitions ---------- */
 
 test('server record types match src/lib/recordMeta.ts', async () => {
@@ -441,4 +466,60 @@ test('account erasure is possible only deliberately', async () => {
     c.release();
   }
   assert.equal((await db.query('select count(*)::int n from patients where id = $1', [users.vikram.patientId])).rows[0].n, 0);
+});
+
+/* ---------- Doctor sign-up and verification by the Niveda team ---------- */
+
+test('doctors apply, only a Niveda administrator can verify them, and approval makes them a doctor', async () => {
+  const form = {
+    signup_kind: 'doctor', fullName: '  Dr. Meera   Nair ', phone: '+91 99887 76655', registrationNumber: 'kmc-55501',
+    medicalCouncil: 'Karnataka Medical Council', registrationYear: '2012', specialization: 'Paediatrics', qualifications: 'MBBS, MD',
+    yearsOfPractice: '11', hospitalName: 'Sunrise Children’s Hospital', hospitalCity: 'Bengaluru', hospitalType: 'hospital',
+  };
+  await addUser('meera', 'meera@example.com', form);
+  await addUser('copycat', 'copycat@example.com', { ...form, fullName: 'Someone Else', phone: '+91 90000 11111' });
+  await addUser('team', 'team@niveda.example');
+  await addUser('sneaky', 'sneaky@niveda.example');
+  await db.query("update auth.users set email_confirmed_at = null where email = 'sneaky@niveda.example'");
+  await db.query("insert into public.admins (email) values ('team@niveda.example'), ('sneaky@niveda.example')");
+
+  const acct = await rpc('meera', 'complete_signup');
+  assert.equal(acct.role, 'applicant');
+  assert.equal(acct.isAdmin, false);
+  const mine = await rpc('meera', 'my_doctor_application');
+  assert.equal(mine.status, 'pending');
+  assert.equal(mine.fullName, 'Dr. Meera Nair', 'spaces tidied');
+  assert.equal(mine.registrationNumber, 'KMC-55501');
+  assert.equal(mine.accessCode, null);
+  await rejects(rpc('copycat', 'complete_signup'), /already linked to a Niveda account/);
+  await rejects(rpc('meera', 'lookup_patient', ['NV-0000-0000']), /isn’t available for your account/, 'an applicant is not a doctor yet');
+  assert.equal((await as('asha', (q) => q('select count(*)::int n from doctor_applications')))[0].n, 0, 'applications are private');
+
+  for (const who of ['asha', 'meera', 'kavya', 'sneaky']) {
+    await rejects(rpc(who, 'admin_doctor_applications'), /Only the Niveda team/);
+    await rejects(rpc(who, 'admin_review_doctor_application', [mine.id, 'approve', null]), /Only the Niveda team/);
+  }
+  assert.deepEqual((await rpc('team', 'admin_doctor_applications')).map((a) => a.id), [mine.id]);
+
+  await rejects(rpc('team', 'admin_review_doctor_application', [mine.id, 'decline', ' ']), /Tell the doctor why/);
+  const declined = await rpc('team', 'admin_review_doctor_application', [mine.id, 'decline', 'The number doesn’t match the council register.']);
+  assert.equal(declined.status, 'declined');
+  await rejects(rpc('team', 'admin_review_doctor_application', [mine.id, 'approve', null]), /already been reviewed/);
+  await rejects(rpc('meera', 'update_doctor_application', [{ ...form, yearsOfPractice: '99' }]), /years of practice/);
+  const fixed = await rpc('meera', 'update_doctor_application', [{ ...form, registrationNumber: 'KMC-55502' }]);
+  assert.equal(fixed.status, 'pending');
+  assert.equal(fixed.reviewNote, 'The number doesn’t match the council register.', 'the reason stays visible after resubmitting');
+  assert.deepEqual((await rpc('team', 'admin_doctor_applications', ['pending'])).map((a) => a.registrationNumber), ['KMC-55502']);
+
+  const approved = await rpc('team', 'admin_review_doctor_application', [mine.id, 'approve', null]);
+  assert.equal(approved.status, 'approved');
+  assert.match(approved.accessCode, /^DR-[0-9A-F]{4}$/);
+  assert.equal((await rpc('meera', 'my_account')).role, 'doctor');
+  const doc = (await db.query('select d.verified_at, h.name, h.city from doctors d join hospitals h on h.id = d.hospital_id where d.user_id = $1', [users.meera.id])).rows[0];
+  assert.ok(doc.verified_at);
+  assert.deepEqual([doc.name, doc.city], ['Sunrise Children’s Hospital', 'Bengaluru']);
+  assert.equal((await as('asha', (q) => q("select verified from doctor_directory where registration_number = 'KMC-55502'")))[0].verified, true);
+  await rejects(rpc('meera', 'update_doctor_application', [form]), /already approved/);
+  const notes = await as('meera', (q) => q('select title from notifications order by created_at'));
+  assert.deepEqual(notes.map((n) => n.title), ['Application received', 'Your application needs changes', 'You’re verified on Niveda'.replace('’', "'")]);
 });

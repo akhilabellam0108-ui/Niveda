@@ -31,6 +31,10 @@ export function LandingPage() {
             <Link to="/signup" className="btn btn-primary btn-lg">Get started</Link>
             <Link to="/login" className="btn btn-secondary btn-lg">Log in</Link>
           </div>
+          <p className="small muted" style={{ marginTop: 16 }}>
+            Are you a doctor? <Link to="/signup/doctor">Apply to join</Link>
+            {isLive && <> · <a href="demo/">Try the demo with sample data</a></>}
+          </p>
         </div>
         <div className="hero-visual" aria-hidden>
           <div className="card" style={{ padding: 18 }}>

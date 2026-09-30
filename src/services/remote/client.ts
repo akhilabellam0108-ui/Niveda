@@ -136,7 +136,8 @@ export async function all<T>(page: (from: number, to: number) => PromiseLike<{ d
 
 export interface Account {
   id: string;
-  role: 'patient' | 'doctor';
+  role: 'patient' | 'doctor' | 'applicant';
+  isAdmin?: boolean;
   onboarded: boolean;
   createdAt: string;
   profileId: string;

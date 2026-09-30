@@ -30,7 +30,7 @@ export function describeDevice(ua?: string | null): string {
 }
 
 function toUser(a: Account): User {
-  return { id: a.id, role: a.role, email: a.email, phone: a.phone, passwordHash: '', passwordSalt: '', createdAt: a.createdAt, profileId: a.profileId, onboarded: a.onboarded };
+  return { id: a.id, role: a.role, email: a.email, phone: a.phone, passwordHash: '', passwordSalt: '', createdAt: a.createdAt, profileId: a.profileId, onboarded: a.onboarded, isAdmin: !!a.isAdmin };
 }
 
 async function verifyEmailCode(email: string, code: string, type: 'email' | 'recovery') {
@@ -76,6 +76,19 @@ export const stepUp = {
 };
 
 export const remoteAuthService: typeof MockAuth = {
+  async startDoctorApplication(input) {
+    const email = norm(input.email);
+    const { email: _e, password, ...details } = input;
+    const { data, error } = await sb().auth.signUp({ email, password, options: { data: { signup_kind: 'doctor', ...details } } });
+    if (error) throw authError(error);
+    if (data.user && (data.user.identities?.length ?? 0) === 0) {
+      throw new AppError('CONFLICT', 'An account with this email already exists. Try signing in instead.');
+    }
+    const c = challengeFor('signup', email);
+    pending = { flow: 'signup', email, challengeId: c.id };
+    return c;
+  },
+
   async startSignUp(input: SignUpInput): Promise<OtpChallenge> {
     const email = norm(input.email);
     const { data, error } = await sb().auth.signUp({

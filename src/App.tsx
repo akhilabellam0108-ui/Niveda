@@ -10,6 +10,9 @@ import { DoctorShell } from './components/layout/DoctorShell';
 import { LandingPage, LegalPage } from './pages/public/Landing';
 import { ForgotPasswordPage, LoginPage, SignupPage, VerifyPage } from './pages/auth/AuthPages';
 import { OnboardingPage } from './pages/auth/Onboarding';
+import { ApplicationStatusPage, DoctorSignupPage } from './pages/auth/DoctorSignup';
+import { AdminPage } from './pages/admin/AdminPage';
+import { homeFor } from './lib/home';
 import { PatientHome } from './pages/patient/Home';
 import { RecordsPage, TimelinePage } from './pages/patient/Records';
 import { AllergiesPage, MedicationsPage } from './pages/patient/Medications';
@@ -29,12 +32,12 @@ function Splash() {
 }
 
 /** Route guard. Role checks here are for UX only — services enforce access. */
-function RequireRole({ role }: { role: 'patient' | 'doctor' }) {
+function RequireRole({ role }: { role: 'patient' | 'doctor' | 'applicant' }) {
   const { status, user } = useSession();
   const location = useLocation();
   if (status === 'loading') return <Splash />;
   if (status === 'signed-out' || !user) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
-  if (user.role !== role) return <Navigate to={user.role === 'doctor' ? '/doctor' : '/app'} replace />;
+  if (user.role !== role) return <Navigate to={homeFor(user)} replace />;
   if (role === 'patient' && !user.onboarded && location.pathname !== '/onboarding') return <Navigate to="/onboarding" replace />;
   return <Outlet />;
 }
@@ -42,7 +45,17 @@ function RequireRole({ role }: { role: 'patient' | 'doctor' }) {
 function PublicOnly() {
   const { status, user } = useSession();
   if (status === 'loading') return <Splash />;
-  if (status === 'signed-in' && user) return <Navigate to={user.role === 'doctor' ? '/doctor' : user.onboarded ? '/app' : '/onboarding'} replace />;
+  if (status === 'signed-in' && user) return <Navigate to={homeFor(user)} replace />;
+  return <Outlet />;
+}
+
+/** The Niveda team's pages. The database checks this again for every action. */
+function RequireAdmin() {
+  const { status, user } = useSession();
+  const location = useLocation();
+  if (status === 'loading') return <Splash />;
+  if (status === 'signed-out' || !user) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  if (!user.isAdmin) return <Navigate to={homeFor(user)} replace />;
   return <Outlet />;
 }
 
@@ -92,9 +105,16 @@ export default function App() {
                 <Route path="/" element={<LandingPage />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/signup" element={<SignupPage />} />
+                <Route path="/signup/doctor" element={<DoctorSignupPage />} />
                 <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               </Route>
               <Route path="/verify" element={<VerifyPage />} />
+              <Route element={<RequireRole role="applicant" />}>
+                <Route path="/doctor-application" element={<ApplicationStatusPage />} />
+              </Route>
+              <Route element={<RequireAdmin />}>
+                <Route path="/admin" element={<AdminPage />} />
+              </Route>
               <Route element={<RequireRole role="patient" />}>
                 <Route path="/onboarding" element={<OnboardingPage />} />
                 <Route path="/app" element={<PatientShell />}>

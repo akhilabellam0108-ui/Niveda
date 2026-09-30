@@ -8,11 +8,12 @@ import { useSession } from '../../state/SessionContext';
 import { useDocumentTitle } from '../../state/hooks';
 import { Button, Field, InlineError, Input } from '../../components/ui';
 import { Brand } from '../../components/ui/Logo';
+import { homeFor } from '../../lib/home';
 import { BackButton } from '../../components/ui/BackButton';
 import { OtpInput, PrototypeCode } from '../../components/ui/Otp';
 import { toISODate } from '../../lib/dates';
 
-export function AuthLayout({ children }: { children: ReactNode }) {
+export function AuthLayout({ children, back = true }: { children: ReactNode; back?: boolean }) {
   return (
     <div className="auth">
       <aside className="auth-aside">
@@ -30,7 +31,7 @@ export function AuthLayout({ children }: { children: ReactNode }) {
       </aside>
       <main className="auth-main">
         <div className="auth-card">
-          <BackButton fallback="/" className="auth-back" />
+          {back && <BackButton fallback="/" className="auth-back" />}
           <div className="mobile-only"><Brand /></div>
           {children}
         </div>
@@ -50,7 +51,7 @@ function TimelineArt() {
   );
 }
 
-function PasswordInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
+export function PasswordInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   const [show, setShow] = useState(false);
   return (
     <div className="input-wrap">
@@ -186,7 +187,7 @@ export function SignupPage() {
         <Button type="submit" variant="primary" size="lg" block loading={busy}>Continue</Button>
       </form>
       <p className="small muted" style={{ textAlign: 'center' }}>Already have an account? <Link to="/login">Log in</Link></p>
-      <p className="xs subtle" style={{ textAlign: 'center' }}>Clinicians are onboarded through their hospital after registration checks, not via this form.</p>
+      <p className="small muted" style={{ textAlign: 'center' }}>Are you a doctor? <Link to="/signup/doctor">Apply to join as a doctor</Link></p>
     </AuthLayout>
   );
 }
@@ -221,7 +222,7 @@ export function VerifyPage() {
     try {
       const user = state.flow === 'signup' ? await authService.completeSignUp(challenge.id, c) : await authService.completeLogin(challenge.id, c);
       await refresh();
-      navigate(user.role === 'doctor' ? '/doctor' : user.onboarded ? '/app' : '/onboarding', { replace: true });
+      navigate(homeFor(user), { replace: true });
     } catch (x) {
       setErr(friendlyError(x));
       setCode('');

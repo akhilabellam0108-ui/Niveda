@@ -3,7 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate, useSearchParams, Link } from
 import type { LucideIcon } from 'lucide-react';
 import {
   House, Clock3, FolderHeart, Pill, TriangleAlert, FileText, ShieldCheck, Siren, Bell, ScrollText, LockKeyhole,
-  UserRound, Settings, Search, LogOut, Ellipsis, ChevronDown,
+  UserRound, Settings, Search, LogOut, Ellipsis, ChevronDown, ShieldPlus,
 } from 'lucide-react';
 import type { RecordType } from '../../types';
 import { brand, PROTOTYPE_NOTICE } from '../../config/brand';
@@ -114,7 +114,7 @@ const PRIMARY: NavItem[] = [
 export const isHome = (pathname: string, home: string) => pathname.replace(/\/+$/, '') === home;
 
 export function PatientShell() {
-  const { patient, signOut } = useSession();
+  const { patient, signOut, user } = useSession();
   const navigate = useNavigate();
   const location = useLocation();
   const toast = useToast();
@@ -184,6 +184,7 @@ export function PatientShell() {
                 { label: 'Profile', icon: UserRound, to: '/app/profile' },
                 { label: 'Privacy & security', icon: LockKeyhole, to: '/app/privacy' },
                 { label: 'Settings', icon: Settings, to: '/app/settings' },
+                ...(user?.isAdmin ? [{ label: 'Doctor verification', icon: ShieldPlus, to: '/admin' }] : []),
                 { label: 'Log out', icon: LogOut, onClick: async () => { await signOut(); navigate('/login'); } },
               ]} />
             </div>

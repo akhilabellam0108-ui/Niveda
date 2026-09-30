@@ -18,6 +18,8 @@ import { auditService as demoAudit } from './auditService';
 import { settingsService as demoSettings } from './settingsService';
 import { exportService as demoExport } from './exportService';
 import { searchPatient as demoSearch } from './searchService';
+import { applicationService as demoApplications, adminService as demoAdmin } from './applicationService';
+import { remoteApplicationService, remoteAdminService } from './remote/applications';
 import { subscribe as demoSubscribe, resetDemoData as demoReset } from '../mock/db';
 import { remoteAuthService } from './remote/auth';
 import { remoteAccessService } from './remote/access';
@@ -43,6 +45,8 @@ export const settingsService = isLive ? remoteSettingsService : demoSettings;
 export const exportService = isLive ? remoteExportService : demoExport;
 export const searchPatient = isLive ? remoteSearchPatient : demoSearch;
 export const subscribe = isLive ? liveSubscribe : demoSubscribe;
+export const applicationService = isLive ? remoteApplicationService : demoApplications;
+export const adminService = isLive ? remoteAdminService : demoAdmin;
 /** Demo only: restores the fictional data. Does nothing on a live backend. */
 export const resetDemoData = isLive ? async () => undefined : demoReset;
 
@@ -61,3 +65,4 @@ export type { SearchResult } from './searchService';
 export { otpService } from './otpService';
 export type { OtpChallenge } from './otpService';
 export { AppError, friendlyError } from './core';
+export { MEDICAL_COUNCILS, REGISTER_CHECK_URL, DEMO_ONLY_MESSAGE, validateApplication } from './applicationService';

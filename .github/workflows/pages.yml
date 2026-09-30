@@ -1,6 +1,6 @@
 name: Deploy to GitHub Pages
 
-# Publishes the live demo at https://<owner>.github.io/niveda/ on every push to main.
+# Publishes Niveda at https://<owner>.github.io/Niveda/ (and the demo at …/demo/) on every push to main.
 # One-time setup: repo Settings → Pages → Source: "GitHub Actions".
 # The app uses hash routing and relative paths, so no extra configuration is needed.
 
@@ -28,8 +28,18 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run build
-      - run: touch dist/.nojekyll
+      # The demo (fictional data, stored in the browser) is kept at /demo.
+      - name: Build the demo
+        run: npm run build && mv dist "$RUNNER_TEMP/demo"
+      # The real app, connected to Supabase when the repository variables
+      # VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set (Settings → Secrets
+      # and variables → Actions → Variables). Without them it is the demo too.
+      - name: Build the app
+        run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+      - run: mv "$RUNNER_TEMP/demo" dist/demo && touch dist/.nojekyll
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

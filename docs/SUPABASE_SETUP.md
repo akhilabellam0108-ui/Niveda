@@ -2,7 +2,7 @@
 
 This guide takes you from nothing to a live Niveda with real accounts. It takes about 30–45 minutes the first time.
 
-Without these settings the app runs as the **demo** (fictional data, everything stored in the browser). The public GitHub Pages demo always stays in demo mode.
+Without these settings the app runs as the **demo** (fictional data, everything stored in the browser). Once the site is connected, the demo stays available at `…/demo/`.
 
 ## What you get
 
@@ -33,13 +33,11 @@ Without these settings the app runs as the **demo** (fictional data, everything 
 
 Pick one:
 
-**A. SQL editor (no tools needed).** Open **SQL Editor → New query**. Paste the contents of each file below, **in this order**, and click **Run** after each:
+**A. One file (easiest).** Open **SQL Editor → New query**, paste the whole of `supabase/setup.sql` and click **Run**. It should end with "Success. No rows returned". Then make yourself an administrator (the person who verifies doctors), with the email you'll sign in with:
 
-1. `supabase/migrations/20260928000001_schema.sql`
-2. `supabase/migrations/20260928000002_api.sql`
-3. `supabase/migrations/20260928000003_storage_jobs_privileges.sql`
-
-Each should end with "Success. No rows returned".
+```sql
+insert into public.admins (email) values ('you@example.com');
+```
 
 **B. Supabase CLI.**
 
@@ -48,6 +46,8 @@ npx supabase login
 npx supabase link --project-ref <your-project-ref>
 npx supabase db push
 ```
+
+`supabase/setup.sql` is all the files in `supabase/migrations` joined together. For a project that's already set up, run only the migration files that are new.
 
 Check it worked: **Table Editor** should list `patients`, `records`, `access_grants`, `audit_log` and others, each marked "RLS enabled". **Storage** should show a private bucket called `documents`.
 
@@ -121,9 +121,19 @@ Open http://localhost:5173. The prototype banners and demo accounts disappear �
 
 The anon key is designed to be public; the database's access rules are what protect the data. **Never** put the `service_role` key in a `VITE_` variable or commit it.
 
-## 6. Add hospitals and doctors
+## 6. Doctors
 
-Doctors can't sign up themselves — you check their medical council registration first, then add them. Run on your own computer (the service-role key is in **Project Settings → API**):
+Doctors apply in the app: **Sign up → "Are you a doctor? Apply to join as a doctor"** (or `#/signup/doctor`). They give their medical council, registration number, qualifications and where they work, and confirm their email with a code. Until they're verified they only see their application.
+
+As an administrator (step 3), open **Doctor verification** from your account menu (or go to `#/admin`). For each application:
+
+1. **Check the medical register** — the button opens the NMC's Indian Medical Register. Search the registration number and council, and check the name matches.
+2. **Verify doctor** — creates their profile, marks it verified and gives them an access code for patients. They're told in the app.
+3. Or **Ask for changes** with a note — they see it, correct the details and resubmit.
+
+A registration number can only belong to one account. The database checks every one of these rules, so a modified app can't skip them.
+
+**Adding a doctor yourself** (e.g. a pilot hospital) still works with the script, using the service-role key from **Project Settings → API** on your own computer:
 
 ```bash
 SUPABASE_URL=https://<ref>.supabase.co \
@@ -133,12 +143,10 @@ npm run create-doctor -- --email dr.meena@hospital.in --name "Dr. Meena Iyer" \
   --hospital "Northbridge Hospital" --city Hyderabad
 ```
 
-The hospital is created if it doesn't exist. The script prints the doctor's **access code** (e.g. `DR-4F2A`) for patients to use. Ask the doctor to open Niveda and use **Forgot password** to choose their password (or pass `--password` to set one yourself).
-
 ## 7. Try it end to end
 
 1. Sign up as a patient (use an email you can read) → enter the emailed code → complete the setup (upload any PDF or photo as the document).
-2. In another browser (or a private window), sign in as the doctor.
+2. In another browser (or a private window), apply as a doctor, then verify them from **Doctor verification** in your admin account, and sign in as the doctor.
 3. As the patient: **Doctors & access → Grant access** → enter the doctor's code → confirm with the emailed code.
 4. As the doctor: open the patient → **Add to medical record**.
 5. As the patient: the visit appears within seconds, with a notification and an entry in the **Access log**.
@@ -146,15 +154,14 @@ The hospital is created if it doesn't exist. The script prints the doctor's **ac
 
 ## 8. Deploy
 
-The app is a static site (hash-based routes, so no server rewrites are needed). Any static host works — for example Vercel, Netlify or Cloudflare Pages:
+**GitHub Pages (set up in this repository).** Repo → **Settings → Secrets and variables → Actions → Variables → New repository variable**, add:
 
-- Build command: `npm run build`
-- Output directory: `dist`
-- Environment variables: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
+- `VITE_SUPABASE_URL` — the Project URL
+- `VITE_SUPABASE_ANON_KEY` — the anon public key
 
-Then set **Site URL** (step 4) to the deployed address.
+Then **Actions → Deploy to GitHub Pages → Run workflow** (it also runs on every push to `main`). The app is at `https://<owner>.github.io/Niveda/` and the demo at `…/Niveda/demo/`. Set **Site URL** (step 4) to the app's address.
 
-The GitHub Pages workflow builds without these variables, so the public demo stays a demo.
+**Any other static host** (Vercel, Netlify, Cloudflare Pages): build command `npm run build`, output directory `dist`, the same two environment variables. Routes are hash-based, so no rewrites are needed.
 
 ## Operating it
 
@@ -180,8 +187,9 @@ This backend makes the core rules real, but a health-records service needs more 
 - **SMS codes.** Codes go by email; for SMS, connect a provider (Twilio, MessageBird or Vonage in Supabase's phone settings, or MSG91 via a custom hook for India).
 - **Unskippable view logging for documents.** Views are logged by the app. To make logging impossible to skip even with a modified app, serve downloads through an Edge Function that logs and then issues a short-lived signed link.
 - **Doctor invitations** are recorded but not yet emailed.
+- **Automatic doctor verification.** Doctors are verified by an administrator checking the register by hand. Connecting to ABDM's Healthcare Professionals Registry would confirm them automatically.
 - **Virus scanning** of uploads and **field-level encryption** for mental-health and other sensitive records (Supabase already encrypts all data at rest and in transit).
-- **Clinician verification against medical council registries**, hospital accounts, **break-glass emergency access**, **ABDM/ABHA** and **FHIR**, the **mobile app** (alarms when the app is closed) and **smartwatch** integration.
+- Hospital accounts, **break-glass emergency access**, **ABDM/ABHA** and **FHIR**, the **mobile app** (alarms when the app is closed) and **smartwatch** integration.
 - **A security review and penetration test**, and a DPDP Act compliance review (consent notices, retention, a grievance officer).
 
 ## Tests

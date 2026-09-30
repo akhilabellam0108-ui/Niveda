@@ -418,6 +418,7 @@ Done with the live backend:
 - ✅ **Real sign-in and codes** — Supabase Auth with emailed codes and server-side step-up verification for sharing.
 - ✅ **Private document storage** — no public URLs; downloads only after a permission check.
 - ✅ **Background job** for access expiry and reminders.
+- ✅ **Doctor sign-up with verification** — doctors apply with their medical council registration; a Niveda administrator checks it on the Indian Medical Register and verifies or asks for changes.
 - ✅ Encryption in transit and at rest (provided by Supabase).
 
 Still to do:
@@ -425,7 +426,7 @@ Still to do:
 1. **Identity** — server-enforced multi-factor authentication (Supabase MFA), SMS codes (e.g. MSG91/Twilio), device management beyond sign-out.
 2. **Encryption** — field-level encryption for mental-health and other sensitive categories, with key management.
 3. **Document handling** — virus scanning, and downloads through an Edge Function so document views are logged by the server rather than the app.
-4. **Clinician verification** — checking registration numbers against medical council registries; hospital and organisation accounts.
+4. **Clinician verification** — automatic checks through ABDM's Healthcare Professionals Registry instead of by hand; hospital and organisation accounts.
 5. **Emergency ("break-glass") access** — a policy for access when the patient can't consent, with justification, time limits, immediate patient notification and review.
 6. **Compliance** — India's Digital Personal Data Protection Act 2023, ABDM / ABHA integration and consent artefacts, and HIPAA / GDPR where relevant; retention and deletion policies; security audits and penetration testing.
 7. **Interoperability** — FHIR R4 import and export; integrations with labs and hospital systems.

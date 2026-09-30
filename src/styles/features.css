@@ -235,3 +235,14 @@
 .adherence .bar { width: 64px; height: 5px; border-radius: 3px; background: var(--surface-3); overflow: hidden; }
 .adherence .bar > div { height: 100%; background: var(--ok); }
 .adherence.low .bar > div { background: var(--warn); }
+
+/* Doctor sign-up and admin review */
+.fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.fieldset legend { font-size: var(--t-xs); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); margin-bottom: var(--s2); }
+.form-grid > .span-2 { grid-column: 1 / -1; }
+.app-card { display: flex; flex-direction: column; gap: var(--s3); padding: var(--s4) var(--s5); }
+.app-card + .app-card { border-top: 1px solid var(--border); }
+.app-card .kv { margin: 0; }
+.app-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s3); flex-wrap: wrap; }
+.app-card-actions { display: flex; gap: var(--s2); flex-wrap: wrap; align-items: center; }
+.app-card-actions .grow { flex: 1; min-width: 200px; }

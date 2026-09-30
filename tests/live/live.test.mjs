@@ -255,3 +255,41 @@ test('password change and reset', async () => {
   const user = await d.authService.completeLogin(c2.id, await stack.codeFor(doctor.email, b2));
   assert.equal(user.role, 'doctor');
 });
+
+test('a doctor applies in the app and the Niveda team verifies them', async () => {
+  const dr = await app('applicant');
+  const email = 'rahul.verma@example.com';
+  const password = 'Rahul-2026-secure';
+  const form = {
+    fullName: 'Dr. Rahul Verma', phone: '+91 99000 22334', registrationNumber: 'dmc-77881', medicalCouncil: 'Delhi Medical Council',
+    registrationYear: '2015', specialization: 'Orthopaedics', qualifications: 'MBBS, MS', yearsOfPractice: '8',
+    hospitalName: 'Capital Bone & Joint Centre', hospitalCity: 'New Delhi', hospitalType: 'clinic',
+  };
+  const before = stack.mailCount();
+  const c = await dr.authService.startDoctorApplication({ ...form, email, password });
+  const user = await dr.authService.completeSignUp(c.id, await stack.codeFor(email, before));
+  assert.equal(user.role, 'applicant');
+  assert.equal(user.isAdmin, false);
+  const mine = await dr.applicationService.mine();
+  assert.equal(mine.status, 'pending');
+  assert.equal(mine.registrationNumber, 'DMC-77881');
+  await rejectsWith(dr.recordService.list(shared.patientId), /ACCESS_DENIED/);
+  await rejectsWith(dr.adminService.applications(), /Only the Niveda team/);
+  await rejectsWith(apps.patient.adminService.review(mine.id, 'approve'), /Only the Niveda team/);
+
+  await stack.pool.query("insert into public.admins (email) values ('asha.rao@example.com')");
+  const team = apps.patient;
+  assert.deepEqual((await team.adminService.applications('pending')).map((a) => a.registrationNumber), ['DMC-77881']);
+  const approved = await team.adminService.review(mine.id, 'approve');
+  assert.match(approved.accessCode, /^DR-[0-9A-F]{4}$/);
+  assert.equal((await team.authService.currentUser()).isAdmin, true);
+
+  // Their next sign-in opens the doctor workspace, and patients can find them.
+  await dr.authService.logout();
+  const b2 = stack.mailCount();
+  const c2 = await dr.authService.startLogin(email, password);
+  assert.equal((await dr.authService.completeLogin(c2.id, await stack.codeFor(email, b2))).role, 'doctor');
+  assert.equal((await dr.doctorService.me()).fullName, 'Dr. Rahul Verma');
+  assert.ok((await apps.patient.accessService.searchDoctors('Rahul')).some((d) => d.fullName === 'Dr. Rahul Verma'));
+  assert.equal((await apps.patient.accessService.findDoctorByCode(approved.accessCode)).fullName, 'Dr. Rahul Verma');
+});

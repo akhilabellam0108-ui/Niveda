@@ -5,18 +5,50 @@ export type ISODate = string; // YYYY-MM-DD
 export type ISODateTime = string; // full ISO timestamp
 
 export type Role = 'patient' | 'doctor';
+/** A doctor who has applied and is waiting for the Niveda team to verify their registration. */
+export type AccountRole = Role | 'applicant';
 
 export interface User {
   id: ID;
-  role: Role;
+  role: AccountRole;
   email: string;
   phone: string;
   /** Prototype only: salted SHA-256. A real backend must own credentials (never the browser). */
   passwordHash: string;
   passwordSalt: string;
   createdAt: ISODateTime;
-  profileId: ID; // patient.id or doctor.id
+  profileId: ID; // patient.id or doctor.id (or the application id for an applicant)
   onboarded: boolean;
+  /** A member of the Niveda team who reviews doctors' applications (live backend only). */
+  isAdmin?: boolean;
+}
+
+/** What a doctor fills in to apply. */
+export interface DoctorApplicationInput {
+  fullName: string;
+  phone: string;
+  registrationNumber: string;
+  medicalCouncil: string;
+  registrationYear: string;
+  specialization: string;
+  qualifications: string;
+  yearsOfPractice: string;
+  hospitalName: string;
+  hospitalCity: string;
+  hospitalType: Hospital['type'];
+}
+
+export interface DoctorApplication extends Omit<DoctorApplicationInput, 'registrationYear' | 'yearsOfPractice'> {
+  id: ID;
+  email: string;
+  registrationYear: number | null;
+  yearsOfPractice: number;
+  status: 'pending' | 'approved' | 'declined';
+  reviewNote: string | null;
+  reviewedAt: ISODateTime | null;
+  submittedAt: ISODateTime;
+  /** Set once approved: the code patients use to share their record. */
+  accessCode: string | null;
 }
 
 export interface EmergencyContact {

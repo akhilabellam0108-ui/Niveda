@@ -41,6 +41,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       if (user.role === 'patient') {
         const patient = await patientService.me();
         setState((s) => ({ status: 'signed-in', user, patient, prefs, notice: s.notice }));
+      } else if (user.role === 'applicant') {
+        setState((s) => ({ status: 'signed-in', user, prefs, notice: s.notice }));
       } else {
         const doctor = await doctorService.me();
         setState((s) => ({ status: 'signed-in', user, doctor, prefs, notice: s.notice }));

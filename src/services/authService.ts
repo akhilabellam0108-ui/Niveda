@@ -3,7 +3,7 @@
  * (e.g. an OIDC/identity service). Nothing in this file is production-grade:
  * passwords are hashed in the browser and sessions live in sessionStorage.
  */
-import type { Patient, Session, User } from '../types';
+import type { DoctorApplicationInput, Patient, Session, User } from '../types';
 import { delay, getDb, mutate } from '../mock/db';
 import { perTab } from '../mock/storage';
 import { addHours, nowISO } from '../lib/dates';
@@ -11,6 +11,7 @@ import { hashPassword, patientCode, uid } from '../lib/ids';
 import { brand } from '../config/brand';
 import { AppError, SESSION_KEY, actorFor, audit, requireCtx } from './core';
 import { otpService, type OtpChallenge } from './otpService';
+import { DEMO_ONLY_MESSAGE } from './applicationService';
 
 const SESSION_HOURS = 12;
 
@@ -53,6 +54,11 @@ async function startSession(userId: string): Promise<Session> {
 }
 
 export const authService = {
+  /** Doctors apply with their registration; the Niveda team verifies it (live backend only). */
+  async startDoctorApplication(_input: DoctorApplicationInput & { email: string; password: string }): Promise<OtpChallenge> {
+    throw new AppError('VALIDATION', DEMO_ONLY_MESSAGE);
+  },
+
   async startSignUp(input: SignUpInput): Promise<OtpChallenge> {
     await delay();
     const db = await getDb();
