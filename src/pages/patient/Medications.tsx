@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Pill, Plus, Ban, History, TriangleAlert, UserRound, CalendarDays, BellRing, BellOff, Watch, Bell, CalendarPlus } from 'lucide-react';
+import { Pill, Plus, Ban, History, TriangleAlert, UserRound, CalendarDays, BellRing, BellOff, Watch, Bell, CalendarPlus, Smartphone } from 'lucide-react';
 import type { MedicalRecord } from '../../types';
 import { isMedicationActive, medicationService, recordService, friendlyError, type MedicationSchedule } from '../../services';
 import { DoseList, useClock } from '../../components/medications/Doses';
@@ -15,6 +15,7 @@ import { ALLERGY_SEVERITY_RANK, isSevereAllergy } from '../../lib/recordMeta';
 import { Badge, Button, Card, ConfirmDialog, EmptyState, ErrorState, Field, InlineError, Input, Modal, SkeletonList, Tabs } from '../../components/ui';
 import { StatusBadge, TypeIcon } from '../../components/records/RecordCard';
 import { usePatientUI } from '../../components/layout/PatientShell';
+import { alarmPermission, isNativeApp, requestAlarmPermission, type AlarmPermission } from '../../lib/nativeAlarms';
 
 export function MedicationsPage() {
   useDocumentTitle(`Medications · ${brand.name}`);
@@ -135,16 +136,39 @@ function ReminderDialog({ schedule, onClose }: { schedule: MedicationSchedule; o
 }
 
 export function NotificationPrompt() {
-  const supported = typeof window !== 'undefined' && 'Notification' in window;
+  const native = isNativeApp();
+  const supported = !native && typeof window !== 'undefined' && 'Notification' in window;
   const [perm, setPerm] = useState(supported ? Notification.permission : 'denied');
+  const [alarm, setAlarm] = useState<AlarmPermission>('granted');
   useEffect(() => { if (supported) setPerm(Notification.permission); }, [supported]);
+  useEffect(() => {
+    if (!native) return;
+    const check = () => { void alarmPermission().then(setAlarm); };
+    check();
+    document.addEventListener('visibilitychange', check);
+    return () => document.removeEventListener('visibilitychange', check);
+  }, [native]);
+
+  if (native) {
+    if (alarm === 'granted' || alarm === 'unsupported') return null;
+    return (
+      <div className="alert alert-warn">
+        <Bell aria-hidden />
+        <div className="grow">
+          <div className="alert-title">{alarm === 'needs-permission' ? 'Allow notifications so your medicine alarms can ring' : 'Allow exact alarms so doses ring on time'}</div>
+          <div>{alarm === 'needs-permission' ? `${brand.name} rings at each dose time, even when the app is closed.` : 'Without this, Android may delay reminders by several minutes to save battery. Turn on “Alarms & reminders” for Niveda.'}</div>
+        </div>
+        <Button size="sm" variant="primary" onClick={async () => setAlarm(await requestAlarmPermission())}>{alarm === 'needs-permission' ? 'Allow' : 'Open settings'}</Button>
+      </div>
+    );
+  }
   if (!supported || perm === 'granted') return null;
   return (
     <div className={`alert ${perm === 'denied' ? 'alert-warn' : 'alert-accent'}`}>
       <Bell aria-hidden />
       <div className="grow">
         <div className="alert-title">{perm === 'denied' ? 'Notifications are blocked' : 'Get reminders even when this tab is in the background'}</div>
-        <div>{perm === 'denied' ? 'Allow notifications for this site in your browser settings to get medicine alerts outside the app.' : 'Allow notifications so each dose pops up on your screen — and on a watch paired with your phone.'}</div>
+        <div>{perm === 'denied' ? 'Allow notifications for this site in your browser settings to get medicine alerts outside the app.' : 'Allow notifications so each dose pops up on your screen — and on a watch paired with your phone.'} For alarms that ring even when {brand.name} is closed, <a href={brand.androidAppUrl}>get the Android app</a>.</div>
       </div>
       {perm === 'default' && <Button size="sm" variant="primary" onClick={async () => setPerm(await Notification.requestPermission())}>Allow</Button>}
     </div>
@@ -155,20 +179,37 @@ function WatchDialog({ open, onClose }: { open: boolean; onClose: () => void }) 
   const toast = useToast();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string>();
+  const native = isNativeApp();
+  if (native) {
+    return (
+      <Modal open={open} onClose={onClose} title="Reminders on your phone and smartwatch" footer={<Button variant="primary" onClick={onClose}>Done</Button>}
+        description={`${brand.name} sets an alarm on this phone for every dose in the next two weeks. It rings even when the app is closed or the phone restarts, and moves automatically when your times change.`}>
+        <ul className="small stack" style={{ '--gap': '8px', paddingLeft: 18, margin: 0 } as React.CSSProperties}>
+          <li>Press <strong>Taken</strong>, <strong>Snooze</strong> or <strong>Skip</strong> right on the notification.</li>
+          <li><strong>Wear OS watches</strong> (Pixel, Galaxy Watch 4 and later, and others) show the same reminder with the same buttons, so you can mark a dose from your wrist.</li>
+          <li>Other watches and fitness bands buzz too if phone notifications are mirrored to them in their companion app (turn on notifications for {brand.name}).</li>
+          <li>Open {brand.name} at least once a fortnight so the next two weeks of alarms are set.</li>
+        </ul>
+      </Modal>
+    );
+  }
   return (
     <Modal open={open} onClose={onClose} title="Reminders on your phone and smartwatch"
-      description="Add your medicine schedule to your calendar. Your phone rings at each dose time, and a paired smartwatch (Apple Watch, Wear OS, Galaxy, Fitbit and most others) buzzes with it."
+      description="Get the Android app for alarms that ring even when Niveda is closed, with Taken / Snooze / Skip on the notification and on a Wear OS watch. On iPhone, add the schedule to your calendar."
       footer={<><Button onClick={onClose}>Close</Button><Button variant="primary" icon={CalendarPlus} loading={busy} onClick={async () => {
         setBusy(true); setErr(undefined);
         try { const { blob, filename, count } = await medicationService.calendarFile(); downloadBlob(blob, filename); toast(`${count} reminder${count > 1 ? 's' : ''} saved to ${filename}`); } catch (e) { setErr(friendlyError(e)); } finally { setBusy(false); }
       }}>Download calendar file</Button></>}>
       <div className="stack">
+        <a className="btn btn-secondary" href={brand.androidAppUrl}><Smartphone aria-hidden />Download the Android app</a>
+        <p className="xs subtle">Open the file on your Android phone and allow installing from this source when asked.</p>
+        <div className="xs subtle strong">OR USE YOUR CALENDAR</div>
         <ol className="small stack" style={{ '--gap': '8px', paddingLeft: 18, margin: 0 } as React.CSSProperties}>
           <li>Download the calendar file (.ics).</li>
           <li>Open it on your phone, or import it into Google Calendar, Apple Calendar or Outlook.</li>
           <li>Make sure calendar notifications are mirrored to your watch in the watch’s companion app.</li>
         </ol>
-        <p className="xs subtle">If you change reminder times or a doctor adds a new prescription, download the file again. A direct connection to watches (Apple Health, Google Fit, Wear OS apps) needs the mobile app, which isn’t part of this prototype.</p>
+        <p className="xs subtle">If you change reminder times or a doctor adds a new prescription, download the file again.</p>
         <InlineError message={err} />
       </div>
     </Modal>

@@ -20,7 +20,7 @@ import { AddRecordDialog } from '../records/AddRecordDialog';
 import { UploadDialog } from '../documents/UploadDialog';
 import { GrantAccessDialog } from '../access/GrantAccessDialog';
 import { SearchPalette } from '../search/SearchPalette';
-import { MedicationAlarms } from '../medications/Doses';
+import { MedicationAlarms, NativeAlarmSync } from '../medications/Doses';
 
 /* ---------------- Shared nav pieces ---------------- */
 
@@ -215,6 +215,7 @@ export function PatientShell() {
       </Modal>
 
       <MedicationAlarms />
+      <NativeAlarmSync />
       <RecordDrawer recordId={recordId} onClose={closeRecord} onOpenRecord={openRecord} viewer="patient" />
       <AddRecordDialog open={addType !== null} initialType={addType ?? undefined} onClose={() => setAddType(null)}
         onSaved={(id) => { setAddType(null); toast('Added to your record'); navigate(`/app/timeline?record=${id}`); }} />

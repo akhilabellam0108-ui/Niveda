@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { BellRing, Check, SkipForward, Undo2, AlarmClock, Pill } from 'lucide-react';
-import { medicationService, friendlyError, type Dose } from '../../services';
-import { subscribe } from '../../mock/db';
+import { medicationService, friendlyError, subscribe, type Dose } from '../../services';
 import { perTab } from '../../mock/storage';
 import { fmtClock } from '../../lib/reminders';
 import { brand } from '../../config/brand';
 import { useSession } from '../../state/SessionContext';
 import { useToast } from '../../state/ToastContext';
 import { Badge, Button, EmptyState, Modal } from '../ui';
+import { isNativeApp, syncNativeAlarms } from '../../lib/nativeAlarms';
 
 /** Re-render on an interval so "due" / "missed" labels stay current. */
 export function useClock(ms = 30000) {
@@ -166,4 +166,24 @@ export function MedicationAlarms() {
       </div>
     </Modal>
   );
+}
+
+/**
+ * In the Android app, keeps the phone's medicine alarms in step with the record:
+ * on start, whenever reminders or prescriptions change, and when the app comes back
+ * to the foreground. Does nothing in a browser.
+ */
+export function NativeAlarmSync() {
+  const { prefs } = useSession();
+  useEffect(() => {
+    if (!isNativeApp()) return;
+    let t: ReturnType<typeof setTimeout> | undefined;
+    const run = () => { clearTimeout(t); t = setTimeout(() => { void syncNativeAlarms(prefs.medAlarms).catch(() => undefined); }, 800); };
+    run();
+    const unsub = subscribe(run);
+    const onVisible = () => { if (document.visibilityState === 'visible') run(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { clearTimeout(t); unsub(); document.removeEventListener('visibilitychange', onVisible); };
+  }, [prefs.medAlarms]);
+  return null;
 }

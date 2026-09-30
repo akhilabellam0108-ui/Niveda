@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import type { Doctor, Hospital, Patient, Preferences, User } from '../types';
 import { authService, doctorService, patientService, settingsService, subscribe, DEFAULT_PREFS } from '../services';
 import { AppError } from '../services/core';
+import { clearNativeAlarms } from '../lib/nativeAlarms';
 
 interface SessionState {
   status: 'loading' | 'signed-out' | 'signed-in';
@@ -62,6 +63,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   const signOut = useCallback(async () => {
+    await clearNativeAlarms().catch(() => undefined);
     await authService.logout();
     setState({ status: 'signed-out', prefs: DEFAULT_PREFS });
     applyTheme('system');

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Niveda</string>
+    <string name="title_activity_main">Niveda</string>
+    <string name="package_name">in.niveda.app</string>
+    <string name="custom_url_scheme">in.niveda.app</string>
+</resources>

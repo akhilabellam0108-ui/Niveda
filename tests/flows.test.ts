@@ -251,5 +251,32 @@ await step('patient sees who did what and when', async () => {
   assert(log.every((a) => a.timestamp && a.actor.name), 'entries have actor + time');
 });
 
+console.log('\nPhone alarms (Android app)');
+await step('plans an exact alarm for each future dose, skipping taken doses and finished courses', async () => {
+  const { planAlarms, alarmId, MAX_ALARMS } = await import('../src/lib/alarmPlan');
+  const now = new Date(2026, 8, 30, 10, 0);
+  const med = (id: string, data: Record<string, unknown>) => ({ id, patientId: 'p', type: 'medication', date: '2026-09-01', data, createdAt: '', updatedAt: '', createdBy: { id: 'p', role: 'patient', name: 'P' }, attachments: [], source: 'patient', version: 1, versions: [] }) as never;
+  const rem = (recordId: string, times: string[], enabled = true) => ({ recordId, patientId: 'p', times, enabled, updatedAt: '' });
+  const schedules = [
+    { record: med('m1', { name: 'Metformin', dosage: '500 mg', instructions: 'After food', startDate: '2026-09-01' }), reminder: rem('m1', ['08:00', '20:00']) },
+    { record: med('m2', { name: 'Amoxicillin', dosage: '250 mg', startDate: '2026-09-28', endDate: '2026-10-02' }), reminder: rem('m2', ['09:00', '21:00']) },
+    { record: med('m3', { name: 'Paused', dosage: '1', startDate: '2026-09-01' }), reminder: rem('m3', ['12:00'], false) },
+  ];
+  const plan = planAlarms({ schedules, logged: new Set(['m1|2026-09-30|20:00']), now, enabled: true });
+  assert(plan.every((p) => p.at > now), 'only future times');
+  assert(!plan.some((p) => p.recordId === 'm1' && p.date === '2026-09-30'), 'today 8 am has passed and 8 pm is already taken');
+  assert(plan.filter((p) => p.recordId === 'm2').map((p) => p.date).at(-1) === '2026-10-02', 'the course stops on its end date');
+  assert(plan.filter((p) => p.recordId === 'm2').length === 5, 'amoxicillin: 30 Sep 9 pm + 2 a day for 2 days + 2 Oct = 5');
+  assert(!plan.some((p) => p.recordId === 'm3'), 'reminders switched off');
+  assert(plan.filter((p) => p.recordId === 'm1').length === 26, 'metformin twice a day for the next 13 days');
+  const first = plan.find((p) => p.recordId === 'm1')!;
+  assert(first.title === 'Time for Metformin' && first.body === '500 mg · 8:00 am · After food', `text: ${first.title} / ${first.body}`);
+  assert(first.id === alarmId('m1', first.date, '08:00') && first.id > 0 && first.id <= 0x7fffffff, 'stable positive int ids');
+  assert(new Set(plan.map((p) => p.id)).size === plan.length, 'ids are unique');
+  assert(planAlarms({ schedules, logged: new Set(), now, enabled: false }).length === 0, 'the setting turns them all off');
+  const many = Array.from({ length: 40 }, (_, i) => ({ record: med(`x${i}`, { name: `M${i}`, startDate: '2026-01-01' }), reminder: rem(`x${i}`, ['06:00', '14:00', '22:00']) }));
+  assert(planAlarms({ schedules: many, logged: new Set(), now, enabled: true }).length === MAX_ALARMS, 'capped below Android’s limit, soonest first');
+});
+
 console.log(`\n${passed} passed, ${failures.length} failed`);
 if (failures.length) process.exit(1);

@@ -4,6 +4,7 @@ import type { MedicalDocument } from '../../types';
 import { documentService, DOC_CATEGORY_LABEL } from '../../services';
 import { fmtDate } from '../../lib/dates';
 import { Button, ErrorState, Modal, Skeleton } from '../ui';
+import { isNativeApp, shareFile } from '../../lib/nativeFiles';
 
 export const DOC_ICON = { report: ClipboardList, prescription: FileHeart, scan: ScanLine, image: ImageIcon, discharge: FileText, other: FileText };
 
@@ -14,6 +15,11 @@ export function formatBytes(n: number) {
 }
 
 export function downloadBlob(blob: Blob, filename: string) {
+  // In the Android app a web download goes nowhere: save the file and open the share menu instead.
+  if (isNativeApp()) {
+    void shareFile(blob, filename);
+    return;
+  }
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

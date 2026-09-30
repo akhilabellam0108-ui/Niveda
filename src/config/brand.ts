@@ -9,6 +9,8 @@ export const brand = {
     'One lifelong health record that you own. Doctors add to it only when you let them, and every access is logged.',
   supportEmail: 'support@niveda.example',
   patientIdPrefix: 'NV',
+  /** The newest Android app, published by .github/workflows/android.yml. */
+  androidAppUrl: 'https://github.com/akhilabellam0108-ui/Niveda/releases/download/android-latest/Niveda.apk',
 } as const;
 
 /** Where a prototype stands in for real infrastructure. Shown in the UI so nobody mistakes it for production. */

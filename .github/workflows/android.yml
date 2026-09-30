@@ -1,0 +1,62 @@
+name: Android app
+
+# Builds the Niveda Android app (APK) on every push to main and publishes it at a
+# fixed address, so the download link in the app always gives the newest version:
+#   https://github.com/<owner>/<repo>/releases/download/android-latest/Niveda.apk
+# It uses the same repository variables as the website (VITE_SUPABASE_URL and
+# VITE_SUPABASE_ANON_KEY); without them the app runs the demo.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+      - name: Build the app
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+        run: npm run build
+      - name: Copy into the Android project
+        run: npx cap sync android
+      - name: Build APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+          cp app/build/outputs/apk/debug/app-debug.apk "$GITHUB_WORKSPACE/Niveda.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Niveda-apk
+          path: Niveda.apk
+      - name: Publish as the "android-latest" download
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          notes="Newest Niveda Android app, built from ${GITHUB_SHA::7}. Download Niveda.apk on your Android phone and open it (allow installing from this source when asked)."
+          if gh release view android-latest >/dev/null 2>&1; then
+            gh release upload android-latest Niveda.apk --clobber
+            gh release edit android-latest --notes "$notes" --title "Niveda for Android"
+          else
+            gh release create android-latest Niveda.apk --title "Niveda for Android" --notes "$notes" --latest
+          fi
