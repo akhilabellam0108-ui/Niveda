@@ -226,6 +226,23 @@ Password for all demo accounts: **`demo1234`**. The login page also has one-clic
 - Doctors are reminded to patients a day before access ends; expiry is logged and both sides are notified.
 - A doctor can't browse patients. Looking up an ID without access returns only a masked name.
 
+## Pre-visit brief
+
+Doctors can spend 15–20 minutes going through a patient's old records before a consultation. When a doctor opens a patient, Niveda opens on a **Brief** tab that sums up the record on one screen:
+
+| Section | What it shows |
+|---|---|
+| Needs attention | the last visit's follow-up (due or overdue), lab results still awaited, vaccines due within 30 days |
+| Allergies | severest first, life-threatening ones in red |
+| Active problems | ongoing, managed and suspected conditions, with who diagnosed them and since when |
+| Current medicines | dose, frequency, what for, prescriber, start and end dates |
+| Stopped recently | medicines stopped in the last 2 years, with the reason |
+| Lab results | latest result per test, flagged, with earlier results of the same test so the trend is visible; recent results outside the normal range come first |
+| Last visit | reason, diagnosis, doctor, hospital and the note for the next visit |
+| Surgeries & hospital stays, imaging, past problems, family history | one line each |
+
+Every line opens the entry it came from (and its documents), so the summary is never the only evidence. The brief is built only from what the patient has shared with that doctor and says which sections weren't shared. It's built from the structured entries; reading uploaded PDFs into it is a planned next step. The logic is in [`src/lib/brief.ts`](src/lib/brief.ts).
+
 ## How a doctor adds to the record
 
 One form captures a whole visit and saves it in a single step:

@@ -134,6 +134,10 @@ export async function buildSeed(): Promise<Database> {
   iron.versions.push({ version: 2, date: iron.date, data: ironV2, changedAt: '2025-04-15T10:20:00.000Z', changedBy: priya, changeType: 'discontinued', reason: 'Haemoglobin back to normal (12.9 g/dL).' });
   iron.data = ironV2; iron.version = 2; iron.updatedAt = '2025-04-15T10:20:00.000Z';
 
+  // Earlier results of the same tests, so the doctor's brief can show the trend.
+  rec('r_lab_cbc_2501', meera, 'lab_result', '2025-01-13', { test: 'Complete blood count (CBC)', laboratory: 'Sunrise Diagnostics', result: 'Hb 9.8 g/dL · MCV 71 fL', referenceRange: 'Hb 12.0 – 15.5 g/dL', status: 'Abnormal', notes: 'Microcytic anaemia.' }, priya, { org: 'h_sunrise', parentId: 'r_cons_2025' });
+  rec('r_lab_cbc_2504', meera, 'lab_result', '2025-04-14', { test: 'Complete blood count (CBC)', laboratory: 'Sunrise Diagnostics', result: 'Hb 12.9 g/dL', referenceRange: 'Hb 12.0 – 15.5 g/dL', status: 'Normal', notes: 'Recovered on oral iron.' }, priya, { org: 'h_sunrise' });
+  rec('r_lab_hba1c_2508', meera, 'lab_result', '2025-08-05', { test: 'HbA1c', laboratory: 'Sunrise Diagnostics', result: '5.4 %', referenceRange: 'Below 5.7 %', status: 'Normal' }, priya, { org: 'h_sunrise' });
   rec('r_mh_2025', meera, 'mental_health', '2025-06-09', { topic: 'Counselling — work-related stress', provider: 'Ms. Leela Nair, counsellor', notes: 'Six sessions completed. Sleep improved.' }, me);
   rec('r_vax_flu', meera, 'vaccination', '2025-10-21', { vaccine: 'Influenza (quadrivalent)', dose: 'Annual', facility: 'Lakeview Hospital', nextDue: '2026-10-20' }, me);
 
@@ -238,4 +242,4 @@ export async function buildSeed(): Promise<Database> {
   };
 }
 
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;

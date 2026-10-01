@@ -5,19 +5,21 @@ import { doctorService, documentService, recordService, emergencyReasonLabel } f
 import { AppError } from '../../services/core';
 import { useLive, useDocumentTitle } from '../../state/hooks';
 import { brand } from '../../config/brand';
-import { ageFrom, fmtDate, fmtDateTime, timeLeft } from '../../lib/dates';
+import { ageFrom, fmtDate, fmtDateTime, timeLeft, todayISO } from '../../lib/dates';
 import { PERMISSIONS, RECORD_TYPES, isSevereAllergy, recordTitle } from '../../lib/recordMeta';
 import { Avatar, Badge, Button, Card, EmptyState, ErrorState, SkeletonList, Tabs } from '../../components/ui';
 import { RecordFilters, Timeline, applyFilters, emptyFilters, type FilterState } from '../../components/records/Timeline';
 import { RecordCard } from '../../components/records/RecordCard';
 import { RecordDrawer } from '../../components/records/RecordDrawer';
 import { HandoverNote } from '../../components/records/HandoverNote';
+import { PreVisitBrief } from '../../components/records/PreVisitBrief';
+import { buildBrief } from '../../lib/brief';
 import { PermissionBadges } from '../../components/access/PermissionSelector';
 import { DocumentViewer, DOC_ICON, formatBytes } from '../../components/documents/DocumentViewer';
 import { useRecordParam } from '../../components/layout/PatientShell';
 import { DOC_CATEGORY_LABEL } from '../../services';
 
-type Tab = 'overview' | 'timeline' | 'records' | 'reports' | 'access';
+type Tab = 'brief' | 'overview' | 'timeline' | 'records' | 'reports' | 'access';
 
 /** Shown when the patient hasn't shared (or has revoked) access. Reveals nothing about the record. */
 export function NoAccess({ message }: { message: string }) {
@@ -37,7 +39,7 @@ export function PatientView() {
   const records = useLive(() => recordService.list(patientId), [patientId]);
   const docs = useLive(() => documentService.list(patientId), [patientId]);
   const { recordId, open, close } = useRecordParam();
-  const [tab, setTab] = useState<Tab>('overview');
+  const [tab, setTab] = useState<Tab>('brief');
   const [filters, setFilters] = useState<FilterState>(emptyFilters());
   const [viewDoc, setViewDoc] = useState<string>();
   const o = overview.data;
@@ -45,6 +47,7 @@ export function PatientView() {
 
   useEffect(() => { void recordService.logHistoryView(patientId).catch(() => undefined); }, [patientId]);
   const shown = useMemo(() => applyFilters(records.data ?? [], filters), [records.data, filters]);
+  const brief = useMemo(() => (records.data && o ? buildBrief(records.data, o.grant.permissions, todayISO()) : undefined), [records.data, o]);
 
   const denied = overview.error instanceof AppError && overview.error.code === 'ACCESS_DENIED';
   if (denied) return <><div className="page-head"><h1>Patient record</h1></div><NoAccess message={(overview.error as AppError).message} /></>;
@@ -94,9 +97,13 @@ export function PatientView() {
       {o.handover && <HandoverNote record={o.handover} onOpen={open} />}
 
       <Tabs label="Patient record" value={tab} onChange={setTab} tabs={[
-        { value: 'overview', label: 'Summary' }, { value: 'timeline', label: 'Timeline' }, { value: 'records', label: 'Records', count: records.data?.length },
+        { value: 'brief', label: 'Brief' }, { value: 'overview', label: 'Summary' }, { value: 'timeline', label: 'Timeline' }, { value: 'records', label: 'Records', count: records.data?.length },
         { value: 'reports', label: 'Reports', count: docs.data?.length }, { value: 'access', label: 'Access' },
       ]} />
+
+      {tab === 'brief' && (records.error ? <ErrorState error={records.error} onRetry={records.reload} /> : !brief ? <SkeletonList rows={6} /> : (
+        <PreVisitBrief brief={brief} permissions={g.permissions} patient={o.patient} onOpen={open} />
+      ))}
 
       {tab === 'overview' && (
         <div className="grid-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}>
