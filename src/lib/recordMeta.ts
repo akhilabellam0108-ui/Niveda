@@ -46,6 +46,7 @@ export const RECORD_TYPES: Record<RecordType, RecordTypeMeta> = {
       { key: 'medications', label: 'Medications discussed', kind: 'textarea', wide: true, help: 'For prescriptions that should appear in your medication list, add a Medication record.' },
       { key: 'followUp', label: 'Follow-up date', kind: 'date' },
       notesField,
+      { key: 'handoverNote', label: 'Note for the next visit', kind: 'textarea', wide: true, help: 'What the next doctor — or the same one next time — should know or check.' },
     ],
   },
   diagnosis: {

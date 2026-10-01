@@ -11,6 +11,7 @@ import { Avatar, Badge, Button, Card, EmptyState, ErrorState, SkeletonList, Tabs
 import { RecordFilters, Timeline, applyFilters, emptyFilters, type FilterState } from '../../components/records/Timeline';
 import { RecordCard } from '../../components/records/RecordCard';
 import { RecordDrawer } from '../../components/records/RecordDrawer';
+import { HandoverNote } from '../../components/records/HandoverNote';
 import { PermissionBadges } from '../../components/access/PermissionSelector';
 import { DocumentViewer, DOC_ICON, formatBytes } from '../../components/documents/DocumentViewer';
 import { useRecordParam } from '../../components/layout/PatientShell';
@@ -89,6 +90,8 @@ export function PatientView() {
           </div>
         </div>
       )}
+
+      {o.handover && <HandoverNote record={o.handover} onOpen={open} />}
 
       <Tabs label="Patient record" value={tab} onChange={setTab} tabs={[
         { value: 'overview', label: 'Summary' }, { value: 'timeline', label: 'Timeline' }, { value: 'records', label: 'Records', count: records.data?.length },

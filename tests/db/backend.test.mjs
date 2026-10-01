@@ -261,7 +261,7 @@ test('C. a visit becomes linked, attributed entries; corrections keep history', 
   await rpc('kavya', 'register_document', [pid, docId, 'cbc.pdf', 'application/pdf', 2048, 'report', '2026-09-28']);
 
   const items = [
-    { type: 'consultation', date: '2026-09-28', data: { reason: 'Fatigue', doctor: 'Dr. Kavya Menon', facility: 'Northbridge Hospital' } },
+    { type: 'consultation', date: '2026-09-28', data: { reason: 'Fatigue', doctor: 'Dr. Kavya Menon', facility: 'Northbridge Hospital', handoverNote: 'Recheck Hb in 2 weeks; if no rise, look for blood loss.' } },
     { type: 'diagnosis', date: '2026-09-28', data: { condition: 'Anaemia', status: 'Active' } },
     { type: 'medication', date: '2026-09-28', data: { name: 'Ferrous sulphate', dosage: '200 mg', frequency: 'Once daily' } },
     { type: 'lab_test', date: '2026-09-28', data: { test: 'CBC', status: 'Ordered' } },
@@ -291,6 +291,16 @@ test('C. a visit becomes linked, attributed entries; corrections keep history', 
   await rejects(rpc('kavya', 'create_record', [pid, 'mental_health', '2026-09-28', { topic: 'x' }]), /hasn’t shared this part/);
   await rejects(rpc('kavya', 'create_record', [pid, 'other', '2026-09-28', { title: 'x' }]), /only be added by the patient/);
   await rejects(rpc('kavya', 'add_visit', [pid, JSON.stringify([{ type: 'imaging', date: '2026-09-28', data: { study: 'X-ray' } }])]), /starts with the consultation/);
+
+  // Every visit a doctor records ends with a note for the next visit; patients' own entries don't need one.
+  const noNote = [{ type: 'consultation', date: '2026-09-28', data: { reason: 'Review' } }];
+  await rejects(rpc('kavya', 'add_visit', [pid, JSON.stringify(noNote)]), /Write a note for the next visit/);
+  await rejects(rpc('kavya', 'add_visit', [pid, JSON.stringify([{ ...noNote[0], data: { reason: 'Review', handoverNote: '   ok   ' } }])]), /at least 10 characters/);
+  await rejects(rpc('kavya', 'create_record', [pid, 'consultation', '2026-09-28', { reason: 'Review' }]), /Write a note for the next visit/);
+  const [stored] = await as('asha', (q) => q("select data ->> 'handoverNote' as note from records where id = $1", [consult.id]));
+  assert.equal(stored.note, 'Recheck Hb in 2 weeks; if no rise, look for blood loss.');
+  const own = await rpc('asha', 'create_record', [pid, 'consultation', '2026-09-20', { reason: 'GP visit, no note' }]);
+  assert.ok(own);
 
   // Corrections: patient can't touch a doctor's entry; doctor's amendment keeps version 1.
   const dx = recs.find((r) => r.type === 'diagnosis');

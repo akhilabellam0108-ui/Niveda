@@ -2,7 +2,7 @@
 import type { MedicalRecord, PermissionKey, RecordData, RecordType } from '../../types';
 import { AppError } from '../core';
 import {
-  buildVisitItems, checkRecord, recordService as mockRecords,
+  buildVisitItems, checkHandoverNote, checkRecord, recordService as mockRecords,
   type ConsultationBundleInput, type ConsultationBundleResult, type NewRecordInput,
 } from '../recordService';
 import type { NewFile } from '../documentService';
@@ -60,6 +60,7 @@ export const remoteRecordService: typeof mockRecords = {
   async create(input: NewRecordInput): Promise<MedicalRecord> {
     const pid = await patientIdFor(input.patientId, false);
     const data = checkRecord(input.type, input.date, input.data);
+    if (input.type === 'consultation' && (await requireAccount()).role === 'doctor') checkHandoverNote(String(input.data.handoverNote ?? ''));
     const docIds = [...(input.attachDocumentIds ?? []), ...(await uploadAll(pid, input.files, input.date))];
     const id = await write<string>('create_record', {
       p_patient: pid, p_type: input.type, p_date: input.date, p_data: data, p_parent: input.parentId ?? null,

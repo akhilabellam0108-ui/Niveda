@@ -53,7 +53,7 @@ export const resetDemoData = isLive ? async () => undefined : demoReset;
 export { DURATIONS, durationLabel, maskName, EMERGENCY_REASONS, EMERGENCY_PERMISSIONS, EMERGENCY_HOURS, emergencyReasonLabel } from './accessService';
 export type { EmergencyReason } from './accessService';
 export type { GrantView, RequestView, DoctorGrantView } from './accessService';
-export { isMedicationActive } from './recordService';
+export { isMedicationActive, latestHandover, checkHandoverNote, HANDOVER_MIN_LENGTH } from './recordService';
 export type { ConsultationBundleInput, PrescriptionInput, NewRecordInput } from './recordService';
 export { DOC_CATEGORY_LABEL, ACCEPT_ATTR, guessCategory, validateFile, MAX_FILE_BYTES } from './documentService';
 export type { NewFile, DocumentView } from './documentService';

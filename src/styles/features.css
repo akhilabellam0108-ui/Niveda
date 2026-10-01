@@ -249,3 +249,8 @@
 .emergency-panel { border-color: var(--danger-border); }
 .emergency-panel .row > .btn { flex: none; }
 @media (max-width: 640px) { .emergency-panel .row { flex-wrap: wrap; } .emergency-panel .row > .btn { width: 100%; } }
+
+/* Note for the next visit (handover between doctors) */
+.handover .handover-text { margin: 2px 0 6px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--t-md, 1rem); line-height: 1.5; }
+.handover .link-btn { background: none; border: 0; padding: 0; color: var(--info); font: inherit; font-weight: 600; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.handover-field textarea { border-color: var(--info); }
