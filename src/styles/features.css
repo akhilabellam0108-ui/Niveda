@@ -252,5 +252,31 @@
 
 /* Note for the next visit (handover between doctors) */
 .handover .handover-text { margin: 2px 0 6px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--t-md, 1rem); line-height: 1.5; }
-.handover .link-btn { background: none; border: 0; padding: 0; color: var(--info); font: inherit; font-weight: 600; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.link-btn { background: none; border: 0; padding: 0; color: var(--info); font: inherit; font-weight: 600; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .handover-field textarea { border-color: var(--info); }
+
+/* Pre-visit brief (doctor's one-screen summary) */
+.brief .card-head h2 svg { width: 18px; height: 18px; color: var(--accent-text, var(--info)); }
+.brief-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+.brief-col { display: flex; flex-direction: column; min-width: 0; }
+.brief-col + .brief-col { border-left: 1px solid var(--border); }
+.brief-section { padding: var(--s3) var(--s5) var(--s4); border-bottom: 1px solid var(--border); }
+.brief-col .brief-section:last-child { border-bottom: 0; }
+.brief-h { display: flex; align-items: center; gap: 6px; font-size: var(--t-xs); font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--text-2, var(--muted)); margin: 0 0 6px; }
+.brief-h svg { width: 14px; height: 14px; }
+.brief-section.quiet .brief-line .strong { color: var(--text-2); font-weight: 500; }
+.brief-lines { display: flex; flex-direction: column; gap: 2px; }
+.brief-line { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; text-align: left; background: none; border: 0; border-radius: var(--r-sm, 6px); padding: 6px 8px; margin: 0 -8px; cursor: pointer; font: inherit; color: inherit; }
+.brief-line:hover, .brief-line:focus-visible { background: var(--surface-2); }
+.brief-main { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: var(--t-sm); }
+.brief-note { display: block; margin-top: 4px; padding: 6px 10px; border-left: 3px solid var(--info); background: var(--info-soft); border-radius: 0 6px 6px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.brief-lab { display: flex; flex-direction: column; }
+.brief-trend { padding: 0 0 6px; }
+.brief-foot { display: flex; flex-direction: column; gap: 4px; }
+@media (max-width: 860px) {
+  .brief-grid { grid-template-columns: 1fr; }
+  .brief-col + .brief-col { border-left: 0; border-top: 1px solid var(--border); }
+  .brief-section { padding: var(--s3) var(--s4); }
+}
+.brief .card-head { flex-wrap: wrap; row-gap: 4px; }
+.brief .card-head h2 { white-space: nowrap; }

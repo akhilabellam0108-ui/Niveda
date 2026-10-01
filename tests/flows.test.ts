@@ -10,6 +10,7 @@ import {
 } from '../src/services';
 import { DEMO_PASSWORD } from '../src/mock/seed';
 import { DEFAULT_PERMISSIONS, RECORD_TYPES } from '../src/lib/recordMeta';
+import { buildBrief } from '../src/lib/brief';
 
 latency.ms = 0;
 let passed = 0;
@@ -236,6 +237,31 @@ await step('sensitive categories stay hidden unless shared', async () => {
   const recs = await recordService.list('p_meera');
   assert(!recs.some((r) => r.type === 'mental_health'), 'mental health hidden');
   assert(recs.some((r) => r.type === 'allergy'), 'allergies visible');
+});
+
+console.log('\nPre-visit brief');
+await step('the brief summarises the record in one place, with sources', async () => {
+  const recs = await recordService.list('p_meera');
+  const { grant } = await doctorService.patientOverview('p_meera');
+  const b = buildBrief(recs, grant.permissions, '2026-10-01');
+  assert(b.stats.entries === recs.length && b.stats.since === '2018-02-14', 'counts every visible entry');
+  assert(b.allergies[0].title === 'Penicillin' && b.allergies[0].flag === 'danger', 'severe allergy first, flagged');
+  assert(b.activeProblems.map((p) => p.title).join() === 'Tension-type headache,Mild persistent asthma', 'active problems, newest first');
+  assert(b.pastProblems.some((p) => p.title === 'Iron-deficiency anaemia'), 'resolved problems kept as history');
+  assert(b.currentMeds.length === 4 && b.currentMeds.some((m) => m.title.startsWith('Paracetamol')), 'current medicines only');
+  assert(b.stoppedMeds.map((m) => m.title).join() === 'Ferrous sulfate 200 mg' && b.stoppedMeds[0].detail!.includes('Haemoglobin back to normal'), 'recently stopped medicine with the reason');
+  const cbc = b.labs.find((l) => l.test === 'Complete blood count (CBC)')!;
+  assert(cbc.latest.detail!.startsWith('Hb 12.8') && cbc.earlier.map((e) => e.date).join() === '2025-04-14,2025-01-13', 'lab trend: latest result and earlier ones, newest first');
+  assert(b.labs[0].latest.flagLabel === 'Borderline', 'results that need attention come first');
+  assert(b.lastVisit?.recordId === 'r_cons_2026' && b.lastVisit.handoverNote!.includes('MRI brain'), 'last visit with its note for the next visit');
+  assert(b.openItems.map((i) => i.kind).join() === 'follow_up,vaccine_due', 'open items: follow-up and a vaccine due soon');
+  assert(b.surgeriesAndStays.length === 2 && b.familyHistory[0].title === 'Type 2 diabetes', 'surgeries, stays and family history');
+  assert(b.notShared.join() === 'Mental-health records,Other sensitive records', 'says which sections were not shared');
+  const ids = new Set(recs.map((r) => r.id));
+  const lines = [...b.allergies, ...b.activeProblems, ...b.currentMeds, ...b.stoppedMeds, ...b.openItems, ...b.labs.map((l) => l.latest), ...b.imaging];
+  assert(lines.every((l) => ids.has(l.recordId)), 'every line points to an entry the doctor can open');
+  const noLabs = buildBrief(recs.filter((r) => RECORD_TYPES[r.type].permission !== 'labs'), grant.permissions.filter((k) => k !== 'labs'), '2026-10-01');
+  assert(noLabs.labs.length === 0 && noLabs.notShared.includes('Lab reports'), 'unshared sections stay out of the brief');
 });
 await step('access expires on its own', async () => {
   const req = await accessService.requestAccess(newPatientId, ['history'], 1, 'Follow-up review');
