@@ -37,6 +37,8 @@ export interface ConsultationBundleInput {
   symptoms?: string;
   notes?: string;
   followUp?: string;
+  /** Required: what the next doctor (or the same one next time) should know. */
+  handoverNote: string;
   diagnosis?: { condition: string; status: string; severity?: string; notes?: string };
   prescriptions: PrescriptionInput[];
   labOrders: { test: string; laboratory?: string; reason?: string }[];
@@ -130,11 +132,12 @@ export interface VisitItem { type: RecordType; date: string; data: RecordData }
  * prescriptions, lab orders and follow-up. Shared by the demo and live backends.
  */
 export function buildVisitItems(input: ConsultationBundleInput, doctorName: string, facility?: string): VisitItem[] {
+  const handover = checkHandoverNote(input.handoverNote);
   const rxSummary = input.prescriptions.map((p) => `${p.name} ${p.dosage}, ${p.frequency.toLowerCase()}`).join('\n');
   const items: VisitItem[] = [{
     type: 'consultation', date: input.date, data: {
       reason: input.reason, doctor: doctorName, facility, symptoms: input.symptoms, diagnosis: input.diagnosis?.condition,
-      medications: rxSummary || undefined, followUp: input.followUp, notes: input.notes,
+      medications: rxSummary || undefined, followUp: input.followUp, notes: input.notes, handoverNote: handover,
     },
   }];
   if (input.diagnosis?.condition?.trim()) {
@@ -154,6 +157,24 @@ export function buildVisitItems(input: ConsultationBundleInput, doctorName: stri
     items.push({ type: 'follow_up', date: input.followUp, data: { purpose: `Review: ${input.diagnosis?.condition || input.reason}`, doctor: doctorName, facility } });
   }
   return items;
+}
+
+/** Shortest handover note accepted, so "ok" or "-" can't stand in for one. Kept in step with add_visit. */
+export const HANDOVER_MIN_LENGTH = 10;
+
+/** Every visit a doctor records ends with a note for the next visit. Returns the trimmed note. */
+export function checkHandoverNote(note: string | undefined): string {
+  const n = (note ?? '').trim();
+  if (!n) throw new AppError('VALIDATION', 'Write a note for the next visit before saving.');
+  if (n.length < HANDOVER_MIN_LENGTH) throw new AppError('VALIDATION', `The note for the next visit needs at least ${HANDOVER_MIN_LENGTH} characters.`);
+  return n;
+}
+
+/** The newest visit note left for the next doctor, from the records a viewer can see. */
+export function latestHandover(records: MedicalRecord[]): MedicalRecord | undefined {
+  return records
+    .filter((r) => r.type === 'consultation' && String(r.data.handoverNote ?? '').trim())
+    .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt))[0];
 }
 
 /** Throws the first validation problem, with the app's friendly field labels. */
@@ -207,6 +228,7 @@ export const recordService = {
     const pid = input.patientId ?? ctx.patient?.id;
     if (!pid) throw new AppError('VALIDATION', 'Choose a patient.');
     assertCanWrite(ctx, pid, input.type);
+    if (ctx.doctor && input.type === 'consultation') checkHandoverNote(String(input.data.handoverNote ?? ''));
     const data = { ...input.data };
     const record = buildRecord(ctx, pid, input.type, input.date, data, input.parentId);
     const docIds: string[] = [...(input.attachDocumentIds ?? [])];

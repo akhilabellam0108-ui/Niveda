@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Plus, X, Stethoscope, Activity, Pill, FlaskConical, CalendarClock, Paperclip, CheckCircle2, Lock, TriangleAlert, Siren, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Plus, X, Stethoscope, Activity, Pill, FlaskConical, CalendarClock, Paperclip, CheckCircle2, Lock, TriangleAlert, Siren, ShieldCheck, NotebookPen } from 'lucide-react';
 import type { RecordData, RecordType } from '../../types';
-import { doctorService, recordService, friendlyError, type NewFile, type PrescriptionInput } from '../../services';
+import { doctorService, recordService, friendlyError, HANDOVER_MIN_LENGTH, type NewFile, type PrescriptionInput } from '../../services';
 import { AppError } from '../../services/core';
 import { useLive, useDocumentTitle } from '../../state/hooks';
 import { useSession } from '../../state/SessionContext';
@@ -12,6 +12,7 @@ import { RECORD_TYPES, isSevereAllergy, validateData, recordTitle } from '../../
 import { Avatar, Badge, Button, ConfirmDialog, ErrorState, Field, InlineError, Input, Select, SkeletonList, Textarea } from '../../components/ui';
 import { FilePicker, RecordFields } from '../../components/records/RecordForm';
 import { TypeIcon } from '../../components/records/RecordCard';
+import { HandoverNote } from '../../components/records/HandoverNote';
 import { NoAccess } from './PatientView';
 
 const FREQS = ['Once daily', 'Twice daily', 'Three times daily', 'Four times daily', 'Every night', 'Weekly', 'As needed'];
@@ -39,15 +40,17 @@ export function AddEntryPage() {
   const [labs, setLabs] = useState<{ test: string; laboratory: string; reason: string }[]>([]);
   const [followUp, setFollowUp] = useState('');
   const [files, setFiles] = useState<NewFile[]>([]);
+  const [handover, setHandover] = useState('');
   const [single, setSingle] = useState<{ type: RecordType; date: string; data: RecordData; files: NewFile[] }>({ type: 'clinical_note', date: todayISO(), data: {}, files: [] });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [confirm, setConfirm] = useState(false);
   const [err, setErr] = useState<string>();
-  const [done, setDone] = useState<{ id: string; items: { type: RecordType; title: string }[]; files: number }>();
+  const [done, setDone] = useState<{ id: string; items: { type: RecordType; title: string }[]; files: number; handover?: string }>();
 
   const perms = o?.grant.permissions ?? [];
   const can = (t: RecordType) => perms.includes(RECORD_TYPES[t].permission);
-  const writable = useMemo(() => recordService.typesDoctorCanWrite(perms), [perms]);
+  // Visits go through the Consultation tab, which always ends with the note for the next visit.
+  const writable = useMemo(() => recordService.typesDoctorCanWrite(perms).filter((t): t is RecordType => t !== 'consultation'), [perms]);
   useEffect(() => { if (o && !writable.includes(single.type) && writable[0]) setSingle((s) => ({ ...s, type: writable[0], data: {} })); }, [o]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (ov.error instanceof AppError && ov.error.code === 'ACCESS_DENIED') return <NoAccess message={ov.error.message} />;
@@ -62,6 +65,8 @@ export function AddEntryPage() {
       rx.forEach((r, i) => { if (!r.name.trim() || !r.dosage.trim()) v[`rx${i}`] = 'Medicine and dose are required'; });
       labs.forEach((l, i) => { if (!l.test.trim()) v[`lab${i}`] = 'Test name is required'; });
       if (followUp && followUp < date) v.followUp = 'Follow-up must be after the visit';
+      if (!handover.trim()) v.handover = 'Write a note for the next visit before saving';
+      else if (handover.trim().length < HANDOVER_MIN_LENGTH) v.handover = `Add a little more detail (at least ${HANDOVER_MIN_LENGTH} characters)`;
     } else {
       Object.assign(v, validateData(single.type, single.data));
       if (!single.date) v.date = 'Date is required';
@@ -75,11 +80,11 @@ export function AddEntryPage() {
     try {
       if (mode === 'visit') {
         const res = await recordService.addConsultation({
-          patientId, date, reason, symptoms, notes, followUp: followUp || undefined,
+          patientId, date, reason, symptoms, notes, followUp: followUp || undefined, handoverNote: handover,
           diagnosis: dx.condition.trim() ? { condition: dx.condition, status: dx.status, severity: dx.severity || undefined } : undefined,
           prescriptions: rx, labOrders: labs, files,
         });
-        setDone({ id: res.consultation.id, items: res.created.map((r) => ({ type: r.type, title: recordTitle(r) })), files: files.length });
+        setDone({ id: res.consultation.id, items: res.created.map((r) => ({ type: r.type, title: recordTitle(r) })), files: files.length, handover: handover.trim() });
       } else {
         const r = await recordService.create({ patientId, type: single.type, date: single.date, data: single.data, files: single.files });
         setDone({ id: r.id, items: [{ type: r.type, title: recordTitle(r) }], files: single.files.length });
@@ -100,10 +105,11 @@ export function AddEntryPage() {
           <p className="muted">These entries are now part of the patient’s lifelong timeline, attributed to you at {doctor.hospital?.name}. The patient has been notified and the addition is in their access log.</p>
           <ul className="list card" style={{ width: '100%', maxWidth: 520, textAlign: 'left' }}>
             {done.items.map((i, k) => <li key={k} className="list-item"><TypeIcon type={i.type} size="sm" /><span className="grow small"><span className="muted">{RECORD_TYPES[i.type].label}: </span><b>{i.title}</b></span></li>)}
+            {done.handover && <li className="list-item"><span className="type-icon sm"><NotebookPen aria-hidden /></span><span className="grow small"><span className="muted">Note for the next visit: </span>{done.handover}</span></li>}
             {done.files > 0 && <li className="list-item"><span className="type-icon sm"><Paperclip aria-hidden /></span><span className="grow small">{done.files} attachment{done.files > 1 ? 's' : ''} linked</span></li>}
           </ul>
           <div className="row" style={{ marginTop: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
-            <Button onClick={() => { setDone(undefined); setReason(''); setSymptoms(''); setNotes(''); setDx({ condition: '', status: 'Active', severity: '' }); setRx([]); setLabs([]); setFollowUp(''); setFiles([]); setSingle({ ...single, data: {}, files: [] }); }}>Add another entry</Button>
+            <Button onClick={() => { setDone(undefined); setReason(''); setSymptoms(''); setNotes(''); setDx({ condition: '', status: 'Active', severity: '' }); setRx([]); setLabs([]); setFollowUp(''); setFiles([]); setHandover(''); setSingle({ ...single, data: {}, files: [] }); }}>Add another entry</Button>
             <Button variant="primary" onClick={() => navigate(`/doctor/patients/${patientId}?record=${done.id}`)}>View in patient’s record</Button>
           </div>
         </div>
@@ -112,7 +118,7 @@ export function AddEntryPage() {
   }
 
   const summary = mode === 'visit'
-    ? ['Consultation', dx.condition && 'Diagnosis', rx.length && `${rx.length} prescription${rx.length > 1 ? 's' : ''}`, labs.length && `${labs.length} lab order${labs.length > 1 ? 's' : ''}`, followUp && 'Follow-up', files.length && `${files.length} attachment${files.length > 1 ? 's' : ''}`].filter(Boolean).join(', ')
+    ? ['Consultation', dx.condition && 'Diagnosis', rx.length && `${rx.length} prescription${rx.length > 1 ? 's' : ''}`, labs.length && `${labs.length} lab order${labs.length > 1 ? 's' : ''}`, followUp && 'Follow-up', files.length && `${files.length} attachment${files.length > 1 ? 's' : ''}`, 'a note for the next visit'].filter(Boolean).join(', ')
     : RECORD_TYPES[single.type].label;
 
   return (
@@ -205,6 +211,15 @@ export function AddEntryPage() {
                 <div className="form-section-title"><Paperclip aria-hidden />Attachments</div>
                 <FilePicker files={files} onChange={setFiles} label="Attach reports, scans or the prescription" compact />
               </section>
+
+              <section className="form-section">
+                <div className="form-section-title"><NotebookPen aria-hidden />Note for the next visit</div>
+                <Field label="What should the next doctor know?" required error={errors.handover} className="handover-field"
+                  help={`Shown at the top of ${o.patient.fullName}’s record to whoever sees them next — you at the follow-up, or another doctor if they go elsewhere.`}>
+                  {(p) => <Textarea {...p} rows={4} value={handover} onChange={(e) => setHandover(e.target.value)}
+                    placeholder="e.g. Recheck BP at follow-up. If headaches persist past 2 weeks despite screen breaks, consider MRI brain. Started paracetamol only — avoid NSAIDs (gastritis history)." />}
+                </Field>
+              </section>
             </>
           ) : (
             <section className="stack">
@@ -227,6 +242,7 @@ export function AddEntryPage() {
             <SideList title="Allergies" items={o.allergies.map((a) => ({ t: String(a.data.allergen), s: String(a.data.severity), danger: isSevereAllergy(a) }))} empty={can('allergy') ? 'None known' : 'Not shared'} />
             <SideList title="Current medications" items={o.activeMedications.map((m) => ({ t: `${m.data.name} ${m.data.dosage}`, s: String(m.data.frequency) }))} empty={can('medication') ? 'None' : 'Not shared'} />
             <SideList title="Conditions" items={o.conditions.map((c) => ({ t: String(c.data.condition), s: String(c.data.status) }))} empty={can('diagnosis') ? 'None recorded' : 'Not shared'} />
+            {o.handover && <HandoverNote record={o.handover} compact />}
             {o.lastVisit && <div className="xs muted">Last visit: {fmtLongDate(o.lastVisit.date)} — {recordTitle(o.lastVisit)}</div>}
           </section>
         </aside>

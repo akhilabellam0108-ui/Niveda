@@ -3,7 +3,7 @@ import { delay, mutate, mutateQuiet } from '../mock/db';
 import { nowISO, todayISO } from '../lib/dates';
 import { isSevereAllergy, ALLERGY_SEVERITY_RANK } from '../lib/recordMeta';
 import { AppError, audit, recentlyLogged, requireCtx, requireGrant } from './core';
-import { isMedicationActive, recordService } from './recordService';
+import { isMedicationActive, latestHandover, recordService } from './recordService';
 import { documentService, validateFile, type NewFile } from './documentService';
 
 export interface HealthSummary {
@@ -13,6 +13,8 @@ export interface HealthSummary {
   conditions: MedicalRecord[];
   counts: { records: number; doctors: number; documents: number; years: number };
   lastVisit?: MedicalRecord;
+  /** The newest consultation that left a note for the next visit. */
+  handover?: MedicalRecord;
   nextFollowUp?: { date: string; label: string; recordId: string };
 }
 
@@ -73,7 +75,7 @@ export function summarise(patient: Patient, records: MedicalRecord[]): Omit<Heal
   const followUps = records
     .flatMap((r) => (r.type === 'consultation' && r.data.followUp && String(r.data.followUp) >= today ? [{ date: String(r.data.followUp), label: String(r.data.diagnosis || r.data.reason), recordId: r.id }] : []))
     .sort((a, b) => a.date.localeCompare(b.date));
-  return { patient, allergies, activeMedications, conditions, lastVisit: visits[0], nextFollowUp: followUps[0] };
+  return { patient, allergies, activeMedications, conditions, lastVisit: visits[0], handover: latestHandover(records), nextFollowUp: followUps[0] };
 }
 
 export const patientService = {

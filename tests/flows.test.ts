@@ -6,7 +6,7 @@ import { latency } from '../src/mock/db';
 import { advanceClock, todayISO } from '../src/lib/dates';
 import {
   accessService, auditService, authService, documentService, notificationService,
-  patientService, recordService, medicationService, AppError,
+  patientService, recordService, medicationService, doctorService, AppError,
 } from '../src/services';
 import { DEMO_PASSWORD } from '../src/mock/seed';
 import { DEFAULT_PERMISSIONS, RECORD_TYPES } from '../src/lib/recordMeta';
@@ -158,6 +158,7 @@ await step('consultation bundle adds linked entries', async () => {
   const blob = new Blob(['%PDF-1.4 test'], { type: 'application/pdf' });
   const res = await recordService.addConsultation({
     patientId: newPatientId, date: todayISO(), reason: 'Sore throat', symptoms: 'Pain swallowing, fever 38.2°C',
+    handoverNote: 'Check swab culture result. If strep, complete 5 days and recheck throat.',
     diagnosis: { condition: 'Acute pharyngitis', status: 'Active', severity: 'Mild' },
     prescriptions: [{ name: 'Azithromycin', dosage: '500 mg', frequency: 'Once daily', durationDays: 3, startDate: todayISO(), instructions: 'After food' }],
     labOrders: [{ test: 'Throat swab culture', laboratory: 'Sunrise Diagnostics' }],
@@ -170,6 +171,18 @@ await step('consultation bundle adds linked entries', async () => {
   assert(c.createdBy.name === 'Dr. Priya Sharma' && c.organization?.name === 'Lakeview Hospital', 'attribution + hospital');
   assert(c.attachments.length === 1, 'attachment linked');
   assert(after.filter((r) => r.parentId === consultationId).length === 3, 'children linked to consultation');
+});
+await step('every visit ends with a note for the next visit', async () => {
+  const before = (await recordService.list(newPatientId)).length;
+  const visit = { patientId: newPatientId, date: todayISO(), reason: 'Review', prescriptions: [], labOrders: [], files: [] };
+  await expectRejectsValidation(() => recordService.addConsultation({ ...visit, handoverNote: '' }), 'visit without a note');
+  await expectRejectsValidation(() => recordService.addConsultation({ ...visit, handoverNote: '  ok  ' }), 'visit with a one-word note');
+  await expectRejectsValidation(() => recordService.create({ patientId: newPatientId, type: 'consultation', date: todayISO(), data: { reason: 'Review' } }), 'consultation entry without a note');
+  assert((await recordService.list(newPatientId)).length === before, 'nothing saved when the note is missing');
+  const c = (await recordService.list(newPatientId)).find((r) => r.id === consultationId)!;
+  assert(c.data.handoverNote === 'Check swab culture result. If strep, complete 5 days and recheck throat.', 'note stored on the consultation');
+  const o = await doctorService.patientOverview(newPatientId);
+  assert(o.handover?.id === consultationId, 'the newest note is shown to the next doctor');
 });
 await step('amendment keeps the original version', async () => {
   const dx = (await recordService.list(newPatientId)).find((r) => r.type === 'diagnosis' && r.parentId === consultationId)!;
@@ -216,7 +229,7 @@ await step('revoked doctor loses access immediately', async () => {
   await login('priya.sharma@lakeview.example');
   await expectDenied(() => recordService.list(newPatientId), 'list after revoke');
   await expectDenied(() => recordService.get(consultationId), 'get after revoke');
-  await expectDenied(() => recordService.addConsultation({ patientId: newPatientId, date: todayISO(), reason: 'x', prescriptions: [], labOrders: [], files: [] }), 'write after revoke');
+  await expectDenied(() => recordService.addConsultation({ patientId: newPatientId, date: todayISO(), reason: 'x', handoverNote: 'Nothing further needed.', prescriptions: [], labOrders: [], files: [] }), 'write after revoke');
 });
 await step('sensitive categories stay hidden unless shared', async () => {
   // Meera's mental-health record is not in Dr. Priya's default permissions.
