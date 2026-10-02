@@ -36,7 +36,7 @@ function RequireRole({ role }: { role: 'patient' | 'doctor' | 'applicant' }) {
   const { status, user } = useSession();
   const location = useLocation();
   if (status === 'loading') return <Splash />;
-  if (status === 'signed-out' || !user) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  if (status === 'signed-out' || !user) return <Navigate to={role === 'patient' ? '/login?as=patient' : '/login?as=doctor'} replace state={{ from: location.pathname }} />;
   if (user.role !== role) return <Navigate to={homeFor(user)} replace />;
   if (role === 'patient' && !user.onboarded && location.pathname !== '/onboarding') return <Navigate to="/onboarding" replace />;
   return <Outlet />;

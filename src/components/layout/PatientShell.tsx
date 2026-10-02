@@ -185,7 +185,7 @@ export function PatientShell() {
                 { label: 'Privacy & security', icon: LockKeyhole, to: '/app/privacy' },
                 { label: 'Settings', icon: Settings, to: '/app/settings' },
                 ...(user?.isAdmin ? [{ label: 'Niveda team', icon: ShieldPlus, to: '/admin' }] : []),
-                { label: 'Log out', icon: LogOut, onClick: async () => { await signOut(); navigate('/login'); } },
+                { label: 'Log out', icon: LogOut, onClick: async () => { await signOut(); navigate('/login?as=patient'); } },
               ]} />
             </div>
           </header>
@@ -210,7 +210,7 @@ export function PatientShell() {
               <it.icon aria-hidden />{it.label}{!!it.badge && <Badge tone="danger">{it.badge}</Badge>}
             </NavLink>
           ))}
-          <button className="nav-link" style={{ border: 0, background: 'none', cursor: 'pointer' }} onClick={async () => { await signOut(); navigate('/login'); }}><LogOut aria-hidden />Log out</button>
+          <button className="nav-link" style={{ border: 0, background: 'none', cursor: 'pointer' }} onClick={async () => { await signOut(); navigate('/login?as=patient'); }}><LogOut aria-hidden />Log out</button>
         </nav>
       </Modal>
 

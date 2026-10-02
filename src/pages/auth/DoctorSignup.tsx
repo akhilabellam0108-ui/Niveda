@@ -107,7 +107,7 @@ export function DoctorSignupPage() {
       {!isLive ? (
         <div className="stack">
           <div className="alert alert-info" role="status"><ShieldCheck aria-hidden /><div>{DEMO_ONLY_MESSAGE}</div></div>
-          <Link to="/login" className="btn btn-primary btn-lg btn-block">Try the demo doctor</Link>
+          <Link to="/login?as=doctor" className="btn btn-primary btn-lg btn-block">Try the demo doctor</Link>
         </div>
       ) : (
         <form className="stack" onSubmit={submit} noValidate>
@@ -126,7 +126,7 @@ export function DoctorSignupPage() {
           <Button type="submit" variant="primary" size="lg" block loading={busy}>Apply</Button>
         </form>
       )}
-      <p className="small muted" style={{ textAlign: 'center' }}>Already applied or verified? <Link to="/login">Log in</Link></p>
+      <p className="small muted" style={{ textAlign: 'center' }}>Already applied or verified? <Link to="/login?as=doctor">Log in</Link></p>
     </AuthLayout>
   );
 }

@@ -46,7 +46,7 @@ export function OtpInput({ value, onChange, onComplete, disabled, autoFocus = tr
   );
 }
 
-/** Makes clear this code would normally arrive by SMS. */
+/** Demo only: shows the code that the real app sends by email. */
 export function PrototypeCode({ challenge, onUse }: { challenge: OtpChallenge; onUse?: (code: string) => void }) {
   // Live backend: the code is emailed, never shown.
   if (!challenge.prototypeCode) return null;
@@ -55,7 +55,7 @@ export function PrototypeCode({ challenge, onUse }: { challenge: OtpChallenge; o
       <div className="row" style={{ '--gap': '10px' } as React.CSSProperties}>
         <FlaskConical size={16} aria-hidden />
         <div>
-          <div className="xs strong">Prototype — no SMS is sent</div>
+          <div className="xs strong">Demo — no email is sent</div>
           <div className="xs">Code for {challenge.destination}: <code>{challenge.prototypeCode}</code></div>
         </div>
       </div>

@@ -249,3 +249,17 @@
 .emergency-panel { border-color: var(--danger-border); }
 .emergency-panel .row > .btn { flex: none; }
 @media (max-width: 640px) { .emergency-panel .row { flex-wrap: wrap; } .emergency-panel .row > .btn { width: 100%; } }
+
+/* Login: who's logging in? */
+.role-list { list-style: none; margin: 0; padding: 0; }
+.role-card { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; padding: 18px; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); color: var(--text); cursor: pointer; font: inherit; transition: border-color .15s, box-shadow .15s, transform .15s; }
+.role-card:hover { border-color: var(--accent); box-shadow: var(--shadow-sm); }
+.role-card:active { transform: scale(.99); }
+.role-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.role-card-icon { flex: none; display: grid; place-items: center; width: 48px; height: 48px; border-radius: 14px; background: var(--accent-soft); color: var(--accent-text); }
+.role-card-icon svg { width: 24px; height: 24px; }
+.role-card-title { display: block; font-weight: 650; font-size: var(--t-md, 1.05rem); }
+.role-card-sub { display: block; margin-top: 3px; font-size: var(--t-sm); color: var(--text-2); }
+.role-card-go { flex: none; width: 20px; height: 20px; color: var(--text-3); }
+.role-chip { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 10px; padding: 4px 10px; border-radius: 999px; font-size: var(--t-xs); font-weight: 650; background: var(--accent-soft); color: var(--accent-text); }
+.role-chip svg { width: 14px; height: 14px; }

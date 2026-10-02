@@ -146,7 +146,7 @@ export function SettingsPage({ base = '/app/settings', role = 'patient' }: { bas
                 {([['notifyRecords', 'New entries in my record', 'When a doctor adds or corrects something'], ['notifyAccess', 'Access changes', 'Requests, grants, revocations and expiry'], ['notifyReminders', 'Reminders', 'e.g. a doctor’s access ends within 24 hours']] as const).map(([k, l, d]) => (
                   <label key={k} className="check"><input type="checkbox" checked={prefs[k]} onChange={(e) => setPref({ [k]: e.target.checked })} /><span><span className="strong">{l}</span><br /><span className="xs muted">{d}</span></span></label>
                 ))}
-                <p className="xs subtle">Security alerts (new sign-ins, password changes) are always on. Push and SMS delivery need the mobile app and a messaging provider — not included in this prototype.</p>
+                <p className="xs subtle">Security alerts (new sign-ins, password changes) are always on. Medicine reminders can also come as phone or computer notifications (see Medicines). SMS alerts aren’t available yet.</p>
               </div>
             </Card>
           )}

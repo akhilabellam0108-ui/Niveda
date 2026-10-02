@@ -1,10 +1,11 @@
 import { useState, type ReactNode } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, ShieldCheck, Clock3, ScrollText, FlaskConical, Stethoscope, UserRound, Mail } from 'lucide-react';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { Eye, EyeOff, ShieldCheck, Clock3, ScrollText, FlaskConical, Stethoscope, UserRound, Mail, ChevronRight, ArrowLeftRight } from 'lucide-react';
 import { brand } from '../../config/brand';
 import { authService, friendlyError, isLive, type OtpChallenge } from '../../services';
 import { DEMO_ACCOUNTS, DEMO_PASSWORD } from '../../mock/seed';
 import { useSession } from '../../state/SessionContext';
+import { useToast } from '../../state/ToastContext';
 import { useDocumentTitle } from '../../state/hooks';
 import { Button, Field, InlineError, Input } from '../../components/ui';
 import { Brand } from '../../components/ui/Logo';
@@ -65,14 +66,59 @@ export function PasswordInput(props: React.InputHTMLAttributes<HTMLInputElement>
 
 /* ---------------- Login ---------------- */
 
+export type LoginRole = 'patient' | 'doctor';
+
+const ROLE_COPY: Record<LoginRole, { icon: typeof UserRound; title: string; sub: string; heading: string; lede: string }> = {
+  patient: { icon: UserRound, title: 'I’m a patient', sub: 'See your health record, medicines, reminders and who can see your record.', heading: 'Log in as a patient', lede: `Log in to your ${brand.name} record.` },
+  doctor: { icon: Stethoscope, title: 'I’m a doctor', sub: 'See patients who have shared their record with you, and add to it.', heading: 'Log in as a doctor', lede: 'Log in to your clinician workspace.' },
+};
+
+/** Step 1 of logging in: who is it — a patient or a doctor? */
+function RolePicker({ onPick }: { onPick: (r: LoginRole) => void }) {
+  const { notice } = useSession();
+  return (
+    <AuthLayout>
+      <div>
+        <h1>Who’s logging in?</h1>
+        <p className="lede">Choose one to continue.</p>
+      </div>
+      {notice && <div className="alert alert-warn" role="alert"><Clock3 aria-hidden /><div>{notice}</div></div>}
+      <ul className="stack role-list" style={{ '--gap': '12px' } as React.CSSProperties}>
+        {(['patient', 'doctor'] as const).map((r) => {
+          const c = ROLE_COPY[r];
+          return (
+            <li key={r}><button type="button" className="role-card" onClick={() => onPick(r)}>
+              <span className="role-card-icon" aria-hidden><c.icon /></span>
+              <span className="grow">
+                <span className="role-card-title">{c.title}</span>
+                <span className="role-card-sub">{c.sub}</span>
+              </span>
+              <ChevronRight className="role-card-go" aria-hidden />
+            </button></li>
+          );
+        })}
+      </ul>
+      <p className="small muted" style={{ textAlign: 'center' }}>
+        New here? <Link to="/signup">Create a patient account</Link> · <Link to="/signup/doctor">Join as a doctor</Link>
+      </p>
+    </AuthLayout>
+  );
+}
+
 export function LoginPage() {
   useDocumentTitle(`Log in · ${brand.name}`);
   const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const role: LoginRole | undefined = params.get('as') === 'doctor' ? 'doctor' : params.get('as') === 'patient' ? 'patient' : undefined;
   const { notice, clearNotice } = useSession();
   const [id, setId] = useState('');
   const [pw, setPw] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string>();
+
+  if (!role) return <RolePicker onPick={(r) => setParams({ as: r })} />;
+  const copy = ROLE_COPY[role];
+  const other: LoginRole = role === 'doctor' ? 'patient' : 'doctor';
 
   const submit = async (e?: React.FormEvent, creds?: { id: string; pw: string }) => {
     e?.preventDefault();
@@ -83,7 +129,7 @@ export function LoginPage() {
     try {
       const challenge = await authService.startLogin(c.id, c.pw);
       clearNotice();
-      navigate('/verify', { state: { flow: 'login', challenge } });
+      navigate('/verify', { state: { flow: 'login', challenge, as: role } });
     } catch (x) {
       setErr(friendlyError(x));
     } finally {
@@ -91,27 +137,37 @@ export function LoginPage() {
     }
   };
 
+  const demos = role === 'patient' ? (['patient'] as const) : (['doctor', 'doctor2'] as const);
+
   return (
     <AuthLayout>
       <div>
-        <h1>Welcome back</h1>
-        <p className="lede">Log in to your {brand.name} record.</p>
+        <span className={`role-chip role-chip-${role}`}><copy.icon aria-hidden />{role === 'doctor' ? 'Doctor' : 'Patient'}</span>
+        <h1>{copy.heading}</h1>
+        <p className="lede">{copy.lede}</p>
       </div>
       {notice && <div className="alert alert-warn" role="alert"><Clock3 aria-hidden /><div>{notice}</div></div>}
       <form className="stack" onSubmit={submit} noValidate>
-        <Field label={isLive ? 'Email' : 'Email or phone number'}>{(p) => <Input {...p} type={isLive ? 'email' : 'text'} autoComplete="username" value={id} onChange={(e) => setId(e.target.value)} placeholder="you@example.com" />}</Field>
+        <Field label={isLive ? 'Email' : 'Email or phone number'}>{(p) => <Input {...p} type={isLive ? 'email' : 'text'} autoComplete="username" value={id} onChange={(e) => setId(e.target.value)} placeholder={role === 'doctor' ? 'you@hospital.com' : 'you@example.com'} />}</Field>
         <Field label="Password">{(p) => <PasswordInput {...p} autoComplete="current-password" value={pw} onChange={(e) => setPw(e.target.value)} />}</Field>
         <div className="spread small"><span /><Link to="/forgot-password">Forgot password?</Link></div>
         <InlineError message={err} />
         <Button type="submit" variant="primary" size="lg" block loading={busy}>Log in</Button>
       </form>
-      <p className="small muted" style={{ textAlign: 'center' }}>New here? <Link to="/signup">Create an account</Link></p>
+      <p className="small muted" style={{ textAlign: 'center' }}>
+        {role === 'patient'
+          ? <>New here? <Link to="/signup">Create an account</Link></>
+          : <>Not on {brand.name} yet? <Link to="/signup/doctor">Apply to join as a doctor</Link></>}
+      </p>
+      <button type="button" className="btn btn-ghost btn-sm" style={{ alignSelf: 'center' }} onClick={() => { setErr(undefined); setParams({ as: other }); }}>
+        <ArrowLeftRight aria-hidden />I’m {other === 'doctor' ? 'a doctor' : 'a patient'} instead
+      </button>
       {!isLive && <div className="demo-box">
-        <div className="row xs strong" style={{ color: 'var(--warn)' }}><FlaskConical size={14} aria-hidden />Prototype demo accounts (password {DEMO_PASSWORD})</div>
-        {([['patient', UserRound], ['doctor', Stethoscope], ['doctor2', Stethoscope]] as const).map(([k, Icon]) => (
+        <div className="row xs strong" style={{ color: 'var(--warn)' }}><FlaskConical size={14} aria-hidden />Demo {role} account{demos.length > 1 ? 's' : ''} (password {DEMO_PASSWORD})</div>
+        {demos.map((k) => (
           <button key={k} type="button" className="btn btn-ghost btn-sm" style={{ justifyContent: 'flex-start' }} disabled={busy}
             onClick={() => { setId(DEMO_ACCOUNTS[k].email); setPw(DEMO_PASSWORD); void submit(undefined, { id: DEMO_ACCOUNTS[k].email, pw: DEMO_PASSWORD }); }}>
-            <Icon aria-hidden />Continue as {DEMO_ACCOUNTS[k].label}
+            <copy.icon aria-hidden />Continue as {DEMO_ACCOUNTS[k].label}
           </button>
         ))}
         <p className="xs subtle">Tip: open a second browser tab to be the patient in one and the doctor in the other — changes appear live.</p>
@@ -199,7 +255,8 @@ export function VerifyPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { refresh } = useSession();
-  const state = location.state as { flow: 'login' | 'signup'; challenge: OtpChallenge } | null;
+  const toast = useToast();
+  const state = location.state as { flow: 'login' | 'signup'; challenge: OtpChallenge; as?: LoginRole } | null;
   const [challenge, setChallenge] = useState(state?.challenge);
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
@@ -222,6 +279,11 @@ export function VerifyPage() {
     try {
       const user = state.flow === 'signup' ? await authService.completeSignUp(challenge.id, c) : await authService.completeLogin(challenge.id, c);
       await refresh();
+      // Picked "patient" but this is a doctor's account (or the other way round): open the right side and say so.
+      const isDoctorSide = user.role === 'doctor' || user.role === 'applicant';
+      if (state.as && (state.as === 'doctor') !== isDoctorSide) {
+        toast(isDoctorSide ? 'This is a doctor’s account, so we opened the doctor side.' : 'This is a patient’s account, so we opened the patient side.');
+      }
       navigate(homeFor(user), { replace: true });
     } catch (x) {
       setErr(friendlyError(x));
@@ -243,10 +305,10 @@ export function VerifyPage() {
       <InlineError message={err} />
       <Button variant="primary" size="lg" block loading={busy} disabled={code.length !== 6} onClick={() => verify()}>Verify</Button>
       <div className="spread small">
-        <Link to={state.flow === 'signup' ? '/signup' : '/login'}>Back</Link>
+        <Link to={state.flow === 'signup' ? '/signup' : state.as ? `/login?as=${state.as}` : '/login'}>Back</Link>
         <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => { try { setChallenge(authService.resendCode(state.flow)); setCode(''); setErr(undefined); } catch (x) { setErr(friendlyError(x)); } }}>Send a new code</button>
       </div>
-      {!isLive && <p className="xs subtle">In the real product this code arrives by SMS from a verification provider. Here it’s shown on screen because this is a prototype.</p>}
+      {!isLive && <p className="xs subtle">In the real app this code arrives by email. Here it’s shown on screen because this is the demo.</p>}
     </AuthLayout>
   );
 }

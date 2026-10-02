@@ -115,7 +115,7 @@ npm run preview      # serve the production build
 
 ### Demo accounts
 
-Password for all demo accounts: **`demo1234`**. The login page also has one-click buttons for each.
+Password for all demo accounts: **`demo1234`**. Logging in starts with **Who's logging in? — I'm a patient / I'm a doctor**; each side then shows one-click buttons for its demo accounts.
 
 | Who | Email | Good for |
 |---|---|---|
@@ -123,7 +123,7 @@ Password for all demo accounts: **`demo1234`**. The login page also has one-clic
 | **Dr. Priya Sharma** (general physician) | `priya.sharma@lakeview.example` | Has access to Meera and Rohan — try adding a consultation |
 | **Dr. Arvind Rao** (cardiologist) | `arvind.rao@lakeview.example` | Waiting for Meera to approve his request |
 
-- **One-time codes** appear on screen in a yellow "Prototype" box with a *Fill in* button — no SMS is sent.
+- **One-time codes** appear on screen in a yellow "Demo" box with a *Fill in* button — in the live app they arrive by email.
 - **Doctor access code** for granting access: `PS-4821` (Dr. Priya Sharma).
 - **Sign up as a new patient** to see the compulsory onboarding.
 - **Patient IDs**: `NV-4821-7730` (Meera), `NV-9264-1183` (Fatima — no doctor has access, useful to test that nothing leaks).

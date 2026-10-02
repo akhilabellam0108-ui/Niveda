@@ -30,7 +30,7 @@ export function DoctorShell() {
     { to: '/doctor/security', label: 'Security', icon: LockKeyhole },
     { to: '/doctor/settings', label: 'Settings', icon: Settings },
   ];
-  const logout = async () => { await signOut(); navigate('/login'); };
+  const logout = async () => { await signOut(); navigate('/login?as=doctor'); };
   return (
     <>
       <ProtoBar />
