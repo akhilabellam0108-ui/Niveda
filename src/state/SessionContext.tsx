@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import type { Doctor, Hospital, Patient, Preferences, User } from '../types';
-import { authService, doctorService, patientService, settingsService, subscribe, DEFAULT_PREFS } from '../services';
-import { AppError } from '../services/core';
+import type { Doctor, Hospital, Patient, Preferences, User } from '@shared/types';
+import { authService, settingsService, subscribe, onAuthFailure, setLiveEnabled, DEFAULT_PREFS } from '../services';
+import { AppError } from '@shared/api';
 
 interface SessionState {
   status: 'loading' | 'signed-out' | 'signed-in';
@@ -30,23 +30,24 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async () => {
     try {
-      const user = await authService.currentUser();
-      if (!user) {
+      const me = await authService.me();
+      if (!me.user) {
         setState((s) => ({ status: 'signed-out', prefs: DEFAULT_PREFS, notice: s.notice }));
         applyTheme('system');
         return;
       }
-      const prefs = await settingsService.get();
+      const prefs = { ...DEFAULT_PREFS, ...me.prefs };
       applyTheme(prefs.theme);
-      if (user.role === 'patient') {
-        const patient = await patientService.me();
-        setState((s) => ({ status: 'signed-in', user, patient, prefs, notice: s.notice }));
-      } else {
-        const doctor = await doctorService.me();
-        setState((s) => ({ status: 'signed-in', user, doctor, prefs, notice: s.notice }));
-      }
+      // Reminders are scheduled in the patient's own time zone.
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (tz && prefs.timezone !== tz) void settingsService.update({ timezone: tz }).catch(() => undefined);
+      setState((s) => ({ status: 'signed-in', user: me.user!, patient: me.patient, doctor: me.doctor, prefs, notice: s.notice }));
     } catch (e) {
-      const msg = e instanceof AppError ? e.message : undefined;
+      const msg = e instanceof AppError && e.code !== 'NETWORK' ? e.message : undefined;
+      if (e instanceof AppError && e.code === 'NETWORK') {
+        setState((s) => (s.status === 'loading' ? { status: 'signed-out', prefs: DEFAULT_PREFS, notice: e.message } : s));
+        return;
+      }
       setState({ status: 'signed-out', prefs: DEFAULT_PREFS, notice: msg });
     }
   }, []);
@@ -68,6 +69,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const handleAuthError = useCallback((e: AppError) => {
     setState({ status: 'signed-out', prefs: DEFAULT_PREFS, notice: e.code === 'SESSION_EXPIRED' ? e.message : undefined });
   }, []);
+  useEffect(() => onAuthFailure(handleAuthError), [handleAuthError]);
+  useEffect(() => { setLiveEnabled(state.status === 'signed-in'); }, [state.status, state.user?.id]);
 
   const clearNotice = useCallback(() => setState((s) => ({ ...s, notice: undefined })), []);
 

@@ -1,17 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Pill, Plus, Ban, History, TriangleAlert, UserRound, CalendarDays, BellRing, BellOff, Watch, Bell, CalendarPlus } from 'lucide-react';
-import type { MedicalRecord } from '../../types';
+import type { MedicalRecord } from '@shared/types';
 import { isMedicationActive, medicationService, recordService, friendlyError, type MedicationSchedule } from '../../services';
 import { DoseList, useClock } from '../../components/medications/Doses';
+import { enablePush } from '../../lib/push';
 import { TimesEditor } from '../../components/medications/TimesEditor';
 import { downloadBlob } from '../../components/documents/DocumentViewer';
-import { defaultTimes, fmtClock } from '../../lib/reminders';
+import { defaultTimes, fmtClock } from '@shared/reminders';
 import { useLive, useDocumentTitle } from '../../state/hooks';
 import { useToast } from '../../state/ToastContext';
 import { brand } from '../../config/brand';
-import { fmtDate } from '../../lib/dates';
-import { ALLERGY_SEVERITY_RANK, isSevereAllergy } from '../../lib/recordMeta';
+import { fmtDate } from '@shared/dates';
+import { ALLERGY_SEVERITY_RANK, isSevereAllergy } from '@shared/recordMeta';
 import { Badge, Button, Card, ConfirmDialog, EmptyState, ErrorState, Field, InlineError, Input, Modal, SkeletonList, Tabs } from '../../components/ui';
 import { StatusBadge, TypeIcon } from '../../components/records/RecordCard';
 import { usePatientUI } from '../../components/layout/PatientShell';
@@ -143,10 +144,10 @@ export function NotificationPrompt() {
     <div className={`alert ${perm === 'denied' ? 'alert-warn' : 'alert-accent'}`}>
       <Bell aria-hidden />
       <div className="grow">
-        <div className="alert-title">{perm === 'denied' ? 'Notifications are blocked' : 'Get reminders even when this tab is in the background'}</div>
-        <div>{perm === 'denied' ? 'Allow notifications for this site in your browser settings to get medicine alerts outside the app.' : 'Allow notifications so each dose pops up on your screen — and on a watch paired with your phone.'}</div>
+        <div className="alert-title">{perm === 'denied' ? 'Notifications are blocked' : 'Get reminders even when Niveda is closed'}</div>
+        <div>{perm === 'denied' ? 'Allow notifications for this site in your browser settings to get medicine alerts outside the app.' : 'Allow notifications on this device so each dose pops up on your phone or computer — and on a watch paired with your phone.'}</div>
       </div>
-      {perm === 'default' && <Button size="sm" variant="primary" onClick={async () => setPerm(await Notification.requestPermission())}>Allow</Button>}
+      {perm === 'default' && <Button size="sm" variant="primary" onClick={async () => { const r = await enablePush(); if (r !== 'unsupported') setPerm(r); }}>Allow</Button>}
     </div>
   );
 }
@@ -168,7 +169,7 @@ function WatchDialog({ open, onClose }: { open: boolean; onClose: () => void }) 
           <li>Open it on your phone, or import it into Google Calendar, Apple Calendar or Outlook.</li>
           <li>Make sure calendar notifications are mirrored to your watch in the watch’s companion app.</li>
         </ol>
-        <p className="xs subtle">If you change reminder times or a doctor adds a new prescription, download the file again. A direct connection to watches (Apple Health, Google Fit, Wear OS apps) needs the mobile app, which isn’t part of this prototype.</p>
+        <p className="xs subtle">If you change reminder times or a doctor adds a new prescription, download the file again. With notifications allowed, Niveda also sends each reminder to this device directly — watches that mirror phone notifications show those too.</p>
         <InlineError message={err} />
       </div>
     </Modal>

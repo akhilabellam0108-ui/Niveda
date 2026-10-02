@@ -1,13 +1,13 @@
 import { useMemo, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { ShieldCheck, ShieldOff, SlidersHorizontal, Eye, Inbox, History, UserPlus, Building2, IdCard, ScrollText, X } from 'lucide-react';
-import type { PermissionKey } from '../../types';
+import type { PermissionKey } from '@shared/types';
 import { accessService, auditService, durationLabel, friendlyError, type GrantView, type RequestView } from '../../services';
 import { useLive, useDocumentTitle } from '../../state/hooks';
 import { useSession } from '../../state/SessionContext';
 import { useToast } from '../../state/ToastContext';
 import { brand } from '../../config/brand';
-import { fmtDate, fmtDateTime, relativeTime, timeLeft, parseDate, now } from '../../lib/dates';
+import { fmtDate, fmtDateTime, relativeTime, timeLeft, parseDate, now } from '@shared/dates';
 import { Avatar, Badge, Button, Card, ConfirmDialog, EmptyState, ErrorState, Modal, SkeletonList, Tabs } from '../../components/ui';
 import { OtpDialog } from '../../components/ui/Otp';
 import { DurationPicker, PermissionBadges, PermissionSelector } from '../../components/access/PermissionSelector';

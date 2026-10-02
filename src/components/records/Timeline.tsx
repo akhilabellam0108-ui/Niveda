@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Search, SlidersHorizontal, X, Ban, Paperclip, CornerDownRight } from 'lucide-react';
-import type { MedicalRecord } from '../../types';
-import { RECORD_CATEGORIES, RECORD_TYPES, recordTitle, recordSummary } from '../../lib/recordMeta';
-import { fmtDayMonth, fmtDate } from '../../lib/dates';
+import type { MedicalRecord } from '@shared/types';
+import { RECORD_CATEGORIES, RECORD_TYPES, recordTitle, recordSummary } from '@shared/recordMeta';
+import { fmtDayMonth, fmtDate } from '@shared/dates';
 import { Button, Input, Select } from '../ui';
 import { RecordCard, StatusBadge, TypeIcon } from './RecordCard';
 

@@ -1,8 +1,13 @@
-"""Browser end-to-end check of flows A–E against the built app (vite preview on :4173)."""
+"""Browser end-to-end check of flows A–E against a running Niveda server (API + web app).
+
+Start the server first (demo data and on-screen codes on), e.g.:
+    npm run build && DATA_DIR=/tmp/niveda-e2e PORT=8090 node dist/server/index.js
+then:  BASE=http://localhost:8090/ python3 tests/e2e_browser.py
+"""
 import re, sys, os
 from playwright.sync_api import sync_playwright, expect
 
-BASE = __import__("os").environ.get("BASE", "http://localhost:4173/")
+BASE = __import__("os").environ.get("BASE", "http://localhost:8090/")
 OUT = os.environ.get("SHOTS", "shots")
 os.makedirs(OUT, exist_ok=True)
 errors = []
@@ -80,7 +85,8 @@ with sync_playwright() as p:
     pt.get_by_label(re.compile("never had surgery")).check()
     pt.get_by_role("button", name="Continue").click()
     pt.get_by_role("button", name="Finish setup").click()
-    expect(pt.get_by_text(re.compile("Upload at least one medical document"))).to_be_visible()
+    expect(pt.get_by_text(re.compile("Add your medical documents, or confirm"))).to_be_visible()
+    expect(pt.get_by_label(re.compile("don’t have any medical documents"))).to_be_visible()
     log("document upload is required")
     pt.locator("input[type=file]").first.set_input_files({"name": "cbc-2025.pdf", "mimeType": "application/pdf", "buffer": b"%PDF-1.4\n%test\n"})
     pt.get_by_role("button", name="Finish setup").click()
@@ -109,7 +115,6 @@ with sync_playwright() as p:
     pt.goto(BASE + "#/app/records?category=vaccinations")
     expect(pt.locator(".rec-card").filter(has_text="Tetanus (Td)")).to_be_visible()
     log("record appears in Vaccinations category")
-    patient_id = pt.evaluate("() => JSON.parse(localStorage.getItem('niveda.db')).patients.find(p => p.fullName === 'Kiran Rao').patientCode")
 
     print("Flow B — grant a doctor access")
     pt.goto(BASE + "#/app/access")
@@ -132,7 +137,8 @@ with sync_playwright() as p:
     shot(pt, "access-active")
 
     print("Flow C — doctor adds to the existing record")
-    dr = ctx.new_page()
+    dctx = browser.new_context(viewport={"width": 1360, "height": 900})  # separate cookies = separate person
+    dr = dctx.new_page()
     dr.on("pageerror", lambda e: errors.append(f"doctor pageerror: {e}"))
     dr.on("console", lambda m: errors.append(f"doctor console: {m.text}") if m.type == "error" else None)
     dr.set_default_timeout(8000)
@@ -192,7 +198,8 @@ with sync_playwright() as p:
     log("patient notified")
 
     print("Flow C2 — amendment keeps history")
-    dr.goto(BASE + f"#/doctor/patients/{pt.evaluate('''() => JSON.parse(localStorage.getItem('niveda.db')).patients.find(p => p.fullName === 'Kiran Rao').id''')}")
+    dr.goto(BASE + "#/doctor/patients")
+    dr.locator(".access-card").filter(has_text="Kiran Rao").get_by_role("button", name="Open record").click()
     dr.get_by_role("tab", name="Timeline").click()
     dr.locator(".sub-row").filter(has_text="Community-acquired pneumonia").click()
     dr.get_by_role("button", name="Correct this entry").click()
@@ -225,7 +232,9 @@ with sync_playwright() as p:
     log("access log shows grant, views, additions, correction, revoke")
 
     print("Demo patient + mobile")
-    pt.evaluate("() => sessionStorage.clear()")
+    pt.close()
+    pt = browser.new_context(viewport={"width": 1360, "height": 900}).new_page()
+    pt.set_default_timeout(8000)
     pt.goto(BASE + "#/login")
     pt.get_by_role("button", name=re.compile("Continue as Meera")).click()
     fill_code(pt)

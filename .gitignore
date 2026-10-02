@@ -3,3 +3,5 @@ dist
 dist-single
 *.log
 __pycache__
+data/
+.env

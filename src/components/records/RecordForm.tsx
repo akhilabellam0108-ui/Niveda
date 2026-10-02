@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { FileText, Upload, X } from 'lucide-react';
-import type { DocumentCategory, RecordData, RecordType } from '../../types';
-import { RECORD_TYPES, type FieldDef } from '../../lib/recordMeta';
+import type { DocumentCategory, RecordData, RecordType } from '@shared/types';
+import { RECORD_TYPES, type FieldDef } from '@shared/recordMeta';
 import { ACCEPT_ATTR, DOC_CATEGORY_LABEL, guessCategory, validateFile, friendlyError, type NewFile } from '../../services';
 import { Button, Field, Input, Select, Textarea } from '../ui';
 

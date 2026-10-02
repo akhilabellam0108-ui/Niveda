@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
-import type { RecordData, RecordType } from '../../types';
-import { RECORD_TYPE_LIST, RECORD_TYPES, validateData } from '../../lib/recordMeta';
+import type { RecordData, RecordType } from '@shared/types';
+import { RECORD_TYPE_LIST, RECORD_TYPES, validateData } from '@shared/recordMeta';
 import { RECORD_ICON } from '../../lib/icons';
-import { todayISO } from '../../lib/dates';
+import { todayISO } from '@shared/dates';
 import { recordService, friendlyError, type NewFile } from '../../services';
 import { Button, InlineError, Modal } from '../ui';
 import { FilePicker, RecordFields } from './RecordForm';

@@ -6,8 +6,8 @@ import { accessService, medicationService, patientService, recordService } from 
 import { DoseList, useClock } from '../../components/medications/Doses';
 import { useLive, useDocumentTitle } from '../../state/hooks';
 import { useSession } from '../../state/SessionContext';
-import { ageFrom, fmtDate, fmtMonthYear, timeLeft, now } from '../../lib/dates';
-import { RECORD_TYPES, recordTitle, isSevereAllergy } from '../../lib/recordMeta';
+import { ageFrom, fmtDate, fmtMonthYear, timeLeft, now } from '@shared/dates';
+import { RECORD_TYPES, recordTitle, isSevereAllergy } from '@shared/recordMeta';
 import { brand } from '../../config/brand';
 import { Avatar, Badge, Button, Card, EmptyState, ErrorState, Skeleton, SkeletonList } from '../../components/ui';
 import { buildTimeline } from '../../components/records/Timeline';

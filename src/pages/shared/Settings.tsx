@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react';
 import { NavLink, useNavigate, useParams, Link } from 'react-router-dom';
-import { BellRing, Camera, Copy, UserRound, LockKeyhole, ShieldCheck, Bell, Palette, Languages, Download, LifeBuoy, LogOut, FlaskConical, FileJson, FileText, CheckCircle2, RotateCcw } from 'lucide-react';
-import type { Preferences } from '../../types';
-import { exportService, patientService, resetDemoData, settingsService, EXPORT_SCOPES, friendlyError } from '../../services';
+import { BellRing, Camera, Copy, UserRound, LockKeyhole, ShieldCheck, Bell, Palette, Languages, Download, LifeBuoy, LogOut, FileJson, FileText, CheckCircle2, } from 'lucide-react';
+import type { Preferences } from '@shared/types';
+import { exportService, patientService, settingsService, EXPORT_SCOPES, friendlyError } from '../../services';
 import { useSession, applyTheme } from '../../state/SessionContext';
 import { useToast } from '../../state/ToastContext';
 import { useDocumentTitle } from '../../state/hooks';
 import { brand } from '../../config/brand';
-import { ageFrom, fmtDate } from '../../lib/dates';
-import { Avatar, Button, Card, ConfirmDialog, Field, InlineError, Input, Select, Skeleton } from '../../components/ui';
+import { ageFrom, fmtDate } from '@shared/dates';
+import { Avatar, Button, Card, Field, InlineError, Input, Select, Skeleton } from '../../components/ui';
 import { downloadBlob } from '../../components/documents/DocumentViewer';
 import { BLOOD_GROUPS, readImage } from '../auth/Onboarding';
 import { NotificationPrompt } from '../patient/Medications';
@@ -100,7 +100,6 @@ export function SettingsPage({ base = '/app/settings', role = 'patient' }: { bas
   const { signOut, prefs, user } = useSession();
   const navigate = useNavigate();
   const toast = useToast();
-  const [resetOpen, setResetOpen] = useState(false);
   const sections = SECTIONS.filter((s) => role === 'patient' || s.key !== 'export');
   const setPref = async (p: Partial<Preferences>) => {
     try { const next = await settingsService.update(p); if (p.theme) applyTheme(next.theme); toast('Saved'); } catch (e) { toast(friendlyError(e), 'error'); }
@@ -121,7 +120,7 @@ export function SettingsPage({ base = '/app/settings', role = 'patient' }: { bas
                 <li className="list-item"><div className="grow"><div className="small strong">Email</div><div className="xs muted">{user?.email}</div></div><Link className="btn btn-sm btn-secondary" to={role === 'patient' ? '/app/profile' : '/doctor/profile'}>Edit profile</Link></li>
                 <li className="list-item"><div className="grow"><div className="small strong">Privacy & security</div><div className="xs muted">Access, devices, password and one-time codes</div></div><Link className="btn btn-sm btn-secondary" to={role === 'patient' ? '/app/privacy' : '/doctor/security'}><LockKeyhole aria-hidden />Open</Link></li>
                 {role === 'patient' && <li className="list-item"><div className="grow"><div className="small strong">Doctors & access</div><div className="xs muted">Grant, change or revoke access</div></div><Link className="btn btn-sm btn-secondary" to="/app/access"><ShieldCheck aria-hidden />Open</Link></li>}
-                <li className="list-item"><div className="grow"><div className="small strong">Close account</div><div className="xs muted">Needs identity checks and a retention policy — available once a real backend exists.</div></div><Button size="sm" disabled>Unavailable in prototype</Button></li>
+                <li className="list-item"><div className="grow"><div className="small strong">Close account</div><div className="xs muted">Medical records must be retained for a legal minimum period. Email support to close your account; we’ll confirm your identity first.</div></div><a className="btn btn-sm btn-secondary" href={`mailto:${brand.supportEmail}?subject=Close%20my%20account`}>Contact support</a></li>
               </ul>
             </Card>
           )}
@@ -135,7 +134,7 @@ export function SettingsPage({ base = '/app/settings', role = 'patient' }: { bas
                   <Button size="sm" icon={BellRing} onClick={() => testAlarm(prefs.medAlarmSound)}>Test reminder</Button>
                   <Link className="btn btn-sm btn-ghost" to="/app/medications">Set times for each medicine</Link>
                 </div>
-                <p className="xs subtle">A web page can only ring while it’s open. For reminders when the app is closed, add your schedule to your phone’s calendar from Medications → Phone & smartwatch.</p>
+                <p className="xs subtle">With notifications allowed, reminders arrive even when Niveda is closed. You can also add your schedule to your phone’s calendar from Medications → Phone & smartwatch.</p>
               </div>
             </Card>
           )}
@@ -145,7 +144,7 @@ export function SettingsPage({ base = '/app/settings', role = 'patient' }: { bas
                 {([['notifyRecords', 'New entries in my record', 'When a doctor adds or corrects something'], ['notifyAccess', 'Access changes', 'Requests, grants, revocations and expiry'], ['notifyReminders', 'Reminders', 'e.g. a doctor’s access ends within 24 hours']] as const).map(([k, l, d]) => (
                   <label key={k} className="check"><input type="checkbox" checked={prefs[k]} onChange={(e) => setPref({ [k]: e.target.checked })} /><span><span className="strong">{l}</span><br /><span className="xs muted">{d}</span></span></label>
                 ))}
-                <p className="xs subtle">Security alerts (new sign-ins, password changes) are always on. Push and SMS delivery need the mobile app and a messaging provider — not included in this prototype.</p>
+                <p className="xs subtle">Security alerts (new sign-ins, password changes) are always on.</p>
               </div>
             </Card>
           )}
@@ -160,7 +159,7 @@ export function SettingsPage({ base = '/app/settings', role = 'patient' }: { bas
             <Card title="Language" pad>
               <div className="stack">
                 <Field label="App language">{(p) => <Select {...p} value="en" onChange={() => undefined} options={[{ value: 'en', label: 'English' }]} />}</Field>
-                <p className="xs subtle">Hindi, Telugu, Tamil and more are planned. Translating medical terms needs clinical review, so they aren’t in this prototype.</p>
+                <p className="xs subtle">Hindi, Telugu, Tamil and more are planned. Translating medical terms needs clinical review, so they’ll arrive once reviewed.</p>
               </div>
             </Card>
           )}
@@ -168,18 +167,13 @@ export function SettingsPage({ base = '/app/settings', role = 'patient' }: { bas
           {section === 'help' && (
             <Card title="Help & support" pad>
               <div className="stack">
-                <p className="small">Questions about your record or privacy? Email <a href={`mailto:${brand.supportEmail}`}>{brand.supportEmail}</a> (placeholder address).</p>
+                <p className="small">Questions about your record or privacy? Email <a href={`mailto:${brand.supportEmail}`}>{brand.supportEmail}</a>.</p>
                 <p className="small muted">To report a wrong entry added by a doctor, ask them to correct it — corrections keep the original visible in the history.</p>
-                <div className="alert alert-warn"><FlaskConical aria-hidden /><div><div className="alert-title">Demo tools</div>Reset the prototype to its original demo data. This clears everything created in this browser.</div></div>
-                <div><Button variant="danger-ghost" icon={RotateCcw} onClick={() => setResetOpen(true)}>Reset demo data</Button></div>
               </div>
             </Card>
           )}
         </div>
       </div>
-      <ConfirmDialog open={resetOpen} onClose={() => setResetOpen(false)} danger confirmLabel="Reset and sign out" title="Reset demo data?"
-        body="All accounts, records, documents and logs created in this browser will be replaced with the original demo data."
-        onConfirm={async () => { await resetDemoData(); await signOut(); navigate('/login'); }} />
     </>
   );
 }
@@ -222,7 +216,7 @@ function ExportPanel() {
         <InlineError message={err} />
         {done && <div className="alert alert-ok"><CheckCircle2 aria-hidden /><div>Downloaded {done}</div></div>}
         <div><Button variant="primary" icon={Download} loading={busy} disabled={!scopes.length} onClick={run}>Export</Button></div>
-        <p className="xs subtle">Prototype: the file is built in your browser. In production, exports would be prepared on a server (including original document files and a FHIR format) and delivered through a secure, expiring link.</p>
+        <p className="xs subtle">The JSON file includes links to download each original document while you’re signed in.</p>
       </div>
     </Card>
   );

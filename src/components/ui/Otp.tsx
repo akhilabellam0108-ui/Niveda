@@ -46,18 +46,23 @@ export function OtpInput({ value, onChange, onComplete, disabled, autoFocus = tr
   );
 }
 
-/** Makes clear this code would normally arrive by SMS. */
+/**
+ * Development helper: when the server runs with OTP_DEV_ECHO, it returns the code so it can be
+ * filled in without an inbox. In a real deployment `devCode` is never sent and nothing is shown.
+ */
 export function PrototypeCode({ challenge, onUse }: { challenge: OtpChallenge; onUse?: (code: string) => void }) {
+  if (!challenge.devCode) return null;
+  const code = challenge.devCode;
   return (
     <div className="proto-code" role="note">
       <div className="row" style={{ '--gap': '10px' } as React.CSSProperties}>
         <FlaskConical size={16} aria-hidden />
         <div>
-          <div className="xs strong">Prototype — no SMS is sent</div>
-          <div className="xs">Code for {challenge.destination}: <code>{challenge.prototypeCode}</code></div>
+          <div className="xs strong">Development server — code shown here</div>
+          <div className="xs">Code sent to {challenge.destination}: <code>{code}</code></div>
         </div>
       </div>
-      {onUse && <Button size="sm" variant="ghost" onClick={() => onUse(challenge.prototypeCode)}>Fill in</Button>}
+      {onUse && <Button size="sm" variant="ghost" onClick={() => onUse(code)}>Fill in</Button>}
     </div>
   );
 }

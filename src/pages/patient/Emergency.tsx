@@ -6,8 +6,8 @@ import { useLive, useDocumentTitle } from '../../state/hooks';
 import { useSession } from '../../state/SessionContext';
 import { useToast } from '../../state/ToastContext';
 import { brand } from '../../config/brand';
-import { ageFrom, fmtDate } from '../../lib/dates';
-import { isSevereAllergy } from '../../lib/recordMeta';
+import { ageFrom, fmtDate } from '@shared/dates';
+import { isSevereAllergy } from '@shared/recordMeta';
 import { Button, ErrorState, Field, InlineError, Input, Modal, Select, Skeleton, Textarea } from '../../components/ui';
 import { QrCode } from '../../components/access/Qr';
 import { BLOOD_GROUPS } from '../auth/Onboarding';
@@ -104,7 +104,7 @@ export function EmergencyPage() {
                       {patient.emergencyContact?.name && <div style={{ opacity: .8 }}>ICE: {patient.emergencyContact.name} {patient.emergencyContact.phone}</div>}
                     </div>
                   </div>
-                  <p className="xs subtle" style={{ textAlign: 'center' }}>Preview of a lock-screen widget. Requires the mobile app (not part of this prototype).</p>
+                  <p className="xs subtle" style={{ textAlign: 'center' }}>Preview of how your card can look on a lock screen. Save the QR image as your phone’s lock-screen wallpaper so responders can scan it.</p>
                 </>
               ) : (
                 <div className="alert alert-info"><Info aria-hidden /><div>Your emergency card is only visible to you and doctors you’ve granted access to.</div></div>

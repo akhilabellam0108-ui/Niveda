@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { subscribe } from '../services';
-import { AppError } from '../services/core';
+import { AppError } from '@shared/api';
 import { useSession } from './SessionContext';
 
 export interface Live<T> {

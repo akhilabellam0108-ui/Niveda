@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Download, FileText, Image as ImageIcon, ScanLine, FileHeart, ClipboardList } from 'lucide-react';
-import type { MedicalDocument } from '../../types';
+import type { MedicalDocument } from '@shared/types';
 import { documentService, DOC_CATEGORY_LABEL } from '../../services';
-import { fmtDate } from '../../lib/dates';
+import { fmtDate } from '@shared/dates';
 import { Button, ErrorState, Modal, Skeleton } from '../ui';
 
 export const DOC_ICON = { report: ClipboardList, prescription: FileHeart, scan: ScanLine, image: ImageIcon, discharge: FileText, other: FileText };

@@ -5,9 +5,9 @@ import {
   House, Clock3, FolderHeart, Pill, TriangleAlert, FileText, ShieldCheck, Siren, Bell, ScrollText, LockKeyhole,
   UserRound, Settings, Search, LogOut, Ellipsis, ChevronDown,
 } from 'lucide-react';
-import type { RecordType } from '../../types';
-import { brand, PROTOTYPE_NOTICE } from '../../config/brand';
-import { accessService, notificationService } from '../../services';
+import type { RecordType } from '@shared/types';
+import { brand } from '../../config/brand';
+import { accessService, configService, notificationService } from '../../services';
 import { useSession } from '../../state/SessionContext';
 import { useLive } from '../../state/hooks';
 import { useToast } from '../../state/ToastContext';
@@ -19,6 +19,7 @@ import { UploadDialog } from '../documents/UploadDialog';
 import { GrantAccessDialog } from '../access/GrantAccessDialog';
 import { SearchPalette } from '../search/SearchPalette';
 import { MedicationAlarms } from '../medications/Doses';
+import { enablePush, disablePush } from '../../lib/push';
 
 /* ---------------- Shared nav pieces ---------------- */
 
@@ -73,8 +74,11 @@ export function UserMenu({ name, sub, photo, doctor, items }: { name: string; su
   );
 }
 
+/** Shown only when the server runs with demo data (never in a real deployment). */
 export function ProtoBar() {
-  return <div className="proto-bar" role="note"><b>Prototype</b> · {PROTOTYPE_NOTICE.replace('Prototype: ', '')}</div>;
+  const cfg = useLive(() => configService.get(), []);
+  if (!cfg.data?.demo) return null;
+  return <div className="proto-bar" role="note"><b>Demo server</b> · fictional data{cfg.data.otpDevEcho ? ' · codes are shown on screen' : ''}. Don’t enter real medical information here.</div>;
 }
 
 /** Opens the record drawer via ?record=… so records are linkable from anywhere. */
@@ -130,6 +134,8 @@ export function PatientShell() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
   useEffect(() => { setMoreOpen(false); window.scrollTo(0, 0); }, [location.pathname]);
+  // If this device already allowed notifications, make sure it's registered for reminders.
+  useEffect(() => { if (typeof Notification !== 'undefined' && Notification.permission === 'granted') void enablePush(false); }, []);
 
   const ui: PatientUI = {
     addRecord: (t) => setAddType(t),
@@ -177,7 +183,7 @@ export function PatientShell() {
                 { label: 'Profile', icon: UserRound, to: '/app/profile' },
                 { label: 'Privacy & security', icon: LockKeyhole, to: '/app/privacy' },
                 { label: 'Settings', icon: Settings, to: '/app/settings' },
-                { label: 'Log out', icon: LogOut, onClick: async () => { await signOut(); navigate('/login'); } },
+                { label: 'Log out', icon: LogOut, onClick: async () => { await disablePush(); await signOut(); navigate('/login'); } },
               ]} />
             </div>
           </header>
@@ -202,7 +208,7 @@ export function PatientShell() {
               <it.icon aria-hidden />{it.label}{!!it.badge && <Badge tone="danger">{it.badge}</Badge>}
             </NavLink>
           ))}
-          <button className="nav-link" style={{ border: 0, background: 'none', cursor: 'pointer' }} onClick={async () => { await signOut(); navigate('/login'); }}><LogOut aria-hidden />Log out</button>
+          <button className="nav-link" style={{ border: 0, background: 'none', cursor: 'pointer' }} onClick={async () => { await disablePush(); await signOut(); navigate('/login'); }}><LogOut aria-hidden />Log out</button>
         </nav>
       </Modal>
 

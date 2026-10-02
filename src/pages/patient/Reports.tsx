@@ -1,13 +1,13 @@
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Upload, FileText, Download, Trash2, Link2, Search, Lock } from 'lucide-react';
-import type { DocumentCategory, MedicalRecord } from '../../types';
+import type { DocumentCategory, MedicalRecord } from '@shared/types';
 import { documentService, recordService, DOC_CATEGORY_LABEL, type DocumentView } from '../../services';
 import { useLive, useDocumentTitle } from '../../state/hooks';
 import { useToast } from '../../state/ToastContext';
 import { brand } from '../../config/brand';
-import { fmtDate } from '../../lib/dates';
-import { RECORD_TYPES, recordTitle } from '../../lib/recordMeta';
+import { fmtDate } from '@shared/dates';
+import { RECORD_TYPES, recordTitle } from '@shared/recordMeta';
 import { Badge, Button, ConfirmDialog, EmptyState, ErrorState, Field, Input, Select, SkeletonList } from '../../components/ui';
 import { DocumentViewer, DOC_ICON, formatBytes, downloadBlob } from '../../components/documents/DocumentViewer';
 import { usePatientUI } from '../../components/layout/PatientShell';

@@ -3,7 +3,7 @@ import {
   Stethoscope, Activity, Pill, TriangleAlert, Scissors, Syringe, FlaskConical, Microscope, ScanLine,
   BedDouble, Brain, Users, CalendarClock, NotebookPen, FileText,
 } from 'lucide-react';
-import type { RecordType } from '../types';
+import type { RecordType } from '@shared/types';
 
 export const RECORD_ICON: Record<RecordType, LucideIcon> = {
   consultation: Stethoscope,

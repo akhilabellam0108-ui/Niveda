@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ArrowLeft, KeyRound, QrCode, Search, UserPlus, ShieldCheck, CheckCircle2, Building2 } from 'lucide-react';
-import type { Doctor, GrantMethod, Hospital, PermissionKey } from '../../types';
-import { DEFAULT_PERMISSIONS, permissionLabel } from '../../lib/recordMeta';
-import { addHours, fmtDateTime, nowISO } from '../../lib/dates';
+import type { Doctor, GrantMethod, Hospital, PermissionKey } from '@shared/types';
+import { DEFAULT_PERMISSIONS, permissionLabel } from '@shared/recordMeta';
+import { addHours, fmtDateTime, nowISO } from '@shared/dates';
 import { accessService, durationLabel, friendlyError, type OtpChallenge } from '../../services';
 import { Avatar, Button, Field, InlineError, Input, Modal } from '../ui';
 import { OtpInput, PrototypeCode } from '../ui/Otp';
@@ -151,8 +151,8 @@ export function GrantAccessDialog({ open, onClose, onGranted }: { open: boolean;
         {step === 'invited' && (
           <div className="success-hero" style={{ padding: '8px 0' }}>
             <div className="ok-icon"><CheckCircle2 aria-hidden /></div>
-            <h3>Invitation saved</h3>
-            <p className="small muted">In the full product your doctor would receive a link to join. Once they do, you can grant them access here. (Prototype: no message is sent.)</p>
+            <h3>Invitation sent</h3>
+            <p className="small muted">If you entered an email address, your doctor has been sent an invitation. Once their registration is verified and they join, you can grant them access here.</p>
           </div>
         )}
 

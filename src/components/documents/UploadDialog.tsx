@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import type { MedicalRecord } from '../../types';
-import { recordTitle, RECORD_TYPES } from '../../lib/recordMeta';
-import { fmtDate, todayISO } from '../../lib/dates';
+import type { MedicalRecord } from '@shared/types';
+import { recordTitle, RECORD_TYPES } from '@shared/recordMeta';
+import { fmtDate, todayISO } from '@shared/dates';
 import { documentService, recordService, friendlyError, type NewFile } from '../../services';
 import { Button, Field, InlineError, Input, Modal, Select } from '../ui';
 import { FilePicker } from '../records/RecordForm';

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Lock } from 'lucide-react';
-import type { PermissionKey } from '../../types';
-import { PERMISSIONS, permissionLabel } from '../../lib/recordMeta';
+import type { PermissionKey } from '@shared/types';
+import { PERMISSIONS, permissionLabel } from '@shared/recordMeta';
 import { DURATIONS, durationLabel } from '../../services';
 import { Badge, Input, Select } from '../ui';
 

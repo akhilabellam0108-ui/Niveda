@@ -1,10 +1,10 @@
 import { useNavigate } from 'react-router-dom';
 import { Bell, CheckCheck, FilePlus2, ShieldCheck, Inbox, LockKeyhole, Clock3 } from 'lucide-react';
-import type { Notification } from '../../types';
+import type { Notification } from '@shared/types';
 import { notificationService } from '../../services';
 import { useLive, useDocumentTitle } from '../../state/hooks';
 import { brand } from '../../config/brand';
-import { relativeTime, fmtDateTime } from '../../lib/dates';
+import { relativeTime, fmtDateTime } from '@shared/dates';
 import { Button, Card, EmptyState, ErrorState, SkeletonList } from '../../components/ui';
 
 const KIND_ICON = { record: [FilePlus2, 'tone-accent'], access: [ShieldCheck, 'tone-ok'], request: [Inbox, 'tone-info'], security: [LockKeyhole, 'tone-warn'], reminder: [Clock3, 'tone-warn'] } as const;

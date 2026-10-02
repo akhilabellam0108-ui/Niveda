@@ -1,0 +1,27 @@
+# Runs Niveda + PostgreSQL. Copy .env.example to .env and fill it in first.
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: niveda
+      POSTGRES_USER: niveda
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U niveda"]
+      interval: 5s
+      retries: 10
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://niveda:${POSTGRES_PASSWORD:-change-me}@db:5432/niveda
+    ports: ["8080:8080"]
+    volumes: [files:/data]
+    depends_on:
+      db: { condition: service_healthy }
+volumes:
+  pgdata:
+  files:

@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Lock, PencilLine, Ban, FlaskConical, History, Building2, CornerDownRight } from 'lucide-react';
-import type { MedicalRecord, RecordData, RecordVersion } from '../../types';
-import { RECORD_TYPES, fieldLabel, recordTitle, validateData, INTERNAL_KEYS } from '../../lib/recordMeta';
-import { fmtDate, fmtDateTime, fmtLongDate, todayISO } from '../../lib/dates';
+import type { MedicalRecord, RecordData, RecordVersion } from '@shared/types';
+import { RECORD_TYPES, fieldLabel, recordTitle, validateData, INTERNAL_KEYS } from '@shared/recordMeta';
+import { fmtDate, fmtDateTime, fmtLongDate, todayISO } from '@shared/dates';
 import { documentService, isMedicationActive, recordService, friendlyError, type DocumentView, type NewFile } from '../../services';
 import { useLive } from '../../state/hooks';
 import { useToast } from '../../state/ToastContext';

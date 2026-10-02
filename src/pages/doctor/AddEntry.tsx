@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Plus, X, Stethoscope, Activity, Pill, FlaskConical, CalendarClock, Paperclip, CheckCircle2, Lock, TriangleAlert, Siren, ShieldCheck } from 'lucide-react';
-import type { RecordData, RecordType } from '../../types';
+import type { RecordData, RecordType } from '@shared/types';
 import { doctorService, recordService, friendlyError, type NewFile, type PrescriptionInput } from '../../services';
-import { AppError } from '../../services/core';
+import { AppError } from '@shared/api';
 import { useLive, useDocumentTitle } from '../../state/hooks';
 import { useSession } from '../../state/SessionContext';
 import { brand } from '../../config/brand';
-import { ageFrom, fmtDate, fmtLongDate, timeLeft, todayISO } from '../../lib/dates';
-import { RECORD_TYPES, isSevereAllergy, validateData, recordTitle } from '../../lib/recordMeta';
+import { ageFrom, fmtDate, fmtLongDate, timeLeft, todayISO } from '@shared/dates';
+import { RECORD_TYPES, isSevereAllergy, validateData, recordTitle } from '@shared/recordMeta';
 import { Avatar, Badge, Button, ConfirmDialog, ErrorState, Field, InlineError, Input, Select, SkeletonList, Textarea } from '../../components/ui';
 import { FilePicker, RecordFields } from '../../components/records/RecordForm';
 import { TypeIcon } from '../../components/records/RecordCard';

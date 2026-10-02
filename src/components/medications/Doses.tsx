@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { BellRing, Check, SkipForward, Undo2, AlarmClock, Pill } from 'lucide-react';
 import { medicationService, friendlyError, type Dose } from '../../services';
-import { subscribe } from '../../mock/db';
-import { perTab } from '../../mock/storage';
-import { fmtClock } from '../../lib/reminders';
+import { subscribe } from '../../services';
+import { perTab } from '../../lib/storage';
+import { fmtClock } from '@shared/reminders';
 import { brand } from '../../config/brand';
 import { useSession } from '../../state/SessionContext';
 import { useToast } from '../../state/ToastContext';

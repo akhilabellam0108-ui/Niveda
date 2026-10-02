@@ -2,14 +2,13 @@ import { useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, ShieldCheck, Clock3, ScrollText, FlaskConical, Stethoscope, UserRound, Mail } from 'lucide-react';
 import { brand } from '../../config/brand';
-import { authService, friendlyError, type OtpChallenge } from '../../services';
-import { DEMO_ACCOUNTS, DEMO_PASSWORD } from '../../mock/seed';
+import { authService, configService, friendlyError, type OtpChallenge } from '../../services';
 import { useSession } from '../../state/SessionContext';
-import { useDocumentTitle } from '../../state/hooks';
+import { useDocumentTitle, useLive } from '../../state/hooks';
 import { Button, Field, InlineError, Input } from '../../components/ui';
 import { Brand } from '../../components/ui/Logo';
 import { OtpInput, PrototypeCode } from '../../components/ui/Otp';
-import { toISODate } from '../../lib/dates';
+import { toISODate } from '@shared/dates';
 
 export function AuthLayout({ children }: { children: ReactNode }) {
   return (
@@ -24,7 +23,7 @@ export function AuthLayout({ children }: { children: ReactNode }) {
             <div><ScrollText aria-hidden />Every view and every change is logged for you to see</div>
           </div>
         </div>
-        <p className="xs" style={{ position: 'relative' }}>Prototype build · fictional demo data only</p>
+        <p className="xs" style={{ position: 'relative' }}>Encrypted storage · one-time codes · full access log</p>
         <TimelineArt />
       </aside>
       <main className="auth-main">
@@ -103,17 +102,26 @@ export function LoginPage() {
         <Button type="submit" variant="primary" size="lg" block loading={busy}>Log in</Button>
       </form>
       <p className="small muted" style={{ textAlign: 'center' }}>New here? <Link to="/signup">Create an account</Link></p>
-      <div className="demo-box">
-        <div className="row xs strong" style={{ color: 'var(--warn)' }}><FlaskConical size={14} aria-hidden />Prototype demo accounts (password {DEMO_PASSWORD})</div>
-        {([['patient', UserRound], ['doctor', Stethoscope], ['doctor2', Stethoscope]] as const).map(([k, Icon]) => (
-          <button key={k} type="button" className="btn btn-ghost btn-sm" style={{ justifyContent: 'flex-start' }} disabled={busy}
-            onClick={() => { setId(DEMO_ACCOUNTS[k].email); setPw(DEMO_PASSWORD); void submit(undefined, { id: DEMO_ACCOUNTS[k].email, pw: DEMO_PASSWORD }); }}>
-            <Icon aria-hidden />Continue as {DEMO_ACCOUNTS[k].label}
-          </button>
-        ))}
-        <p className="xs subtle">Tip: open a second browser tab to be the patient in one and the doctor in the other — changes appear live.</p>
-      </div>
+      <DemoAccounts disabled={busy} onPick={(email, pw) => { setId(email); setPw(pw); void submit(undefined, { id: email, pw }); }} />
     </AuthLayout>
+  );
+}
+
+/** Only appears when the server runs with demo data. */
+function DemoAccounts({ onPick, disabled }: { onPick: (email: string, password: string) => void; disabled?: boolean }) {
+  const cfg = useLive(() => configService.get(), []);
+  const c = cfg.data;
+  if (!c?.demo || !c.demoAccounts?.length || !c.demoPassword) return null;
+  return (
+    <div className="demo-box">
+      <div className="row xs strong" style={{ color: 'var(--warn)' }}><FlaskConical size={14} aria-hidden />Demo accounts on this server (password {c.demoPassword})</div>
+      {c.demoAccounts.map((a) => (
+        <button key={a.email} type="button" className="btn btn-ghost btn-sm" style={{ justifyContent: 'flex-start' }} disabled={disabled} onClick={() => onPick(a.email, c.demoPassword!)}>
+          {a.role === 'doctor' ? <Stethoscope aria-hidden /> : <UserRound aria-hidden />}Continue as {a.label}
+        </button>
+      ))}
+      <p className="xs subtle">Tip: use a normal and a private window to be the patient in one and the doctor in the other — changes appear live.</p>
+    </div>
   );
 }
 
@@ -202,7 +210,7 @@ export function VerifyPage() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string>();
 
-  if (!state || !authService.hasPending(state.flow)) {
+  if (!state?.challenge) {
     return (
       <AuthLayout>
         <h1>Let’s start again</h1>
@@ -241,9 +249,9 @@ export function VerifyPage() {
       <Button variant="primary" size="lg" block loading={busy} disabled={code.length !== 6} onClick={() => verify()}>Verify</Button>
       <div className="spread small">
         <Link to={state.flow === 'signup' ? '/signup' : '/login'}>Back</Link>
-        <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => { try { setChallenge(authService.resendCode(state.flow)); setCode(''); setErr(undefined); } catch (x) { setErr(friendlyError(x)); } }}>Send a new code</button>
+        <button className="btn btn-ghost btn-sm" disabled={busy} onClick={async () => { if (!challenge) return; try { setChallenge(await authService.resendCode(challenge.id)); setCode(''); setErr(undefined); } catch (x) { setErr(friendlyError(x)); } }}>Send a new code</button>
       </div>
-      <p className="xs subtle">In the real product this code arrives by SMS from a verification provider. Here it’s shown on screen because this is a prototype.</p>
+      <p className="xs subtle">Didn’t get it? Check your spam folder, or send a new code. Codes expire after 5 minutes and can be used once.</p>
     </AuthLayout>
   );
 }
@@ -279,7 +287,7 @@ export function ForgotPasswordPage() {
           <Button type="submit" variant="primary" block loading={busy} disabled={!id.trim()}>Send code</Button>
         </form>
       ) : challenge === null ? (
-        <div className="alert alert-info"><Mail aria-hidden /><div>If an account exists for <b>{id}</b>, a code has been sent. (Prototype: no account matched.)</div></div>
+        <div className="alert alert-info"><Mail aria-hidden /><div>If an account exists for <b>{id}</b>, a code has been sent to it. Check your inbox, then come back and start again.</div></div>
       ) : (
         <form className="stack" onSubmit={async (e) => {
           e.preventDefault();

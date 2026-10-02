@@ -6,7 +6,7 @@ import { useLive, useDocumentTitle } from '../../state/hooks';
 import { useSession } from '../../state/SessionContext';
 import { useToast } from '../../state/ToastContext';
 import { brand } from '../../config/brand';
-import { fmtDateTime, relativeTime, timeLeft } from '../../lib/dates';
+import { fmtDateTime, relativeTime, timeLeft } from '@shared/dates';
 import { Avatar, Badge, Button, Card, ConfirmDialog, Field, InlineError, Input, Modal, SkeletonList } from '../../components/ui';
 import { PermissionBadges } from '../../components/access/PermissionSelector';
 import { ACTION_LABEL } from '../patient/Activity';
@@ -139,7 +139,7 @@ export function PrivacyPage() {
 
       <SecuritySection />
 
-      <div className="alert alert-warn"><Info aria-hidden /><div><div className="alert-title">About this prototype</div>Sessions, one-time codes and encryption are simulated here. A production version needs a real identity provider, server-side access checks, encryption at rest and in transit, and audited infrastructure.</div></div>
+      <div className="alert alert-accent"><Info aria-hidden /><div><div className="alert-title">How your data is protected</div>Every request is checked on our servers against the access you’ve granted. Documents are encrypted before they’re stored, passwords are hashed with Argon2, sign-ins need a one-time code, and sessions end automatically after 12 hours.</div></div>
 
       <ConfirmDialog open={!!revokeTarget} onClose={() => setRevokeId(undefined)} danger confirmLabel="Revoke access" title={`Revoke ${revokeTarget?.doctor.fullName}’s access?`}
         body="They immediately lose access. Entries they already added stay in your record."

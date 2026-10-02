@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { UserSearch, Users, ArrowRight, Hourglass, FilePlus2, ScrollText, ScanLine, Send, CheckCircle2, Building2, BadgeCheck, Phone, Mail, KeyRound } from 'lucide-react';
-import type { PermissionKey } from '../../types';
+import type { PermissionKey } from '@shared/types';
 import { accessService, auditService, doctorService, durationLabel, friendlyError, maskName } from '../../services';
 import { useLive, useDocumentTitle } from '../../state/hooks';
 import { useSession } from '../../state/SessionContext';
 import { useToast } from '../../state/ToastContext';
 import { brand } from '../../config/brand';
-import { ageFrom, fmtDate, relativeTime, timeLeft, now } from '../../lib/dates';
-import { DEFAULT_PERMISSIONS, RECORD_TYPES, recordTitle } from '../../lib/recordMeta';
+import { ageFrom, fmtDate, relativeTime, timeLeft, now } from '@shared/dates';
+import { DEFAULT_PERMISSIONS, RECORD_TYPES, recordTitle } from '@shared/recordMeta';
 import { Avatar, Badge, Button, Card, EmptyState, ErrorState, Field, InlineError, Input, SkeletonList, Tabs, Textarea } from '../../components/ui';
 import { DurationPicker, PermissionBadges, PermissionSelector } from '../../components/access/PermissionSelector';
 import { QrCode, QrScanner } from '../../components/access/Qr';

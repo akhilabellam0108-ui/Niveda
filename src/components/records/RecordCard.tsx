@@ -1,8 +1,8 @@
 import { Building2, Lock, Paperclip, UserRound, History } from 'lucide-react';
-import type { MedicalRecord } from '../../types';
-import { RECORD_TYPES, recordSummary, recordTitle, isSevereAllergy } from '../../lib/recordMeta';
+import type { MedicalRecord } from '@shared/types';
+import { RECORD_TYPES, recordSummary, recordTitle, isSevereAllergy } from '@shared/recordMeta';
 import { RECORD_ICON, RECORD_TONE } from '../../lib/icons';
-import { fmtDate } from '../../lib/dates';
+import { fmtDate } from '@shared/dates';
 import { isMedicationActive } from '../../services';
 import { Badge } from '../ui';
 

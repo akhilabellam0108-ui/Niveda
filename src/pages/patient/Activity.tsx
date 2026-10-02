@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { Eye, FilePlus2, PencilLine, ShieldCheck, ShieldOff, TimerOff, Inbox, LogIn, LogOut, KeyRound, FileUp, Trash2, Download, Siren, UserPlus, Ban, Check, X, UserRound, MonitorSmartphone, ScrollText, SlidersHorizontal } from 'lucide-react';
-import type { AuditAction, AuditLog } from '../../types';
+import type { AuditAction, AuditLog } from '@shared/types';
 import { auditService } from '../../services';
 import { useLive, useDocumentTitle } from '../../state/hooks';
 import { brand } from '../../config/brand';
-import { fmtLongDate, fmtTime } from '../../lib/dates';
+import { fmtLongDate, fmtTime } from '@shared/dates';
 import { Badge, Card, EmptyState, ErrorState, SkeletonList, Avatar } from '../../components/ui';
 
 export const ACTION_LABEL: Record<AuditAction, string> = {

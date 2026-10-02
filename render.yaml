@@ -1,0 +1,26 @@
+# One-click deploy on Render (render.com → New → Blueprint → pick this repo).
+services:
+  - type: web
+    name: niveda
+    runtime: docker
+    plan: starter
+    healthCheckPath: /api/config
+    disk: { name: niveda-files, mountPath: /data, sizeGB: 1 }
+    envVars:
+      - { key: NODE_ENV, value: production }
+      - { key: DATABASE_URL, fromDatabase: { name: niveda-db, property: connectionString } }
+      - { key: DATABASE_SSL, value: "false" }
+      - { key: FILE_ENCRYPTION_KEY, sync: false }
+      - { key: OTP_PEPPER, generateValue: true }
+      - { key: COOKIE_SECURE, value: "true" }
+      - { key: TRUST_PROXY, value: "true" }
+      - { key: OTP_CHANNEL, value: email }
+      - { key: SMTP_URL, sync: false }
+      - { key: MAIL_FROM, sync: false }
+      - { key: APP_URL, sync: false }
+      - { key: VAPID_PUBLIC_KEY, sync: false }
+      - { key: VAPID_PRIVATE_KEY, sync: false }
+      - { key: VAPID_SUBJECT, value: "mailto:support@niveda.app" }
+databases:
+  - name: niveda-db
+    plan: basic-256mb

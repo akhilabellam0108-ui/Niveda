@@ -6,7 +6,7 @@ Niveda is a privacy-first, patient-controlled **lifelong health record**. It bri
 
 The patient owns the record. Doctors can see it only when the patient grants access, only the parts the patient chooses, and only for as long as the patient allows. While they have access, doctors add new information **directly into the patient's existing record** rather than into a separate hospital system. Every entry carries who added it, from which hospital and when, and every view, addition and correction is written to an audit log the patient can read.
 
-> ⚠️ **This repository is a working prototype, not a production system.** All data is stored in the browser, sign-in and one-time codes are simulated, and every person, doctor, hospital and medical detail in the demo data is fictional. Do not enter real medical information.
+> Niveda is a full-stack app: a React web app that installs on phones and laptops, a Node.js API and a PostgreSQL database. The demo data is fictional — when running in demo mode, do not enter real medical information.
 
 ---
 
@@ -16,20 +16,22 @@ The patient owns the record. Doctors can see it only when the patient grants acc
 2. [How Niveda solves it](#how-niveda-solves-it)
 3. [Product principles](#product-principles)
 4. [Try it in five minutes](#try-it-in-five-minutes)
-5. [Features — patient](#features--patient)
-6. [Features — doctor](#features--doctor)
-7. [How access works](#how-access-works)
-8. [How a doctor adds to the record](#how-a-doctor-adds-to-the-record)
-9. [Corrections and versioning](#corrections-and-versioning)
-10. [The audit trail](#the-audit-trail)
-11. [Design](#design)
-12. [Technology](#technology)
-13. [Project structure](#project-structure)
-14. [Data model](#data-model)
-15. [Testing](#testing)
-16. [What is mocked](#what-is-mocked)
-17. [What must be built before production](#what-must-be-built-before-production)
-18. [Roadmap ideas](#roadmap-ideas)
+5. [Install on phones and laptops](#install-on-phones-and-laptops)
+6. [Deploy](#deploy)
+7. [Features — patient](#features--patient)
+8. [Features — doctor](#features--doctor)
+9. [How access works](#how-access-works)
+10. [How a doctor adds to the record](#how-a-doctor-adds-to-the-record)
+11. [Corrections and versioning](#corrections-and-versioning)
+12. [The audit trail](#the-audit-trail)
+13. [Design](#design)
+14. [Technology](#technology)
+15. [Project structure](#project-structure)
+16. [Data model](#data-model)
+17. [Testing](#testing)
+18. [What is still limited](#what-is-still-limited)
+19. [Before a real launch](#before-a-real-launch)
+20. [Roadmap ideas](#roadmap-ideas)
 
 ---
 
@@ -74,7 +76,7 @@ The doctor never creates a separate record. There is one record per person, for 
 | **Longitudinal record** | Everything appears in one chronological timeline, not as a pile of files. |
 | **Structured data** | A visit is a consultation with symptoms, diagnosis, medicines and follow-up — PDFs are attached to entries, not a substitute for them. |
 | **Nothing is silently overwritten** | Corrections create a new version; the original stays visible with the reason for the change. |
-| **Honest about being a prototype** | Simulated parts are labelled in the UI, never passed off as real security. |
+| **Honest about limits** | Anything not yet built is listed plainly below, never passed off as finished. |
 
 ---
 
@@ -82,29 +84,33 @@ The doctor never creates a separate record. There is one record per person, for 
 
 ### Run locally
 
-Requires Node.js 20 or later.
+Requires Node.js 20 or later. No database to install — when `DATABASE_URL` is empty, Niveda runs an embedded PostgreSQL (PGlite) in `./data`.
 
 ```bash
-git clone https://github.com/akhilabellam0108-ui/niveda.git
-cd niveda
+git clone https://github.com/akhilabellam0108-ui/Niveda.git
+cd Niveda
 npm install
 npm run dev
 ```
 
-Open http://localhost:5173.
+Open http://localhost:5173. The API runs on http://localhost:8080 and Vite forwards `/api` to it.
+
+In development, fictional demo data is loaded and one-time codes appear on screen in a yellow box (and in the server log), so you don't need an email account to try it.
 
 Other commands:
 
 ```bash
-npm test             # automated tests of the five core flows (runs in Node)
-npm run build        # type-check + production build into dist/
-npm run build:single # the whole app as ONE self-contained index.html in dist-single/
-npm run preview      # serve the production build
+npm test             # API tests of the five core flows against a real (embedded) Postgres
+npm run typecheck    # web + server
+npm run build        # production build: dist/web (app) + dist/server (API that also serves the app)
+npm start            # run the production build (needs the production settings below)
+npm run admin -- list-hospitals   # manage hospitals and doctor accounts (see Deploy → After deploying)
+npm run test:e2e     # Playwright browser tests (server must be running)
 ```
 
 ### Demo accounts
 
-Password for all demo accounts: **`demo1234`**. The login page also has one-click buttons for each.
+Password for all demo accounts: **`demo1234`**. The login page also has one-click buttons for each (demo mode only).
 
 | Who | Email | Good for |
 |---|---|---|
@@ -112,24 +118,76 @@ Password for all demo accounts: **`demo1234`**. The login page also has one-clic
 | **Dr. Priya Sharma** (general physician) | `priya.sharma@lakeview.example` | Has access to Meera and Rohan — try adding a consultation |
 | **Dr. Arvind Rao** (cardiologist) | `arvind.rao@lakeview.example` | Waiting for Meera to approve his request |
 
-- **One-time codes** appear on screen in a yellow "Prototype" box with a *Fill in* button — no SMS is sent.
 - **Doctor access code** for granting access: `PS-4821` (Dr. Priya Sharma).
 - **Sign up as a new patient** to see the compulsory onboarding.
 - **Patient IDs**: `NV-4821-7730` (Meera), `NV-9264-1183` (Fatima — no doctor has access, useful to test that nothing leaks).
 
-**Best way to see it working:** open two browser tabs. Sign in as Meera in one and Dr. Priya in the other. Sessions are per tab and changes appear in the other tab live — grant access, add a consultation, revoke, and watch both sides update.
+**Best way to see it working:** use two browsers (or one normal and one private window). Sign in as Meera in one and Dr. Priya in the other. Changes appear on the other side live — grant access, add a consultation, revoke, and watch both update.
 
 ### Suggested walkthrough
 
 1. As **Meera**, open *Timeline* — nine years of history, with visits grouped with their diagnoses, prescriptions and lab results.
 2. Go to *Doctors & access → Requests* and approve Dr. Arvind Rao with fewer permissions than he asked for.
-3. On *Medications*, see today's doses, adherence and reminder times; try *Phone & smartwatch*.
+3. On *Medications*, see today's doses, adherence and reminder times; allow notifications to get reminders even when Niveda is closed.
 4. As **Dr. Priya**, open Meera → *Add to medical record*. Enter a visit with a diagnosis, a prescription, a lab order and a PDF attachment. Save.
 5. Back as **Meera**: the visit is in the timeline, the medicine is in *Medications* with a reminder already set, there's a notification, and the *Access log* shows exactly what happened.
 6. As **Dr. Priya**, open the diagnosis and *Correct this entry*. See the old and new versions side by side.
-7. As **Meera**, revoke Dr. Priya's access. Her tab immediately shows "You don't have access to this record".
+7. As **Meera**, revoke Dr. Priya's access. Her screen immediately shows "You don't have access to this record".
 
----
+## Install on phones and laptops
+
+Niveda is a **Progressive Web App**: one codebase that installs like an app on Android, iPhone, iPad, Windows, macOS, Linux and Chromebooks — its own icon, its own window, and medicine reminders as phone notifications. There is no app-store download; people install it from the website.
+
+**Step 1 — put Niveda online** at an `https://` address (see [Deploy](#deploy)). Phones only allow installing and notifications from secure (HTTPS) sites.
+
+**Step 2 — install it on each device:**
+
+| Device | How |
+|---|---|
+| **Android** (Chrome) | Open the address → menu ⋮ → **Install app** (or *Add to Home screen*) |
+| **iPhone / iPad** (Safari, iOS 16.4+) | Open the address → **Share** → **Add to Home Screen** → open Niveda from the home screen → allow notifications on the *Medications* page |
+| **Windows / Mac / Linux / Chromebook** (Chrome or Edge) | Open the address → click the **install icon** at the right of the address bar (or menu → *Install Niveda*) |
+| **Mac** (Safari 17+) | **File → Add to Dock** |
+
+**Trying it on your own phone before deploying:** run the app locally (`npm run dev`, or the built version on port 8080), then expose it with a free tunnel such as `npx cloudflared tunnel --url http://localhost:5173` (or `:8080` for the built version) — it prints an `https://…trycloudflare.com` address you can open and install on any phone. (Opening `http://<your-laptop-ip>:8080` on the same Wi-Fi also works for browsing, but phones won't install or send notifications without HTTPS.)
+
+## Deploy
+
+### Option A — Render (easiest, about 10 minutes)
+
+1. Create an account at [render.com](https://render.com) and choose **New → Blueprint**, then pick this repository. `render.yaml` creates the app, a PostgreSQL database and a disk for files.
+2. Fill in the values it asks for:
+   - `FILE_ENCRYPTION_KEY` — run `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"` and paste the result. **Keep a copy; losing it makes uploaded files unreadable.**
+   - `SMTP_URL` and `MAIL_FROM` — from an email provider (Brevo, Resend, SendGrid, Mailgun, Amazon SES, or a Gmail app password) so sign-in codes reach people's inboxes.
+   - `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` — run `npx web-push generate-vapid-keys`.
+   - `APP_URL` — the address Render gives you (or your own domain).
+3. Open the address and install it on your devices.
+
+### Option B — any server with Docker
+
+```bash
+cp .env.example .env      # fill it in
+docker compose up -d --build
+```
+
+This starts PostgreSQL and Niveda on port 8080. Put it behind HTTPS (Caddy, Nginx + Let's Encrypt, or Cloudflare).
+
+### Option C — Node directly
+
+`npm ci && npm run build && npm start` with the variables from `.env.example` set, and a PostgreSQL 14+ database in `DATABASE_URL`. The schema is created automatically on first start.
+
+**The server refuses to start in production** if anything unsafe is configured: no database, missing encryption key or OTP secret, on-screen codes switched on, no email settings, or cookies not marked secure.
+
+### After deploying
+
+- Add hospitals and doctors from the server's shell (Render: *Shell* tab; Docker: `docker compose exec app sh`). Doctors can't sign themselves up; each gets a temporary password by email.
+  ```bash
+  node dist/server/admin.js add-hospital --id hsp_lakeview --name "Lakeview Hospital" --city Hyderabad --type Hospital
+  node dist/server/admin.js add-doctor --name "Dr. Asha Rao" --email asha@example.com --phone "+91 98765 43210" \
+       --specialization "General Physician" --registration TSMC-12345 --hospital hsp_lakeview
+  node dist/server/admin.js list-hospitals
+  ```
+- Back up the database and the files disk (`DATA_DIR`) regularly.
 
 ## Features — patient
 
@@ -174,6 +232,7 @@ Password for all demo accounts: **`demo1234`**. The login page also has one-clic
 **Medicine reminders**
 - Every regular medicine gets a reminder schedule automatically — from onboarding, from the patient's own entries, and from **doctors' prescriptions** (default times come from the frequency: once daily 8:00 am, twice daily 8:00 am and 8:00 pm, every night 9:00 pm, and so on). Patients can change the times or turn reminders off without altering the prescription.
 - **Today's doses** on the dashboard and Medications page: each dose shows as upcoming, due now, taken, skipped or missed, with one-tap *Taken* / *Skip* and undo.
+- **Push reminders**: once the patient allows notifications, each dose arrives as a phone or computer notification with a *Taken* button — even when Niveda is closed — and a paired smartwatch buzzes with it.
 - **Alarm**: when a dose falls due while Niveda is open, it plays a chime, shows a system notification (after the patient allows notifications), and opens a reminder with *Taken*, *Skip* and *Snooze 10 min*.
 - **Adherence**: the share of doses taken over the last 7 days, per medicine.
 - **Phone and smartwatch**: *Phone & smartwatch* downloads a calendar file (.ics) with a repeating event and alarm for every dose. Imported into Google Calendar, Apple Calendar or Outlook, the phone rings at each dose — and a paired watch (Apple Watch, Wear OS, Galaxy Watch, Fitbit and most others) buzzes with it, even when Niveda is closed.
@@ -264,147 +323,120 @@ The interface aims for calm and trustworthy rather than clinical: a deep green a
 
 | | |
 |---|---|
-| Framework | React 18 + TypeScript (strict) |
-| Build | Vite 5 |
-| Routing | React Router 6 (hash routing, so the build works from any static host or a single file) |
-| Styling | Plain CSS with design tokens — no CSS framework |
-| Icons | lucide-react |
-| QR codes | qrcode (generation); the browser's BarcodeDetector for scanning where supported |
-| Storage (prototype) | localStorage for data, IndexedDB for files, sessionStorage for per-tab sessions |
-| Tests | Node test runner via esbuild (service flows); Playwright (browser flows) |
-
-Five runtime dependencies: `react`, `react-dom`, `react-router-dom`, `lucide-react` and `qrcode`.
+| Web app | React 18 + TypeScript (strict), Vite 5, React Router 6, plain CSS design tokens, lucide-react, qrcode |
+| Installable app | Web app manifest + service worker (`public/sw.js`): install, push notifications with a *Taken* button |
+| API | Node.js + Express 4 + TypeScript, zod validation, helmet (strict Content-Security-Policy), rate limits |
+| Database | PostgreSQL (`pg`); embedded PGlite for development and tests |
+| Passwords | Argon2id (`@node-rs/argon2`); lock-out after 5 failed attempts for 15 minutes |
+| Sessions | Random token in an httpOnly, SameSite cookie; only its SHA-256 is stored; list and sign out other devices |
+| One-time codes | 6 digits, HMAC-hashed, expire in 5 minutes, 5 attempts, rate-limited; sent by email (SMTP), SMS pluggable (Twilio, MSG91) |
+| Files | Encrypted with AES-256-GCM before they touch disk; served only through a permission-checked, logged route |
+| Live updates | Server-Sent Events |
+| Background jobs | Every minute: expire access, warn 24 h before access ends, push due medicine reminders, clean up |
+| Push | Web Push (VAPID) |
+| Tests | Node test runner + supertest against Postgres (API flows); Playwright (browser flows) |
 
 ## Project structure
 
 ```
-src/
-  config/brand.ts          product name, tagline, ID prefix — rename the product here
-  types/index.ts           the domain model (maps to database tables)
-  lib/
-    recordMeta.ts          every record type: fields, permission, category, labels — drives all forms
-    reminders.ts           default dose times, today's schedule, adherence
-    dates.ts, ids.ts, icons.ts
-  services/                the API the UI uses — one module per backend service
-    authService.ts         sign-up, log-in, OTP, sessions, password (MOCK — isolated for replacement)
-    accessService.ts       grants, requests, invitations, doctor lookup
-    recordService.ts       list/get/create, doctor consultation bundle, amendments, lab results
-    documentService.ts     upload, open (permission-checked + logged), link, delete
-    patientService.ts      profile, dashboard summary, onboarding, emergency profile
-    doctorService.ts       doctor profile, patient overview
-    notificationService.ts, auditService.ts, settingsService.ts, exportService.ts, searchService.ts
-    medicationService.ts   reminder schedules, dose logging, adherence, calendar (.ics) export
-    otpService.ts          prototype one-time codes
-    core.ts                session context, access checks, audit + notification helpers, safe errors
-  mock/                    the in-browser "backend": seed data, persistence, cross-tab sync, file store, PDF maker
-  state/                   session context, toasts, live data hooks
-  components/
-    ui/                    design-system components, logo, OTP
-    layout/                patient and doctor shells (sidebar, top bar, bottom nav)
-    records/               timeline, record card, record drawer, forms, add-record dialog
-    access/                grant flow, permission and duration pickers, QR
-    documents/             upload dialog, viewer
-    medications/           today's doses, alarm, reminder-time editor
-    search/                global search palette
-  pages/
-    public/                landing, legal
-    auth/                  log in, sign up, verify, forgot password, onboarding
-    patient/               home, timeline, records, medications, allergies, reports, emergency, access, activity
-    doctor/                dashboard, patients, find, patient view, add entry, activity, profile
-    shared/                notifications, privacy & security, profile, settings, export
-  styles/                  tokens.css, base.css, layout.css, features.css
-tests/
-  flows.test.ts            service-level tests of flows A–E
-  run.mjs                  bundles and runs the Node tests
-  e2e_browser.py           Playwright tests of the same flows in a real browser, desktop and mobile
+shared/                   code used by both the app and the server
+  types.ts                the domain model
+  api.ts                  request/response types, validation rules, error codes
+  recordMeta.ts           every record type: fields, permission, category, labels — drives all forms
+  reminders.ts            default dose times, schedules (time-zone aware), adherence
+  brand.ts, dates.ts, pdf.ts
+server/
+  src/
+    index.ts, app.ts      start-up; Express app, security headers, CSRF check, rate limits
+    config.ts             all settings from environment variables; refuses unsafe production config
+    db/                   connection (Postgres or PGlite), schema, row mappers, demo data
+    core.ts               session context, access checks, audit + notifications
+    routes/               auth, records, documents, access, patient, medications, misc, extras, uploads
+    services/             records, one-time codes, email/SMS, encrypted file storage, push
+    jobs.ts               background jobs
+    events.ts             live-update hub
+    admin.ts              command-line admin (hospitals, doctors)
+  test/api.test.ts        API tests of flows A–E plus security checks
+src/                      the web app
+  services/               typed API client (one function per endpoint) + live updates
+  state/                  session, toasts, live data hooks
+  components/, pages/, styles/
+public/                   service worker, manifest, icons
+scripts/build-server.mjs  bundles the server
+Dockerfile, docker-compose.yml, render.yaml, .env.example
+tests/e2e_browser.py      Playwright tests of the same flows in a real browser, desktop and mobile
 ```
-
-**Replacing the mock backend.** Pages and components never touch storage; they only call `src/services`. Connecting a real backend means re-implementing those service functions as API calls (or swapping out `src/mock`), keeping the same function signatures. Access checks that live in `services/core.ts` today must move to the server.
 
 ## Data model
 
-Defined in [`src/types/index.ts`](src/types/index.ts):
+Tables (see [`server/src/db/schema.ts`](server/src/db/schema.ts)): `users`, `patients`, `doctors`, `hospitals`, `records`, `record_versions`, `documents`, `access_grants`, `access_requests`, `doctor_invites`, `audit_logs` (append-only — a database trigger blocks updates and deletes), `notifications`, `sessions`, `otp_challenges`, `preferences`, `medication_reminders`, `dose_logs`, `push_subscriptions`.
 
-`User` · `Patient` (with `HealthDeclarations`) · `Doctor` · `Hospital` · `MedicalRecord` (with `RecordVersion` history) · `MedicalDocument` · `AccessGrant` · `AccessRequest` · `DoctorInvite` · `AuditLog` · `Notification` · `Session` · `Preferences` · `MedicationReminder` · `DoseLog`
+Reminder schedules and dose history are kept separately from the clinical record: the prescription belongs to the record and is only changed through amendments, while the times belong to the patient.
 
-Reminder schedules (`MedicationReminder`) and dose history (`DoseLog`) are kept separately from the clinical record: the prescription belongs to the record and is only changed through amendments, while the times belong to the patient.
-
-Consultations, diagnoses, medications, allergies, surgeries, procedures, lab tests, lab results, imaging, vaccinations, hospitalisations, mental-health notes, family history, follow-ups and clinical notes are all `MedicalRecord`s with a `type` and type-specific `data`, described in [`src/lib/recordMeta.ts`](src/lib/recordMeta.ts). Adding a new record type means adding one entry there.
+Consultations, diagnoses, medications, allergies, surgeries, procedures, lab tests, lab results, imaging, vaccinations, hospitalisations, mental-health notes, family history, follow-ups and clinical notes are all records with a `type` and type-specific `data`, described in [`shared/recordMeta.ts`](shared/recordMeta.ts). Adding a new record type means adding one entry there.
 
 ```
-Patient 1 ── * MedicalRecord 1 ── * RecordVersion
-                    │  └── * MedicalDocument (attachments)
-                    └── parentId → MedicalRecord (e.g. prescription inside a consultation)
-Doctor  1 ── * MedicalRecord (createdBy)
-Patient 1 ── * AccessGrant * ── 1 Doctor     (permissions, grantedAt, expiresAt, status, verification)
+Patient 1 ── * Record 1 ── * RecordVersion
+                 │  └── * Document (attachments, encrypted at rest)
+                 └── parentId → Record (e.g. prescription inside a consultation)
+Doctor  1 ── * Record (created_by)
+Patient 1 ── * AccessGrant * ── 1 Doctor     (permissions, granted_at, expires_at, status)
 Patient 1 ── * AccessRequest * ── 1 Doctor
-Patient 1 ── * AuditLog                      (actor, action, target, timestamp, metadata)
-MedicalRecord (medication) 1 ── 1 MedicationReminder (times, enabled) ── * DoseLog (date, time, taken/skipped)
-User    1 ── * Notification, Session
+Patient 1 ── * AuditLog                      (actor, action, target, time, metadata)
+Record (medication) 1 ── 1 MedicationReminder ── * DoseLog
+User    1 ── * Notification, Session, PushSubscription
 ```
-
-`MedicalRecord` fields: `id, patientId, type, date, data, createdAt, updatedAt, createdBy, organization, attachments, parentId, source, version, versions`.
 
 ## Testing
 
-**Service tests** — `npm test` (18 checks):
+**API tests** — `npm test` runs against a real PostgreSQL engine (embedded):
 
-- **Flow A — patient:** sign-up rejects a wrong code and accepts the right one → onboarding refuses missing blood group, missing emergency contact, unanswered sections, medicines without reminder times and no uploaded document → a complete onboarding creates entries, declarations, reminders and a document linked to its surgery → today's doses can be marked taken → the calendar file contains repeating alarms → the emergency contact can't be removed → an added record appears in the list and its category → incomplete records are rejected.
-- **Flow B — access:** a doctor can't read the record before access and sees only a masked name → patient grants access with permissions, duration and a code → doctor can now read it.
-- **Flow C — doctor adds:** one consultation creates four linked entries with attribution and an attachment → a correction keeps version 1 and the original author → a lab result completes its order → the patient sees the new medicine, a notification and audit entries → the patient can't alter the doctor's entry or delete the doctor's document.
-- **Flow D — revoke:** after revocation the doctor can't list, open or write → sensitive categories stay hidden → access expires by itself when time runs out.
-- **Flow E — audit:** the patient's log contains every expected event with actor and time.
+- **Security basics:** requests without the CSRF header are refused, protected routes need a session, wrong codes and passwords fail, accounts lock after repeated failures.
+- **Flow A — patient:** sign-up with an emailed code → onboarding refuses missing sections (each needs entries or an explicit "none", including documents) → reminders are created → doses can be logged.
+- **Flow B — access:** a doctor can't read the record before access → patient grants access with permissions, duration and a code → doctor can read only the allowed categories.
+- **Flow C — doctor adds:** one consultation creates linked entries with attribution and an encrypted attachment → a correction keeps the old version → the patient sees the new medicine, a notification and audit entries.
+- **Flow D — revoke:** after revocation the doctor can't list, open or write; access also expires by itself.
+- **Flow E — audit:** the log holds every expected event and can't be altered.
 
-**Browser tests** — `tests/e2e_browser.py` walks the same flows through the real interface (sign-up, onboarding, adding a record, the full grant flow with codes, the doctor adding a visit with a prescription, lab order and PDF in a second tab, the patient seeing it, a correction, revocation, the access log), then checks the demo patient, search, dark mode and the mobile layout.
+**Browser tests** — `tests/e2e_browser.py` walks the same flows through the real interface with the patient and the doctor in separate browsers, then checks search, dark mode and the mobile layout.
 
 ```bash
-npm run build && npx vite preview --port 4173 &
+npm run build && DATA_DIR=./data-e2e PORT=8090 node dist/server/index.js &
 pip install playwright && python -m playwright install chromium
-python3 tests/e2e_browser.py
+npm run test:e2e
 ```
 
-## What is mocked
+## What is still limited
 
-| Area | Prototype behaviour |
+| Area | Today |
 |---|---|
-| Authentication | Passwords hashed with SHA-256 **in the browser**; sessions in sessionStorage; one-time codes shown on screen |
-| Backend & database | All data in the browser's localStorage; files in IndexedDB; nothing syncs between devices or browsers |
-| Access enforcement | Done in the client-side service layer — correct in behaviour, but not a security boundary |
-| Doctors & hospitals | A fixed fictional directory; no registration checks |
-| Notifications | In-app only; no SMS, email or push |
-| Doctor invitations | Recorded but not sent |
-| Camera QR scanning | Uses the browser's BarcodeDetector where available; otherwise type the code |
-| Emergency lock-screen widget | Visual preview; needs a native app |
-| Medicine alarms | Ring only while Niveda is open in a browser tab; for alarms when it's closed, use the calendar export (phone and watch) |
-| Smartwatch | Through the phone's calendar (.ics). No direct watch app or Apple Health / Google Fit / Health Connect connection |
-| Export | Built in the browser; lists documents but doesn't bundle the files |
-| Access expiry | Checked whenever data is read, not by a background job |
-| Close account | Disabled |
+| Doctor verification | Doctors are added by an administrator (`npm run admin`); registration numbers aren't checked against medical council registries automatically |
+| SMS codes | Twilio and MSG91 are built in but need an account; email is the default |
+| Medicine alarms | Push notifications when Niveda is installed and notifications are allowed; on iPhone this needs iOS 16.4+ and the app added to the home screen. The calendar (.ics) export remains as a backup |
+| Smartwatch | Watches buzz with the phone's notifications and calendar alarms; no dedicated watch app or Apple Health / Google Health Connect sync |
+| Emergency lock-screen widget | Preview only; needs a native app |
+| Export | PDF/JSON summary; doesn't yet bundle the original files into one archive |
+| Close account | Handled through support, so deletion can be confirmed and logged |
+| Doctor invitations | Recorded; the invite email isn't sent yet |
 
-## What must be built before production
+## Before a real launch
 
-1. **Identity** — a real identity provider (OIDC), multi-factor authentication, one-time codes sent by an SMS/email provider with rate limits, secure account recovery, device management.
-2. **Server-side authorisation** — every API call checks the user's role and an active grant for that patient and category. The browser is never trusted.
-3. **Database** — the model above in a real database, with the audit log append-only and tamper-evident, and record versions immutable.
-4. **Encryption** — TLS everywhere; encryption at rest; per-patient or field-level encryption for sensitive categories; proper key management.
-5. **Document storage** — private object storage, virus scanning, and short-lived signed download links issued only after a permission check. No public URLs.
-6. **Clinician verification** — checking registration numbers against medical council registries; hospital and organisation accounts.
-7. **Emergency ("break-glass") access** — a policy for access when the patient can't consent, with justification, time limits, immediate patient notification and review.
-8. **Compliance** — India's Digital Personal Data Protection Act 2023, ABDM / ABHA integration and consent artefacts, and HIPAA / GDPR where relevant; retention and deletion policies; security audits and penetration testing.
-9. **Interoperability** — FHIR R4 import and export; integrations with labs and hospital systems.
-10. **Operations** — background jobs for expiry and reminders, monitoring and alerting, backups and disaster recovery, rate limiting.
-11. **Mobile app** — for push notifications, the lock-screen emergency card, offline access, and **medicine alarms that ring when the app is closed**.
-12. **Smartwatch integration** — a companion watch app (watchOS / Wear OS) and Apple HealthKit / Google Health Connect so doses can be marked taken from the wrist and schedules stay in sync automatically.
+1. **Hosting and backups** — a production PostgreSQL with automatic backups, a persistent disk (or move files to private object storage), monitoring and alerts.
+2. **Email/SMS provider** — a verified sending domain so codes don't land in spam.
+3. **Clinician verification** — checking registration numbers against medical council registries; hospital accounts.
+4. **Emergency ("break-glass") access** — a policy for access when the patient can't consent, with justification, time limits and review.
+5. **Compliance** — India's Digital Personal Data Protection Act 2023, ABDM / ABHA integration, and HIPAA / GDPR where relevant; a privacy policy and terms reviewed by a lawyer; retention and deletion policies; an independent security audit and penetration test.
+6. **Interoperability** — FHIR R4 import and export; lab and hospital integrations.
+7. **Native apps (optional)** — for the lock-screen emergency card, guaranteed alarms on every phone, and watch apps with HealthKit / Health Connect.
 
 ## Roadmap ideas
 
 - Reading uploaded reports with OCR and suggesting structured entries for the patient to confirm.
 - Family accounts — parents managing a child's record, carers for elderly relatives.
 - Lab-result trends (HbA1c, haemoglobin, blood pressure) over the years.
-- Medication reminders and refill tracking.
+- Refill tracking.
 - Translations into Hindi, Telugu, Tamil and other languages, with clinically reviewed terminology.
-- Hospital-side integration so labs can post results directly into the record with the patient's consent.
 
 ---
 
-*Niveda is a prototype. It does not provide medical advice. All demo data is fictional.*
+*Niveda does not provide medical advice. All demo data is fictional.*
