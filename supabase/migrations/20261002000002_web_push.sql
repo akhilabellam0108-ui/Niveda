@@ -135,7 +135,7 @@ begin
     if not found then continue; end if;
     tok := replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', '');
     insert into dose_push_tokens (token, patient_id, doses, expires_at)
-    values (tok, s.patient_id, (select jsonb_agg(x - 'label') from jsonb_array_elements(s.doses) x), p_now + interval '12 hours');
+    values (tok, s.patient_id, (select jsonb_agg(x - 'label') from jsonb_array_elements(s.doses) x), now() + interval '12 hours');
     select string_agg(x ->> 'label', ', ') into names from jsonb_array_elements(s.doses) x;
     out := out || jsonb_build_object(
       'endpoint', s.endpoint, 'p256dh', s.p256dh, 'auth', s.auth,
