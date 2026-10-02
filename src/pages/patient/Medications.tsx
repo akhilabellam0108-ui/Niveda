@@ -16,6 +16,8 @@ import { Badge, Button, Card, ConfirmDialog, EmptyState, ErrorState, Field, Inli
 import { StatusBadge, TypeIcon } from '../../components/records/RecordCard';
 import { usePatientUI } from '../../components/layout/PatientShell';
 import { alarmPermission, isNativeApp, requestAlarmPermission, type AlarmPermission } from '../../lib/nativeAlarms';
+import { enableWebPush, needsHomeScreen, webPushAvailable } from '../../lib/webPush';
+import { isLive, backend } from '../../config/backend';
 
 export function MedicationsPage() {
   useDocumentTitle(`Medications · ${brand.name}`);
@@ -137,6 +139,7 @@ function ReminderDialog({ schedule, onClose }: { schedule: MedicationSchedule; o
 
 export function NotificationPrompt() {
   const native = isNativeApp();
+  const toast = useToast();
   const supported = !native && typeof window !== 'undefined' && 'Notification' in window;
   const [perm, setPerm] = useState(supported ? Notification.permission : 'denied');
   const [alarm, setAlarm] = useState<AlarmPermission>('granted');
@@ -162,15 +165,34 @@ export function NotificationPrompt() {
       </div>
     );
   }
+  // iPhone / iPad: web notifications only work once Niveda is on the Home Screen.
+  if (isLive && backend.vapidPublicKey && needsHomeScreen()) {
+    return (
+      <div className="alert alert-accent">
+        <Bell aria-hidden />
+        <div className="grow">
+          <div className="alert-title">Get medicine reminders on this iPhone</div>
+          <div>Tap <strong>Share</strong> → <strong>Add to Home Screen</strong>, then open {brand.name} from your Home Screen and allow notifications. Each dose then arrives as a notification — and on your Apple Watch — even when {brand.name} is closed.</div>
+        </div>
+      </div>
+    );
+  }
   if (!supported || perm === 'granted') return null;
+  const push = webPushAvailable();
+  const allow = async () => {
+    if (!push) { setPerm(await Notification.requestPermission()); return; }
+    try { setPerm(await enableWebPush(true) as NotificationPermission); } catch (e) { setPerm(Notification.permission); toast(friendlyError(e), 'error'); }
+  };
   return (
     <div className={`alert ${perm === 'denied' ? 'alert-warn' : 'alert-accent'}`}>
       <Bell aria-hidden />
       <div className="grow">
-        <div className="alert-title">{perm === 'denied' ? 'Notifications are blocked' : 'Get reminders even when this tab is in the background'}</div>
-        <div>{perm === 'denied' ? 'Allow notifications for this site in your browser settings to get medicine alerts outside the app.' : 'Allow notifications so each dose pops up on your screen — and on a watch paired with your phone.'} For alarms that ring even when {brand.name} is closed, <a href={brand.androidAppUrl}>get the Android app</a>.</div>
+        <div className="alert-title">{perm === 'denied' ? 'Notifications are blocked' : push ? 'Get reminders even when Niveda is closed' : 'Get reminders even when this tab is in the background'}</div>
+        {push
+          ? <div>{perm === 'denied' ? 'Allow notifications for this site in your browser settings to get medicine reminders.' : 'Allow notifications and each dose arrives on this device — with a Taken button — even when Niveda is closed. A watch paired with your phone buzzes too.'}</div>
+          : <div>{perm === 'denied' ? 'Allow notifications for this site in your browser settings to get medicine alerts outside the app.' : 'Allow notifications so each dose pops up on your screen — and on a watch paired with your phone.'} For alarms that ring even when {brand.name} is closed, <a href={brand.androidAppUrl}>get the Android app</a>.</div>}
       </div>
-      {perm === 'default' && <Button size="sm" variant="primary" onClick={async () => setPerm(await Notification.requestPermission())}>Allow</Button>}
+      {perm === 'default' && <Button size="sm" variant="primary" onClick={allow}>Allow</Button>}
     </div>
   );
 }
@@ -195,7 +217,9 @@ function WatchDialog({ open, onClose }: { open: boolean; onClose: () => void }) 
   }
   return (
     <Modal open={open} onClose={onClose} title="Reminders on your phone and smartwatch"
-      description="Get the Android app for alarms that ring even when Niveda is closed, with Taken / Snooze / Skip on the notification and on a Wear OS watch. On iPhone, add the schedule to your calendar."
+      description={webPushAvailable()
+        ? 'With notifications allowed, each dose arrives on this device even when Niveda is closed, and a watch paired with your phone (Apple Watch, Wear OS, Galaxy Watch and others) buzzes with it. On iPhone, add Niveda to your Home Screen first. The Android app adds alarms that ring with Taken / Snooze / Skip.'
+        : 'Get the Android app for alarms that ring even when Niveda is closed, with Taken / Snooze / Skip on the notification and on a Wear OS watch. On iPhone, add the schedule to your calendar.'}
       footer={<><Button onClick={onClose}>Close</Button><Button variant="primary" icon={CalendarPlus} loading={busy} onClick={async () => {
         setBusy(true); setErr(undefined);
         try { const { blob, filename, count } = await medicationService.calendarFile(); downloadBlob(blob, filename); toast(`${count} reminder${count > 1 ? 's' : ''} saved to ${filename}`); } catch (e) { setErr(friendlyError(e)); } finally { setBusy(false); }

@@ -167,7 +167,7 @@ export function SignupPage() {
     <AuthLayout>
       <div>
         <h1>Create your record</h1>
-        <p className="lede">After this you’ll set up your record: blood group, emergency contact, allergies, conditions, medicines, past surgeries and at least one medical document. Every step is required, so keep a report or prescription handy.</p>
+        <p className="lede">After this you’ll set up your record: blood group, emergency contact, allergies, conditions, medicines, past surgeries and your medical documents. Every step must be answered — keep a report or prescription handy if you have one.</p>
       </div>
       <form className="stack" onSubmit={submit} noValidate>
         <Field label="Full name" required error={errors.fullName}>{(p) => <Input {...p} autoComplete="name" value={f.fullName} onChange={set('fullName')} />}</Field>

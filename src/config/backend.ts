@@ -12,6 +12,8 @@ const env = (import.meta as unknown as { env?: Record<string, string | undefined
 export const backend = {
   supabaseUrl: env.VITE_SUPABASE_URL?.trim() || undefined,
   supabaseAnonKey: env.VITE_SUPABASE_ANON_KEY?.trim() || undefined,
+  /** Public VAPID key for medicine reminders by Web Push (live mode). Optional. */
+  vapidPublicKey: env.VITE_VAPID_PUBLIC_KEY?.trim() || undefined,
 };
 
 /** True when the app is connected to a real Supabase project. */

@@ -25,7 +25,7 @@ Without these settings the app runs as the **demo** (fictional data, everything 
 
 ## 2. Turn on the background job extension
 
-**Database → Extensions** → search **pg_cron** → enable it.
+**Database → Extensions** → search **pg_cron** → enable it. Then search **pg_net** → enable it too (it lets the database call the medicine-reminder function, step 9).
 
 (Do this before step 3, so the access-expiry job is scheduled automatically.)
 
@@ -47,7 +47,7 @@ npx supabase link --project-ref <your-project-ref>
 npx supabase db push
 ```
 
-`supabase/setup.sql` is all the files in `supabase/migrations` joined together. For a project that's already set up, run only the migration files that are new.
+`supabase/setup.sql` is all the files in `supabase/migrations` joined together. For a project that's already set up, run only the migration files that are new — in order, one at a time, in the SQL Editor. (Added on 2 October 2026: `20261002000001_no_documents.sql` — the "I have no documents to upload" option in setup — and `20261002000002_web_push.sql` — pushed medicine reminders.)
 
 Check it worked: **Table Editor** should list `patients`, `records`, `access_grants`, `audit_log` and others, each marked "RLS enabled". **Storage** should show a private bucket called `documents`.
 
@@ -162,10 +162,37 @@ When a patient can't consent, a verified doctor can use **Emergency access** (on
 
 - `VITE_SUPABASE_URL` — the Project URL
 - `VITE_SUPABASE_ANON_KEY` — the anon public key
+- `VITE_VAPID_PUBLIC_KEY` — optional, for pushed medicine reminders (step 9)
 
 Then **Actions → Deploy to GitHub Pages → Run workflow** (it also runs on every push to `main`). The app is at `https://<owner>.github.io/Niveda/` and the demo at `…/Niveda/demo/`. Set **Site URL** (step 4) to the app's address.
 
 **Any other static host** (Vercel, Netlify, Cloudflare Pages): build command `npm run build`, output directory `dist`, the same two environment variables. Routes are hash-based, so no rewrites are needed.
+
+## 9. Medicine reminders on iPhone, iPad and computers (optional)
+
+The Android app rings its own alarms. For everyone else, Niveda can **push** each dose as a notification — with a **Taken** button — even when Niveda is closed: iPhone and iPad (once Niveda is added to the Home Screen, iOS 16.4+), Android browsers, Windows, macOS, Linux and Chromebooks. A paired watch buzzes with it. Without this step, reminders still pop up while Niveda is open.
+
+1. Make a key pair (once): `npx web-push generate-vapid-keys`. Keep the private key secret.
+2. Deploy the function that sends them (Supabase CLI, linked as in step 3B):
+
+   ```bash
+   npx supabase functions deploy send-reminders --no-verify-jwt
+   npx supabase secrets set VAPID_PUBLIC_KEY=<public key> VAPID_PRIVATE_KEY=<private key> \
+     VAPID_SUBJECT=mailto:you@example.com CRON_SECRET=<a long random string>
+   ```
+
+   (`--no-verify-jwt` because the database calls it with `CRON_SECRET` instead of a user's sign-in.)
+3. In the **SQL Editor**, switch it on — it runs every minute from then on:
+
+   ```sql
+   select public.configure_push_reminders('https://<ref>.supabase.co/functions/v1/send-reminders', '<the same CRON_SECRET>');
+   ```
+
+4. Add the public key to the app: the repository variable (or `.env.local` entry) **`VITE_VAPID_PUBLIC_KEY`**, then redeploy (step 8).
+
+Patients then see **Allow** on the *Medications* page. Each device gets reminders in its own time zone; a dose already marked taken or skipped isn't sent, and signing out stops reminders on that device. Check it's running under **Database → Cron Jobs** (`niveda-push-reminders`) and **Edge Functions → send-reminders → Logs**.
+
+Privacy: messages are end-to-end encrypted to the device, but the notification shows the medicine's name and dose, as on the Android app.
 
 ## Operating it
 
@@ -193,7 +220,7 @@ This backend makes the core rules real, but a health-records service needs more 
 - **Doctor invitations** are recorded but not yet emailed.
 - **Automatic doctor verification.** Doctors are verified by an administrator checking the register by hand. Connecting to ABDM's Healthcare Professionals Registry would confirm them automatically.
 - **Virus scanning** of uploads and **field-level encryption** for mental-health and other sensitive records (Supabase already encrypts all data at rest and in transit).
-- Hospital accounts, **ABDM/ABHA** and **FHIR**, the **mobile app** (alarms when the app is closed) and **smartwatch** integration.
+- Hospital accounts, **ABDM/ABHA** and **FHIR**, an **iPhone app** and a dedicated **smartwatch** app (Android alarms and pushed web reminders already work).
 - **A security review and penetration test**, and a DPDP Act compliance review (consent notices, retention, a grievance officer).
 
 ## Tests

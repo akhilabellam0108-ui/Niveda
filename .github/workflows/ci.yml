@@ -19,6 +19,11 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Type-check the send-reminders Edge Function
+        run: deno check supabase/functions/send-reminders/index.ts
 
   database:
     name: Database access rules (Postgres)

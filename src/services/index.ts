@@ -27,7 +27,7 @@ import { remoteRecordService } from './remote/records';
 import { remoteDocumentService } from './remote/documents';
 import { remoteDoctorService, remotePatientService } from './remote/people';
 import {
-  remoteAuditService, remoteExportService, remoteMedicationService, remoteNotificationService, remoteSearchPatient, remoteSettingsService,
+  remoteAuditService, remoteExportService, remoteMedicationService, remoteNotificationService, remotePushService, remoteSearchPatient, remoteSettingsService,
 } from './remote/misc';
 import { subscribe as liveSubscribe } from './remote/client';
 
@@ -47,6 +47,11 @@ export const searchPatient = isLive ? remoteSearchPatient : demoSearch;
 export const subscribe = isLive ? liveSubscribe : demoSubscribe;
 export const applicationService = isLive ? remoteApplicationService : demoApplications;
 export const adminService = isLive ? remoteAdminService : demoAdmin;
+/** Pushed medicine reminders need a server, so the demo has none. */
+export const pushService = isLive ? remotePushService : {
+  saveSubscription: async (..._a: [string, string, string, string]) => undefined,
+  deleteSubscription: async (_endpoint: string) => undefined,
+};
 /** Demo only: restores the fictional data. Does nothing on a live backend. */
 export const resetDemoData = isLive ? async () => undefined : demoReset;
 

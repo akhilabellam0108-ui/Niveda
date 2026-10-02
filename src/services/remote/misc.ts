@@ -170,3 +170,13 @@ export async function remoteSearchPatient(query: string): Promise<SearchResult[]
   }
   return searchIn(query, searchCache.src);
 }
+
+/** Devices registered for pushed medicine reminders (see lib/webPush.ts). */
+export const remotePushService = {
+  async saveSubscription(endpoint: string, p256dh: string, auth: string, timeZone: string): Promise<void> {
+    await read('save_push_subscription', { p_endpoint: endpoint, p_p256dh: p256dh, p_auth: auth, p_time_zone: timeZone });
+  },
+  async deleteSubscription(endpoint: string): Promise<void> {
+    await read('delete_push_subscription', { p_endpoint: endpoint });
+  },
+};

@@ -3,6 +3,7 @@ import type { Doctor, Hospital, Patient, Preferences, User } from '../types';
 import { authService, doctorService, patientService, settingsService, subscribe, DEFAULT_PREFS } from '../services';
 import { AppError } from '../services/core';
 import { clearNativeAlarms } from '../lib/nativeAlarms';
+import { disableWebPush } from '../lib/webPush';
 
 interface SessionState {
   status: 'loading' | 'signed-out' | 'signed-in';
@@ -64,6 +65,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     await clearNativeAlarms().catch(() => undefined);
+    await disableWebPush();
     await authService.logout();
     setState({ status: 'signed-out', prefs: DEFAULT_PREFS });
     applyTheme('system');

@@ -95,7 +95,7 @@ test('a patient signs up with an emailed code and completes the compulsory setup
     history: [{ kind: 'surgery', name: 'Appendectomy', date: '2015-06-01', hospital: 'City Hospital' }], noHistory: false,
     documents: [{ file: file('discharge-summary.pdf', '%PDF-1.4 discharge summary', 'discharge'), date: '2015-06-05', linkTo: 'history:0' }],
   };
-  await rejectsWith(patientService.completeOnboarding({ ...answers, documents: [] }), /VALIDATION: Upload at least one medical document/);
+  await rejectsWith(patientService.completeOnboarding({ ...answers, documents: [] }), /VALIDATION: Add your medical documents, or confirm you have none/);
   await patientService.completeOnboarding(answers);
   assert.equal((await authService.currentUser()).onboarded, true);
 
@@ -321,4 +321,79 @@ test('emergency access on the live backend: code-confirmed, patient told, team r
   assert.equal(review.justification, why);
   await p.adminService.reviewEmergency(review.id, 'concern', 'Checking with the hospital.');
   await rejectsWith(dr.recordService.list(shared.patientId), /ACCESS_DENIED/);
+});
+
+test('medicine reminders are pushed to the patient’s devices, and “Taken” on the notification marks the dose', async () => {
+  const { pushService, medicationService } = apps.patient;
+  const { createECDH, randomBytes } = await import('node:crypto');
+  const webpush = (await import('web-push')).default;
+  const ece = (await import('http_ece')).default;
+  const out = join(mkdtempSync(join(tmpdir(), 'nv-push-')), 'reminders.mjs');
+  await build({ entryPoints: [join(root, 'supabase/functions/send-reminders/reminders.ts')], bundle: true, platform: 'node', format: 'esm', outfile: out, logLevel: 'error' });
+  const { sendDueReminders } = await import(pathToFileURL(out).href);
+
+  // A browser's push subscription: its own key pair and auth secret.
+  const device = () => {
+    const ecdh = createECDH('prime256v1');
+    ecdh.generateKeys();
+    return { ecdh, authSecret: randomBytes(16), endpoint: `https://push.example.test/${randomBytes(8).toString('hex')}` };
+  };
+  const laptop = device();
+  const phone = device();
+  for (const d of [laptop, phone]) {
+    await pushService.saveSubscription(d.endpoint, d.ecdh.getPublicKey('base64url'), d.authSecret.toString('base64url'), 'Asia/Kolkata');
+  }
+
+  const service = { apikey: stack.serviceKey, Authorization: `Bearer ${stack.serviceKey}`, 'Content-Type': 'application/json' };
+  const rest = async (path, init = {}) => {
+    const r = await fetch(`${stack.url}/rest/v1/${path}`, { ...init, headers: { ...service, ...init.headers } });
+    assert.ok(r.ok, `${path}: ${r.status} ${await r.clone().text()}`);
+    return r.status === 204 ? null : r.json();
+  };
+  const met = (await medicationService.schedules()).find((s) => s.record.data.name === 'Metformin');
+  const day = new Date(`${met.record.date}T00:00:00Z`);
+  day.setUTCDate(day.getUTCDate() + 1);
+  const tomorrow = day.toISOString().slice(0, 10);
+
+  // What the Edge Function does, with real Web Push encryption; the "push service" says the phone is gone.
+  const vapid = webpush.generateVAPIDKeys();
+  const delivered = [];
+  const run = (localTime) => sendDueReminders({
+    due: () => rest('rpc/_due_push_reminders', { method: 'POST', body: JSON.stringify({ p_now: `${tomorrow}T${localTime}:00+05:30` }) }),
+    async send(sub, payload) {
+      if (sub.endpoint === phone.endpoint) throw Object.assign(new Error('Gone'), { statusCode: 410 });
+      delivered.push(webpush.generateRequestDetails(sub, payload, { vapidDetails: { subject: 'mailto:test@example.com', publicKey: vapid.publicKey, privateKey: vapid.privateKey } }));
+    },
+    gone: (endpoint) => rest('rpc/_push_gone', { method: 'POST', body: JSON.stringify({ p_endpoint: endpoint }) }),
+    takenUrl: `${stack.url}/rest/v1/rpc/mark_dose_from_push`,
+    publicKey: stack.anonKey,
+  });
+
+  assert.deepEqual(await run('07:29'), { due: 0, sent: 0, removed: 0, failed: 0 });
+  assert.deepEqual(await run('07:31'), { due: 2, sent: 1, removed: 1, failed: 0 });
+  assert.deepEqual(await run('07:32'), { due: 0, sent: 0, removed: 0, failed: 0 }, 'each dose is pushed once');
+  assert.equal((await rest(`push_subscriptions?endpoint=eq.${encodeURIComponent(phone.endpoint)}&select=id`)).length, 0, 'a device the push service rejects is forgotten');
+
+  // The laptop decrypts the message, exactly as the browser would.
+  const [req] = delivered;
+  assert.equal(req.endpoint, laptop.endpoint);
+  assert.match(req.headers.Authorization, /^vapid t=/);
+  const msg = JSON.parse(ece.decrypt(req.body, { version: 'aes128gcm', privateKey: laptop.ecdh, authSecret: laptop.authSecret }).toString());
+  assert.equal(msg.title, 'Time for your medicine');
+  assert.equal(msg.body, 'Metformin 500 mg · 7:30 AM');
+  assert.equal(msg.url, '#/app/medications');
+
+  // "Taken" from the notification: the service worker calls this with the public key only.
+  const taken = () => fetch(msg.taken.url, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', apikey: msg.taken.key, Authorization: `Bearer ${msg.taken.key}` },
+    body: JSON.stringify({ p_token: msg.taken.token }),
+  }).then((r) => r.json());
+  assert.equal(await taken(), 1);
+  assert.equal(await taken(), 0, 'the token works once');
+  const logs = await rest(`dose_logs?record_id=eq.${met.record.id}&date=eq.${tomorrow}&select=time,status`);
+  assert.deepEqual(logs, [{ time: '07:30', status: 'taken' }]);
+
+  // Signing out of a device stops its reminders.
+  await pushService.deleteSubscription(laptop.endpoint);
+  assert.deepEqual(await run('19:31'), { due: 0, sent: 0, removed: 0, failed: 0 });
 });

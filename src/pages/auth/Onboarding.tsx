@@ -25,7 +25,7 @@ const STEPS = [
   { title: 'Ongoing conditions', intro: 'Long-term or current conditions, such as asthma, diabetes or high blood pressure.' },
   { title: 'Current medicines', intro: 'Everything you take now. We’ll remind you when each dose is due — on this device and, if you add them to your calendar, on your phone and smartwatch.' },
   { title: 'Surgeries & hospital stays', intro: 'Operations and times you were admitted to hospital, so your history is complete from day one.' },
-  { title: 'Upload medical documents', intro: 'Upload the records you already have — lab reports, prescriptions, scans, discharge summaries. At least one is required. Link each to an entry from the earlier steps so it sits in the right place in your timeline.' },
+  { title: 'Upload medical documents', intro: 'Upload the records you already have — lab reports, prescriptions, scans, discharge summaries — or confirm you don’t have any yet. Link each to an entry from the earlier steps so it sits in the right place in your timeline.' },
 ];
 
 export function readImage(file: File, max = 320): Promise<string> {
@@ -49,7 +49,7 @@ export function readImage(file: File, max = 320): Promise<string> {
 const empty = (): OnboardingInput => ({
   bloodGroup: '', emergencyContact: { name: '', relationship: '', phone: '' },
   allergies: [], noAllergies: false, conditions: [], noConditions: false,
-  medications: [], noMedications: false, history: [], noHistory: false, documents: [], importantNotes: '',
+  medications: [], noMedications: false, history: [], noHistory: false, documents: [], noDocuments: false, importantNotes: '',
 });
 
 /** Checks just the fields on one step, so people see problems before moving on. */
@@ -209,7 +209,7 @@ export function OnboardingPage() {
           {step === 6 && (
             <>
               <FilePicker files={data.documents.map((d) => d.file)} label="Upload reports, prescriptions or scans"
-                onChange={(files) => set({ documents: files.map((f, i) => ({ date: '', linkTo: '', ...(data.documents.find((d) => d.file === f) ?? (files.length === data.documents.length ? data.documents[i] : undefined)), file: f })) })} />
+                onChange={(files) => set({ noDocuments: false, documents: files.map((f, i) => ({ date: '', linkTo: '', ...(data.documents.find((d) => d.file === f) ?? (files.length === data.documents.length ? data.documents[i] : undefined)), file: f })) })} />
               {data.documents.length > 0 && (
                 <div className="stack" style={{ '--gap': '10px' } as React.CSSProperties}>
                   {data.documents.map((d, i) => (
@@ -221,7 +221,16 @@ export function OnboardingPage() {
                   ))}
                 </div>
               )}
-              {data.documents.length === 0 && <div className="row xs subtle" style={{ '--gap': '6px' } as React.CSSProperties}><Info size={13} aria-hidden />Required: upload at least one document. A photo of a paper report works too.</div>}
+              {data.documents.length === 0 && (
+                <>
+                  {!data.noDocuments && <div className="row xs subtle" style={{ '--gap': '6px' } as React.CSSProperties}><Info size={13} aria-hidden />Upload at least one document (a photo of a paper report works too), or confirm below.</div>}
+                  <label className={`none-check ${data.noDocuments ? 'on' : ''}`}>
+                    <input type="checkbox" checked={!!data.noDocuments} onChange={(e) => set({ noDocuments: e.target.checked })} />
+                    I don’t have any medical documents to upload right now
+                  </label>
+                  {data.noDocuments && <p className="xs subtle">No problem — you can upload reports any time from your dashboard, and doctors you visit can add them to your record.</p>}
+                </>
+              )}
               <div className="alert alert-accent"><ShieldCheck aria-hidden /><div>Your documents stay private. Only doctors you grant access to can open them, and every time they do it’s logged.</div></div>
             </>
           )}

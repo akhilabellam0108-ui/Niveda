@@ -74,7 +74,8 @@ await step('onboarding is compulsory', async () => {
     [{ ...base, noAllergies: true, emergencyContact: { name: '', relationship: '', phone: '' } }, 'no emergency contact'],
     [{ ...base, noAllergies: true, bloodGroup: '' }, 'no blood group'],
     [{ ...base, noAllergies: true, noMedications: false, medications: [{ name: 'X', dosage: '1 mg', frequency: 'Twice daily', times: [] }] }, 'medicine without reminder times'],
-    [{ ...base, noAllergies: true, documents: [] }, 'no documents uploaded'],
+    [{ ...base, noAllergies: true, documents: [] }, 'no documents uploaded and none not ticked'],
+    [{ ...base, noAllergies: true, noDocuments: true }, 'documents uploaded and none also ticked'],
   ] as const) {
     try { await patientService.completeOnboarding(bad as never); throw new Error(`accepted: ${why}`); }
     catch (e) { assert(e instanceof AppError && e.code === 'VALIDATION', `expected VALIDATION for ${why}`); }

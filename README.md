@@ -153,8 +153,8 @@ Password for all demo accounts: **`demo1234`**. The login page also has one-clic
   4. **Ongoing conditions**
   5. **Current medicines** — name, dose, how often, and **reminder times**
   6. **Past surgeries and hospital stays** — what, when and which hospital
-  7. **Medical documents** — at least one upload (lab report, prescription, scan, discharge summary or a photo of a paper record), each with its date and optionally linked to an entry from the earlier steps
-- Documents can't be skipped. For steps 3–6 the patient either adds entries or explicitly ticks "I have none". That confirmation is saved and shown to doctors ("No known allergies — confirmed by patient on …"), so an empty section is never ambiguous. The rules are enforced in the service layer, not just the form, and answers survive a page refresh.
+  7. **Medical documents** — uploads (lab report, prescription, scan, discharge summary or a photo of a paper record), each with its date and optionally linked to an entry from the earlier steps — or "I don't have any medical documents to upload right now"
+- No step can be skipped. For steps 3–7 the patient either adds entries or explicitly ticks "I have none". That confirmation is saved and shown to doctors ("No known allergies — confirmed by patient on …"), so an empty section is never ambiguous. The rules are enforced in the service layer, not just the form, and answers survive a page refresh.
 - The emergency contact can't be removed later — profile and emergency-card edits require one.
 
 **Home dashboard**
@@ -271,6 +271,18 @@ The interface aims for calm and trustworthy rather than clinical: a deep green a
 - Every list has a useful empty state, every data view has a loading skeleton and a friendly error state with *Try again*, and important actions (revoke, delete, stop a medicine, correct an entry, approve access) ask for confirmation.
 - The product name, tagline and patient-ID prefix live in one file: [`src/config/brand.ts`](src/config/brand.ts). The logo is an original SVG mark in [`src/components/ui/Logo.tsx`](src/components/ui/Logo.tsx).
 
+## Install on phones and laptops
+
+| Device | How |
+|---|---|
+| **Android** | Download the app: <https://github.com/akhilabellam0108-ui/Niveda/releases/download/android-latest/Niveda.apk> → open it → allow installing from that source. (Or use the website and *Install app* in Chrome.) |
+| **iPhone / iPad** | Open the website in **Safari** → **Share** → **Add to Home Screen** → open Niveda from the Home Screen. |
+| **Windows / Mac / Linux / Chromebook** | Open the website in **Chrome or Edge** → click the **install icon** in the address bar (or menu → *Install Niveda*). On a Mac with Safari: **File → Add to Dock**. |
+
+The website is an installable app (a PWA): its own icon and window, it opens without a connection, and on the live backend with push set up ([docs/SUPABASE_SETUP.md](docs/SUPABASE_SETUP.md), step 9) medicine reminders arrive as notifications — with a **Taken** button — even when Niveda is closed, including on iPhone (iOS 16.4+, once added to the Home Screen) and on a paired watch.
+
+Website: <https://akhilabellam0108-ui.github.io/niveda/> · demo with fictional data: <https://akhilabellam0108-ui.github.io/niveda/demo/>
+
 ## Android app
 
 **Download:** <https://github.com/akhilabellam0108-ui/Niveda/releases/download/android-latest/Niveda.apk> — open it on an Android phone and allow installing from that source. `.github/workflows/android.yml` rebuilds it on every push to `main`.
@@ -382,17 +394,17 @@ User    1 ── * Notification, Session
 
 ## Testing
 
-**Service tests** — `npm test` (18 checks):
+**Service tests** — `npm test` (20 checks):
 
-- **Flow A — patient:** sign-up rejects a wrong code and accepts the right one → onboarding refuses missing blood group, missing emergency contact, unanswered sections, medicines without reminder times and no uploaded document → a complete onboarding creates entries, declarations, reminders and a document linked to its surgery → today's doses can be marked taken → the calendar file contains repeating alarms → the emergency contact can't be removed → an added record appears in the list and its category → incomplete records are rejected.
+- **Flow A — patient:** sign-up rejects a wrong code and accepts the right one → onboarding refuses missing blood group, missing emergency contact, unanswered sections, medicines without reminder times, and documents neither uploaded nor declared as “none” → a complete onboarding creates entries, declarations, reminders and a document linked to its surgery → today's doses can be marked taken → the calendar file contains repeating alarms → the emergency contact can't be removed → an added record appears in the list and its category → incomplete records are rejected.
 - **Flow B — access:** a doctor can't read the record before access and sees only a masked name → patient grants access with permissions, duration and a code → doctor can now read it.
 - **Flow C — doctor adds:** one consultation creates four linked entries with attribution and an attachment → a correction keeps version 1 and the original author → a lab result completes its order → the patient sees the new medicine, a notification and audit entries → the patient can't alter the doctor's entry or delete the doctor's document.
 - **Flow D — revoke:** after revocation the doctor can't list, open or write → sensitive categories stay hidden → access expires by itself when time runs out.
 - **Flow E — audit:** the patient's log contains every expected event with actor and time.
 
-**Database tests** — `npm run test:db` (11 checks, [`tests/db/backend.test.mjs`](tests/db/backend.test.mjs)). The real migrations run on a throwaway Postgres; patients, doctors and an attacker then try everything: a doctor sees nothing before a grant and only the shared categories after; granting needs a fresh code that works once; forged attribution is ignored; nobody can write to tables directly or call internal functions; even the database owner can't rewrite history; revocation and expiry cut access immediately; the audit log is complete, private to each side, append-only, and tampering is detected.
+**Database tests** — `npm run test:db` (16 checks, [`tests/db/backend.test.mjs`](tests/db/backend.test.mjs)). The real migrations run on a throwaway Postgres; patients, doctors and an attacker then try everything: a doctor sees nothing before a grant and only the shared categories after; granting needs a fresh code that works once; forged attribution is ignored; nobody can write to tables directly or call internal functions; even the database owner can't rewrite history; revocation and expiry cut access immediately; the audit log is complete, private to each side, append-only, and tampering is detected; pushed medicine reminders go once per device at the right local time, and “Taken” from the notification works once.
 
-**Live end-to-end tests** — `npm run test:live` (8 checks, [`tests/live`](tests/live/README.md)). A patient and a doctor each run the app's live code against the real Supabase Auth server and PostgREST, reading their codes from the emails the Auth server sends: sign-up, onboarding with an upload, two-step sign-in, granting access, a doctor's visit with a file, corrections, lab results, reminders, export, search, revocation, and password change and reset.
+**Live end-to-end tests** — `npm run test:live` (11 checks, [`tests/live`](tests/live/README.md)). A patient and a doctor each run the app's live code against the real Supabase Auth server and PostgREST, reading their codes from the emails the Auth server sends: sign-up, onboarding with an upload, two-step sign-in, granting access, a doctor's visit with a file, corrections, lab results, reminders, export, search, revocation, password change and reset, doctor verification, emergency access, and a pushed medicine reminder encrypted with Web Push, decrypted as the browser would, and marked taken from the notification.
 
 All of these run in CI on every push.
 
@@ -416,10 +428,10 @@ python3 tests/e2e_browser.py
 | Documents | IndexedDB | Private storage bucket with the same access rules; no public links |
 | Access expiry | Checked when data is read | Checked on every read, plus a pg_cron job every 5 minutes that logs expiry and sends "ends soon" reminders |
 | Doctors & hospitals | Fixed fictional directory | Added by an administrator after checking registration (`scripts/create-doctor.mjs`); no public doctor sign-up |
-| Notifications | In-app | In-app, live across devices; no SMS or push yet |
+| Notifications | In-app | In-app, live across devices; medicine reminders also pushed to devices (Web Push) when set up; no SMS yet |
 | Doctor invitations | Recorded, not sent | Recorded, not sent |
 | Export | Built in the browser; lists documents | Same, from the patient's live data |
-| Medicine alarms, smartwatch | While a tab is open; calendar (.ics) export for phone and watch | Same |
+| Medicine alarms, smartwatch | While a tab is open; calendar (.ics) export for phone and watch | Also pushed to iPhone, iPad and computers when Niveda is closed, with a Taken button (Web Push, optional); Android app rings its own alarms |
 | Close account | Disabled | An administrator can erase an account deliberately (see the setup guide) |
 
 ## What must be built before production
@@ -444,7 +456,7 @@ Still to do:
 6. **Compliance** — India's Digital Personal Data Protection Act 2023, ABDM / ABHA integration and consent artefacts, and HIPAA / GDPR where relevant; retention and deletion policies; security audits and penetration testing.
 7. **Interoperability** — FHIR R4 import and export; integrations with labs and hospital systems.
 8. **Operations** — monitoring and alerting, backups with point-in-time recovery, tuned rate limits, custom email delivery at scale.
-9. **Mobile app** — ✅ Android app with medicine alarms that ring when the app is closed (see below). Still to do: a Play Store release (needs a release signing key and a Play Console account), an iPhone app, push notifications from the server, the lock-screen emergency card and offline access.
+9. **Mobile app** — ✅ Android app with medicine alarms that ring when the app is closed (see below). ✅ The website installs as an app on iPhone, iPad and computers, opens offline, and gets medicine reminders pushed by the server. Still to do: a Play Store release (needs a release signing key and a Play Console account), an App Store iPhone app, and the lock-screen emergency card.
 10. **Smartwatch integration** — ✅ reminders with Taken / Snooze / Skip appear on paired Wear OS watches through the phone's notifications. Still to do: a dedicated watch app and Apple HealthKit / Google Health Connect sync.
 
 ## Roadmap ideas

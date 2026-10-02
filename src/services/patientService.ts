@@ -35,6 +35,8 @@ export interface OnboardingInput {
    * discharge summary…). `linkTo` points at an entry from the earlier steps, e.g. "history:0".
    */
   documents: { file: NewFile; date: string; linkTo?: string }[];
+  /** Explicit "I have no medical documents to upload". */
+  noDocuments?: boolean;
   importantNotes?: string;
 }
 
@@ -60,7 +62,7 @@ export function validateOnboarding(i: OnboardingInput): string | undefined {
     ?? (i.medications.some((m) => m.frequency !== 'As needed' && !m.times.length) ? 'Set at least one reminder time for each regular medicine.' : undefined)
     ?? section(i.history, i.noHistory, 'past surgeries or hospital stays')
     ?? (i.history.some((h) => !h.name.trim() || !h.date || !h.hospital.trim()) ? 'Each surgery or hospital stay needs what it was, the date and the hospital.' : undefined)
-    ?? (!i.documents?.length ? 'Upload at least one medical document — a lab report, prescription, scan or discharge summary.' : undefined)
+    ?? section(i.documents ?? [], !!i.noDocuments, 'medical documents')
     ?? (i.documents.some((d) => !d.date) ? 'Add the date on each uploaded document.' : undefined);
 }
 
@@ -150,7 +152,7 @@ export const patientService = {
       if (input.importantNotes?.trim()) p.importantNotes = input.importantNotes.trim();
       p.declarations = {
         noAllergies: input.noAllergies || undefined, noConditions: input.noConditions || undefined,
-        noMedications: input.noMedications || undefined, noSurgeries: input.noHistory || undefined, confirmedAt: nowISO(),
+        noMedications: input.noMedications || undefined, noSurgeries: input.noHistory || undefined, noDocuments: input.noDocuments || undefined, confirmedAt: nowISO(),
       };
       db.users.find((u) => u.id === ctx.user.id)!.onboarded = true;
     });

@@ -97,6 +97,7 @@ export interface HealthDeclarations {
   noConditions?: boolean;
   noMedications?: boolean;
   noSurgeries?: boolean;
+  noDocuments?: boolean;
   confirmedAt: ISODateTime;
 }
 

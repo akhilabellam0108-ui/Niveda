@@ -179,7 +179,8 @@ test('A. sign-up creates the patient, onboarding is compulsory and server-valida
     history: [{ kind: 'surgery', name: 'Appendectomy', date: '2015-06-01', hospital: 'City Hospital' }], noHistory: false,
     documents: [],
   };
-  await rejects(rpc('asha', 'complete_onboarding', [base]), /VALIDATION: Upload at least one medical document/);
+  await rejects(rpc('asha', 'complete_onboarding', [base]), /VALIDATION: Upload your medical documents, or confirm you have none/);
+  await rejects(rpc('asha', 'complete_onboarding', [{ ...base, noDocuments: true, documents: [{ documentId: 'doc_x' }] }]), /also ticked “none”/);
   await rejects(rpc('asha', 'complete_onboarding', [{ ...base, noConditions: false }]), /ongoing conditions, or confirm/);
   await rejects(rpc('asha', 'complete_onboarding', [{ ...base, emergencyContact: { name: 'X' } }]), /emergency contact/);
 
@@ -193,6 +194,13 @@ test('A. sign-up creates the patient, onboarding is compulsory and server-valida
   await rpc('asha', 'complete_onboarding', [{ ...base, documents: [{ documentId: docId, linkTo: 'history:0' }] }]);
   assert.equal((await rpc('asha', 'my_account')).onboarded, true);
   await rejects(rpc('asha', 'complete_onboarding', [{ ...base, documents: [{ documentId: docId }] }]), /already set up/);
+
+  // Someone with no documents to upload can say so explicitly.
+  await addUser('nadia', 'nadia@example.com', { full_name: 'Nadia Khan', date_of_birth: '1992-03-03', phone: '+91 93333 44444' });
+  await rpc('nadia', 'complete_signup');
+  await rpc('nadia', 'complete_onboarding', [{ ...base, noDocuments: true }]);
+  assert.equal((await rpc('nadia', 'my_account')).onboarded, true);
+  assert.equal((await as('nadia', (q) => q('select declarations from patients')))[0].declarations.noDocuments, true);
 
   const recs = await as('asha', (q) => q('select type, data, attachments from records order by type'));
   assert.deepEqual(recs.map((r) => r.type), ['allergy', 'medication', 'surgery']);
@@ -452,6 +460,56 @@ test('sessions and notifications belong to their owner', async () => {
   assert.ok((await unread())[0].n > 0, 'marking read affects only your own');
   await rpc('asha', 'mark_notifications_read');
   assert.equal((await unread())[0].n, 0);
+});
+
+test('push reminders: due doses go once to each device, and “Taken” works from the notification', async () => {
+  const sub = ['https://push.example.com/send/nadia-laptop', 'B' + 'x'.repeat(86), 'a'.repeat(22)];
+  await rpc('nadia', 'save_push_subscription', [...sub, 'Asia/Kolkata']);
+  await rejects(as('nadia', (q) => q('select * from push_subscriptions')), /permission denied/);
+  await rejects(as('nadia', (q) => q('select public._due_push_reminders()')), /permission denied/);
+
+  const [med] = (await db.query("select r.id, r.date::text d from records r join patients p on p.id = r.patient_id where p.user_id = $1 and r.type = 'medication'", [users.nadia.id])).rows;
+  const at = async (hhmm) => (await db.query("select public._due_push_reminders(($1::date + $2::time) at time zone 'Asia/Kolkata') as r", [med.d, hhmm])).rows[0].r
+    .filter((m) => m.endpoint === sub[0]);
+
+  assert.equal((await at('07:29')).length, 0, 'not before the dose time');
+  const [m] = await at('07:31');
+  assert.ok(m, 'due at 07:30 local time');
+  assert.match(m.body, /^Metformin 500 mg · 7:30 AM$/);
+  assert.equal(m.p256dh, sub[1]);
+  assert.match(m.token, /^[0-9a-f]{64}$/);
+  assert.equal((await at('07:33')).length, 0, 'sent once per device');
+  assert.equal((await at('07:45')).length, 0, 'nothing outside the 10-minute window');
+
+  // "Taken" from the notification: no sign-in, single-use token.
+  const anon = async (token) => {
+    const c = await db.connect();
+    try {
+      await c.query('begin'); await c.query('set local role anon');
+      const r = (await c.query('select public.mark_dose_from_push($1) n', [token])).rows[0].n;
+      await c.query('commit'); return r;
+    } finally { c.release(); }
+  };
+  assert.equal(await anon('f'.repeat(64)), 0, 'unknown token does nothing');
+  assert.equal(await anon(m.token), 1);
+  assert.equal(await anon(m.token), 0, 'token works once');
+  const logs = await as('nadia', (q) => q('select status, time from dose_logs where record_id = $1 and date = $2', [med.id, med.d]));
+  assert.deepEqual(logs, [{ status: 'taken', time: '07:30' }]);
+
+  // A dose already marked isn't pushed; turning reminders off stops pushes.
+  await as('nadia', (q) => q("insert into dose_logs (patient_id, record_id, date, time, status) select patient_id, id, date, '19:30', 'skipped' from records where id = $1", [med.id]));
+  assert.equal((await at('19:31')).length, 0, 'already marked');
+  await db.query("insert into preferences (user_id, prefs) values ($1, '{\"medAlarms\": false}') on conflict (user_id) do update set prefs = excluded.prefs", [users.nadia.id]);
+  assert.equal((await db.query("select public._due_push_reminders(($1::date + 1 + time '07:31') at time zone 'Asia/Kolkata') as r", [med.d])).rows[0].r.filter((x) => x.endpoint === sub[0]).length, 0, 'reminders off');
+  await db.query('delete from preferences where user_id = $1', [users.nadia.id]);
+  assert.equal((await db.query("select public._due_push_reminders(($1::date + 1 + time '07:31') at time zone 'Asia/Kolkata') as r", [med.d])).rows[0].r.filter((x) => x.endpoint === sub[0]).length, 1, 'next day rings again');
+
+  // Someone else can't remove your device; you can.
+  await rpc('asha', 'delete_push_subscription', [sub[0]]);
+  assert.equal((await db.query('select count(*)::int n from push_subscriptions where endpoint = $1', [sub[0]])).rows[0].n, 1);
+  await rpc('nadia', 'delete_push_subscription', [sub[0]]);
+  assert.equal((await db.query('select count(*)::int n from push_subscriptions where endpoint = $1', [sub[0]])).rows[0].n, 0);
+  await rejects(rpc('nadia', 'save_push_subscription', ['http://insecure.example.com', sub[1], sub[2], 'UTC']), /invalid notification address/);
 });
 
 test('account erasure is possible only deliberately', async () => {

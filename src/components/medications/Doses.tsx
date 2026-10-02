@@ -8,6 +8,7 @@ import { useSession } from '../../state/SessionContext';
 import { useToast } from '../../state/ToastContext';
 import { Badge, Button, EmptyState, Modal } from '../ui';
 import { isNativeApp, syncNativeAlarms } from '../../lib/nativeAlarms';
+import { enableWebPush, webPushAvailable } from '../../lib/webPush';
 
 /** Re-render on an interval so "due" / "missed" labels stay current. */
 export function useClock(ms = 30000) {
@@ -184,6 +185,19 @@ export function NativeAlarmSync() {
     const onVisible = () => { if (document.visibilityState === 'visible') run(); };
     document.addEventListener('visibilitychange', onVisible);
     return () => { clearTimeout(t); unsub(); document.removeEventListener('visibilitychange', onVisible); };
+  }, [prefs.medAlarms]);
+  return null;
+}
+
+/**
+ * On the website (live mode): once notifications are allowed, keeps this device
+ * registered for pushed medicine reminders, with its current time zone.
+ */
+export function WebPushSync() {
+  const { prefs } = useSession();
+  useEffect(() => {
+    if (!prefs.medAlarms || !webPushAvailable() || Notification.permission !== 'granted') return;
+    void enableWebPush(false).catch(() => undefined);
   }, [prefs.medAlarms]);
   return null;
 }
