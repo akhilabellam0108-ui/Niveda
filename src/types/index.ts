@@ -375,4 +375,55 @@ export interface Database {
   preferences: Record<ID, Preferences>;
   reminders: MedicationReminder[];
   doseLogs: DoseLog[];
+  /** Added later; missing in older saved demo data. */
+  abha?: Record<ID, AbhaLink>;
+  consents?: ConsentRecord[];
+  deletionRequests?: DeletionRequest[];
+  grievances?: Grievance[];
+}
+
+/* ---------- ABHA (Ayushman Bharat Digital Mission) ---------- */
+
+export interface AbhaLink {
+  abhaNumber: string; // 12-3456-7890-1234
+  abhaAddress: string; // name@abdm / name@sbx
+  name: string;
+  linkedAt: ISODateTime;
+}
+
+/* ---------- Privacy (DPDP Act 2023) ---------- */
+
+/** What a person agreed to, and when. Withdrawing is as easy as giving. */
+export type ConsentPurpose = 'core_record' | 'reminders' | 'abdm_sharing' | 'product_updates';
+
+export interface ConsentRecord {
+  id: ID;
+  userId: ID;
+  purpose: ConsentPurpose;
+  granted: boolean;
+  noticeVersion: string;
+  at: ISODateTime;
+}
+
+export interface DeletionRequest {
+  id: ID;
+  userId: ID;
+  requestedAt: ISODateTime;
+  /** The account is erased after this date unless the request is cancelled. */
+  eraseAfter: ISODateTime;
+  status: 'pending' | 'cancelled' | 'completed';
+  reason?: string;
+}
+
+export interface Grievance {
+  id: ID;
+  userId: ID;
+  reference: string; // NV-GRV-…
+  category: 'access' | 'correction' | 'erasure' | 'consent' | 'security' | 'other';
+  description: string;
+  status: 'open' | 'in_progress' | 'resolved';
+  createdAt: ISODateTime;
+  respondBy: ISODateTime;
+  response?: string;
+  resolvedAt?: ISODateTime;
 }

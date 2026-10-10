@@ -665,3 +665,26 @@ test('SMS codes: only a confirmed phone becomes the account phone, and it is log
   // A step-up code that arrived by SMS works like an emailed one.
   await rejects(rpc('asha', 'revoke_grant', ['grt_none']), /./);
 });
+
+/* ---------- ABHA ---------- */
+
+test('ABHA: only the server links an ABHA, one ABHA per record, patients can unlink', async () => {
+  const profile = { abhaNumber: '91-1234-5678-9012', abhaAddress: 'asha@sbx', name: 'Asha Rao' };
+  await rejects(rpc('asha', '_link_abha', [users.asha.id, profile]), /permission denied/, 'a patient can’t link one themselves');
+  await rejects(as('asha', (q) => q("insert into abha_links (patient_id, abha_number, abha_name) values ($1, '91-1234-5678-9012', 'x')", [users.asha.patientId])), /permission denied|row-level/);
+
+  const link = (await db.query('select public._link_abha($1, $2) as r', [users.asha.id, profile])).rows[0].r;
+  assert.equal(link.abhaAddress, 'asha@sbx');
+  assert.deepEqual((await rpc('asha', 'my_abha')).abhaNumber, '91-1234-5678-9012');
+  assert.equal(await rpc('nadia', 'my_abha'), null, 'nobody else sees it');
+  await rejects(db.query('select public._link_abha($1, $2)', [users.nadia.id, profile]), /already linked to another/);
+  await rejects(db.query('select public._link_abha($1, $2)', [users.kavya.id, profile]), /Only patients/);
+  await rejects(db.query('select public._link_abha($1, $2)', [users.nadia.id, { ...profile, abhaNumber: '123' }]), /invalid ABHA/);
+
+  await rpc('asha', 'unlink_abha');
+  assert.equal(await rpc('asha', 'my_abha'), null);
+  await rejects(rpc('asha', 'unlink_abha'), /No ABHA is linked/);
+  const log = await as('asha', (q) => q("select action, target from audit_log where action in ('abha_linked', 'abha_unlinked') order by at"));
+  assert.deepEqual(log.map((l) => l.action), ['abha_linked', 'abha_unlinked']);
+  assert.equal(log[0].target.label, 'ABHA xx-xxxx-xxxx-9012');
+});

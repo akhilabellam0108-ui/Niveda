@@ -30,6 +30,8 @@ import {
   remoteAuditService, remoteExportService, remoteMedicationService, remoteNotificationService, remotePushService, remoteSearchPatient, remoteSettingsService,
 } from './remote/misc';
 import { subscribe as liveSubscribe } from './remote/client';
+import { abhaService as demoAbha } from './abhaService';
+import { remoteAbhaService } from './remote/abha';
 
 export { isLive };
 export const authService = isLive ? remoteAuthService : demoAuth;
@@ -47,6 +49,7 @@ export const searchPatient = isLive ? remoteSearchPatient : demoSearch;
 export const subscribe = isLive ? liveSubscribe : demoSubscribe;
 export const applicationService = isLive ? remoteApplicationService : demoApplications;
 export const adminService = isLive ? remoteAdminService : demoAdmin;
+export const abhaService = isLive ? remoteAbhaService : demoAbha;
 /** Pushed medicine reminders need a server, so the demo has none. */
 export const pushService = isLive ? remotePushService : {
   saveSubscription: async (..._a: [string, string, string, string]) => undefined,
@@ -71,4 +74,6 @@ export type { SearchResult } from './searchService';
 export { otpService } from './otpService';
 export type { OtpChallenge } from './otpService';
 export { AppError, friendlyError } from './core';
+export { formatAbhaNumber, validateAbhaInput } from './abhaService';
+export type { AbhaMethod, AbhaVerifyResult } from './abhaService';
 export { MEDICAL_COUNCILS, REGISTER_CHECK_URL, DEMO_ONLY_MESSAGE, validateApplication } from './applicationService';
