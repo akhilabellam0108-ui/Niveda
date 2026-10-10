@@ -9,13 +9,14 @@ name: Android app
 on:
   push:
     branches: [main]
+  pull_request:          # build only, to check the Android project still compiles
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: android
+  group: android-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -36,6 +37,9 @@ jobs:
         env:
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+          VITE_VAPID_PUBLIC_KEY: ${{ vars.VITE_VAPID_PUBLIC_KEY }}
+          VITE_OTP_CHANNEL: ${{ vars.VITE_OTP_CHANNEL }}
+          VITE_ABDM_ENABLED: ${{ vars.VITE_ABDM_ENABLED }}
         run: npm run build
       - name: Copy into the Android project
         run: npx cap sync android
@@ -50,6 +54,7 @@ jobs:
           name: Niveda-apk
           path: Niveda.apk
       - name: Publish as the "android-latest" download
+        if: github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

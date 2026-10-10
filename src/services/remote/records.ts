@@ -2,25 +2,28 @@
 import type { MedicalRecord, PermissionKey, RecordData, RecordType } from '../../types';
 import { AppError } from '../core';
 import {
-  buildVisitItems, checkRecord, recordService as mockRecords,
+  buildVisitItems, checkHandoverNote, checkRecord, recordService as mockRecords,
   type ConsultationBundleInput, type ConsultationBundleResult, type NewRecordInput,
 } from '../recordService';
 import type { NewFile } from '../documentService';
 import { todayISO } from '../../lib/dates';
 import { all, q, read, requireAccount, sb, write } from './client';
 import { RECORD_SELECT, toRecord } from './mappers';
+import { openSealed, toRecords } from './sealed';
+export { toRecords };
 import { patientIdFor } from './context';
 import { uploadDocument } from './documents';
+
 
 export async function listRecords(patientId: string): Promise<MedicalRecord[]> {
   const rows = await all((from, to) => sb().from('records').select(RECORD_SELECT).eq('patient_id', patientId)
     .order('date', { ascending: false }).order('created_at', { ascending: false }).range(from, to));
-  return rows.map(toRecord);
+  return toRecords(rows);
 }
 
 async function byIds(ids: string[]): Promise<MedicalRecord[]> {
   if (!ids.length) return [];
-  const rows = await q(sb().from('records').select(RECORD_SELECT).in('id', ids));
+  const rows = await openSealed(await q(sb().from('records').select(RECORD_SELECT).in('id', ids)));
   const map = new Map(rows.map((r) => [r.id as string, toRecord(r)]));
   return ids.map((id) => map.get(id)).filter(Boolean) as MedicalRecord[];
 }
@@ -47,7 +50,7 @@ export const remoteRecordService: typeof mockRecords = {
     const record = await one(recordId);
     if (a.role === 'doctor') await read('log_record_view', { p_id: recordId });
     const [children, parent] = await Promise.all([
-      q(sb().from('records').select(RECORD_SELECT).eq('parent_id', recordId).order('created_at')).then((rows) => rows.map(toRecord)),
+      q(sb().from('records').select(RECORD_SELECT).eq('parent_id', recordId).order('created_at')).then(toRecords),
       record.parentId ? byIds([record.parentId]).then((r) => r[0]) : Promise.resolve(undefined),
     ]);
     return { record, children, parent };
@@ -60,6 +63,7 @@ export const remoteRecordService: typeof mockRecords = {
   async create(input: NewRecordInput): Promise<MedicalRecord> {
     const pid = await patientIdFor(input.patientId, false);
     const data = checkRecord(input.type, input.date, input.data);
+    if (input.type === 'consultation' && (await requireAccount()).role === 'doctor') checkHandoverNote(String(input.data.handoverNote ?? ''));
     const docIds = [...(input.attachDocumentIds ?? []), ...(await uploadAll(pid, input.files, input.date))];
     const id = await write<string>('create_record', {
       p_patient: pid, p_type: input.type, p_date: input.date, p_data: data, p_parent: input.parentId ?? null,

@@ -1,15 +1,15 @@
 import { useState } from 'react';
-import { BadgeCheck, ExternalLink, Inbox, ShieldCheck, Siren, TriangleAlert } from 'lucide-react';
-import type { DoctorApplication, EmergencyAccessReview } from '../../types';
+import { BadgeCheck, ExternalLink, Inbox, MessageSquareWarning, ShieldCheck, Siren, TriangleAlert } from 'lucide-react';
+import type { DoctorApplication, EmergencyAccessReview, Grievance } from '../../types';
 import { brand } from '../../config/brand';
-import { adminService, REGISTER_CHECK_URL } from '../../services';
+import { adminService, friendlyError, GRIEVANCE_CATEGORIES, privacyService, REGISTER_CHECK_URL } from '../../services';
 import { useSession } from '../../state/SessionContext';
 import { useDocumentTitle, useLive } from '../../state/hooks';
 import { useToast } from '../../state/ToastContext';
 import { Badge, Button, ConfirmDialog, EmptyState, ErrorState, Field, SkeletonList, Tabs, Textarea } from '../../components/ui';
 import { Brand } from '../../components/ui/Logo';
 import { BackButton } from '../../components/ui/BackButton';
-import { fmtDateTime } from '../../lib/dates';
+import { fmtDate, fmtDateTime } from '../../lib/dates';
 
 type Status = 'pending' | 'approved' | 'declined';
 
@@ -17,9 +17,10 @@ type Status = 'pending' | 'approved' | 'declined';
 export function AdminPage() {
   useDocumentTitle(`Niveda team · ${brand.name}`);
   const { user } = useSession();
-  const [section, setSection] = useState<'doctors' | 'emergency'>('doctors');
+  const [section, setSection] = useState<'doctors' | 'emergency' | 'grievances'>('doctors');
   const pendingApps = useLive(() => adminService.applications('pending'), []);
   const pendingEmergencies = useLive(() => adminService.emergencyAccesses('pending'), []);
+  const openGrievances = useLive(() => privacyService.adminGrievances('open'), []);
 
   return (
     <div className="admin-page">
@@ -32,10 +33,11 @@ export function AdminPage() {
         <Tabs label="Team work" value={section} onChange={setSection} tabs={[
           { value: 'doctors', label: 'Doctor verification', count: pendingApps.data?.length },
           { value: 'emergency', label: 'Emergency access', count: pendingEmergencies.data?.length },
+          { value: 'grievances', label: 'Grievances', count: openGrievances.data?.length },
         ]} />
-        {section === 'doctors'
-          ? <DoctorVerification onChange={pendingApps.reload} />
-          : <EmergencyReviews onChange={pendingEmergencies.reload} />}
+        {section === 'doctors' ? <DoctorVerification onChange={pendingApps.reload} />
+          : section === 'emergency' ? <EmergencyReviews onChange={pendingEmergencies.reload} />
+          : <Grievances onChange={openGrievances.reload} />}
       </main>
     </div>
   );
@@ -186,5 +188,44 @@ function ApplicationCard({ a, onDone }: { a: DoctorApplication; onDone: () => vo
         <Field label="What needs fixing" required>{(p) => <Textarea {...p} rows={3} value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. The registration number doesn’t match the name on the Karnataka Medical Council register." />}</Field>
       </ConfirmDialog>
     </article>
+  );
+}
+
+/** DPDP Act s.13: every grievance answered within 90 days. Overdue ones float to the top. */
+function Grievances({ onChange }: { onChange: () => void }) {
+  const toast = useToast();
+  const [tab, setTab] = useState<Grievance['status']>('open');
+  const list = useLive(() => privacyService.adminGrievances(tab), [tab]);
+  const [answer, setAnswer] = useState<Record<string, string>>({});
+  const respond = async (g: Grievance, status: 'in_progress' | 'resolved') => {
+    try { await privacyService.adminRespond(g.id, status, answer[g.id] ?? ''); toast(status === 'resolved' ? 'Answer sent' : 'Marked in progress'); list.reload(); onChange(); } catch (e) { toast(friendlyError(e), 'error'); }
+  };
+  return (
+    <>
+      <div className="page-head"><div><h1>Grievances</h1><p>Privacy complaints from patients and doctors. The law allows 90 days; aim for 7. The person sees your answer.</p></div></div>
+      <Tabs label="Grievances" value={tab} onChange={setTab} tabs={[{ value: 'open', label: 'Open' }, { value: 'in_progress', label: 'In progress' }, { value: 'resolved', label: 'Answered' }]} />
+      {list.error ? <ErrorState error={list.error} onRetry={list.reload} /> : !list.data ? <SkeletonList rows={3} /> : list.data.length === 0 ? (
+        <EmptyState icon={MessageSquareWarning} title="Nothing here" />
+      ) : (
+        <div className="stack">
+          {list.data.map((g) => {
+            const overdue = g.status !== 'resolved' && new Date(g.respondBy) < new Date(Date.now() + 7 * 864e5);
+            return (
+              <section key={g.id} className="card card-pad stack">
+                <div className="spread"><span className="strong num">{g.reference}</span>{overdue && <Badge tone="danger">Due {fmtDate(g.respondBy)}</Badge>}</div>
+                <div className="xs muted">{GRIEVANCE_CATEGORIES.find((c) => c.value === g.category)?.label} · {fmtDateTime(g.createdAt)}</div>
+                <p className="small" style={{ whiteSpace: 'pre-wrap' }}>{g.description}</p>
+                {g.status === 'resolved' ? <div className="small brief-note">{g.response}</div> : (
+                  <>
+                    <Field label="Answer">{(p) => <Textarea {...p} rows={3} value={answer[g.id] ?? g.response ?? ''} onChange={(e) => setAnswer({ ...answer, [g.id]: e.target.value })} />}</Field>
+                    <div className="row">{g.status === 'open' && <Button onClick={() => respond(g, 'in_progress')}>Mark in progress</Button>}<Button variant="primary" onClick={() => respond(g, 'resolved')}>Send answer</Button></div>
+                  </>
+                )}
+              </section>
+            );
+          })}
+        </div>
+      )}
+    </>
   );
 }

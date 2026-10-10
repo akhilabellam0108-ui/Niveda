@@ -2079,6 +2079,60 @@ grant execute on function
 to authenticated;
 
 -- ==================================================================
+-- 20261001000001_handover_note.sql
+-- ==================================================================
+
+-- Niveda — note for the next visit
+--
+-- Every consultation a doctor records now ends with a note for the next visit:
+-- what the same doctor at the follow-up, or a different doctor if the patient
+-- goes elsewhere, should know or check. It is stored on the consultation as
+-- data.handoverNote, so it follows the same access rules as the consultation
+-- (the "history" permission) and keeps the usual version history.
+--
+-- Older consultations, and consultations patients add themselves, may have none.
+
+-- 1. The consultation record type accepts the new field (kept identical to
+--    src/lib/recordMeta.ts; the database tests compare the two).
+update public.record_types
+set field_keys = array['reason', 'doctor', 'facility', 'symptoms', 'diagnosis', 'medications', 'followUp', 'notes', 'handoverNote']::text[]
+where type = 'consultation';
+
+-- 2. A doctor can't add a consultation without the note. Checked here, where
+--    every new entry is written, so it holds for add_visit and create_record
+--    alike. 10 characters matches HANDOVER_MIN_LENGTH in the app.
+create or replace function public._insert_record(p_patient text, p_type text, p_date date, p_data jsonb, p_parent text default null)
+returns records
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare r records; clean jsonb; actor jsonb := _actor(); org jsonb;
+begin
+  clean := _clean_data(p_type, p_data);
+  perform _validate_data(p_type, clean);
+  if p_date is null then perform fail('VALIDATION', 'Date is required.'); end if;
+  if p_date > current_date + 366 then perform fail('VALIDATION', 'That date is too far in the future.'); end if;
+  if p_parent is not null and not exists (select 1 from records where id = p_parent and patient_id = p_patient) then
+    perform fail('NOT_FOUND', 'The entry this belongs to could not be found.');
+  end if;
+  if actor ->> 'role' = 'doctor' and p_type = 'consultation' then
+    if coalesce(clean ->> 'handoverNote', '') = '' then
+      perform fail('VALIDATION', 'Write a note for the next visit before saving.');
+    end if;
+    if char_length(clean ->> 'handoverNote') < 10 then
+      perform fail('VALIDATION', 'The note for the next visit needs at least 10 characters.');
+    end if;
+  end if;
+  if actor ->> 'role' = 'doctor' then
+    select jsonb_build_object('id', h.id, 'name', h.name) into org from doctors d join hospitals h on h.id = d.hospital_id where d.id = actor ->> 'id';
+  end if;
+  insert into records (patient_id, type, date, data, created_by, organization, parent_id, source)
+  values (p_patient, p_type, p_date, clean, actor, org, p_parent, case when actor ->> 'role' = 'doctor' then 'doctor' else 'patient' end)
+  returning * into r;
+  insert into record_versions (record_id, version, date, data, changed_at, changed_by, change_type)
+  values (r.id, 1, r.date, r.data, r.created_at, actor, 'created');
+  return r;
+end $$;
+
+-- ==================================================================
 -- 20261002000001_no_documents.sql
 -- ==================================================================
 
@@ -2368,3 +2422,705 @@ revoke execute on function public.save_push_subscription(text, text, text, text)
 grant execute on function public.save_push_subscription(text, text, text, text), public.delete_push_subscription(text) to authenticated;
 grant execute on function public.mark_dose_from_push(text) to anon, authenticated;
 grant execute on function public._due_push_reminders(timestamptz), public._push_gone(text) to service_role;
+
+-- ==================================================================
+-- 20261010000001_sms_codes.sql
+-- ==================================================================
+
+-- SMS one-time codes.
+--
+-- With VITE_OTP_CHANNEL=sms, codes go to the login's verified phone through
+-- Supabase phone auth. Supabase calls the send-sms Edge Function (the "Send SMS"
+-- auth hook), which delivers through MSG91 (India, DLT template) or Twilio.
+--
+-- A phone becomes verified when its owner enters the code Supabase texts to it
+-- (auth.users.phone_confirmed_at). This function then copies the verified number
+-- to the patient or doctor profile and writes it to the audit log.
+
+create or replace function public.log_phone_verified(p_phone text) returns void
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare u auth.users; digits text := regexp_replace(coalesce(p_phone, ''), '\D', '', 'g');
+begin
+  select * into u from auth.users where id = auth.uid();
+  if u.id is null then perform fail('NOT_SIGNED_IN', 'Please sign in to continue.'); end if;
+  if u.phone_confirmed_at is null or regexp_replace(coalesce(u.phone, ''), '\D', '', 'g') <> digits then
+    perform fail('VALIDATION', 'That phone number hasn’t been confirmed yet.');
+  end if;
+  update patients set phone = '+' || digits where user_id = u.id;
+  update doctors set phone = '+' || digits where user_id = u.id;
+  perform _audit(my_patient_id(), _actor(), 'phone_verified',
+    jsonb_build_object('type', 'account', 'label', '•••• ••' || right(digits, 4)));
+end $$;
+
+revoke execute on function public.log_phone_verified(text) from public, anon;
+grant execute on function public.log_phone_verified(text) to authenticated;
+
+-- Step-up codes can now arrive by SMS too; the wording no longer says "email".
+create or replace function public._require_step_up() returns void
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare ts bigint; sid uuid;
+begin
+  select max((a ->> 'timestamp')::bigint) into ts
+  from jsonb_array_elements(coalesce(auth.jwt() -> 'amr', '[]'::jsonb)) a
+  where a ->> 'method' in ('otp', 'magiclink', 'email/signup', 'sms/signup');
+  if ts is null or to_timestamp(ts) < now() - interval '10 minutes' then
+    perform fail('OTP_EXPIRED', 'Please confirm with the code we send you, then try again.');
+  end if;
+  sid := coalesce(nullif(auth.jwt() ->> 'session_id', '')::uuid, '00000000-0000-0000-0000-000000000000');
+  insert into step_up_uses (session_id, verified_at) values (sid, ts) on conflict do nothing;
+  if not found then perform fail('OTP_EXPIRED', 'That code has already been used. Request a new one.'); end if;
+end $$;
+
+-- ==================================================================
+-- 20261010000002_abha.sql
+-- ==================================================================
+
+-- ABHA (Ayushman Bharat Health Account) linking.
+--
+-- A patient proves they own an ABHA with a code ABDM sends to the ABHA's mobile;
+-- the abdm Edge Function then reads the ABHA profile from ABDM and calls
+-- _link_abha with the service role. Patients can't write links themselves, so an
+-- ABHA can only be linked by someone who completed ABDM's verification.
+
+create table public.abha_links (
+  patient_id text primary key references public.patients(id) on delete cascade,
+  abha_number text not null,
+  abha_address text not null default '',
+  abha_name text not null,
+  linked_at timestamptz not null default now()
+);
+-- One ABHA, one Niveda record.
+create unique index abha_links_number_key on public.abha_links (regexp_replace(abha_number, '\D', '', 'g'));
+alter table public.abha_links enable row level security;
+create policy "patient reads own ABHA link" on public.abha_links for select to authenticated
+  using (patient_id = public.my_patient_id());
+revoke insert, update, delete on public.abha_links from anon, authenticated;
+grant select on public.abha_links to authenticated;
+
+create or replace function public._abha_json(l abha_links) returns jsonb
+language sql immutable as $$
+  select case when l.patient_id is null then null else jsonb_build_object(
+    'abhaNumber', l.abha_number, 'abhaAddress', l.abha_address, 'name', l.abha_name, 'linkedAt', l.linked_at) end
+$$;
+
+-- Service role only (the abdm Edge Function), after ABDM verified the person.
+create or replace function public._link_abha(p_user uuid, p jsonb) returns jsonb
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare pat patients; l abha_links; num text := coalesce(p ->> 'abhaNumber', '');
+begin
+  select * into pat from patients where user_id = p_user;
+  if pat.id is null then perform fail('ACCESS_DENIED', 'Only patients can link an ABHA.'); end if;
+  if regexp_replace(num, '\D', '', 'g') !~ '^\d{14}$' then perform fail('VALIDATION', 'ABDM returned an invalid ABHA number.'); end if;
+  if exists (select 1 from abha_links where regexp_replace(abha_number, '\D', '', 'g') = regexp_replace(num, '\D', '', 'g') and patient_id <> pat.id) then
+    perform fail('CONFLICT', 'This ABHA is already linked to another Niveda record.');
+  end if;
+  insert into abha_links (patient_id, abha_number, abha_address, abha_name)
+  values (pat.id, num, coalesce(p ->> 'abhaAddress', ''), coalesce(p ->> 'name', ''))
+  on conflict (patient_id) do update set abha_number = excluded.abha_number, abha_address = excluded.abha_address,
+    abha_name = excluded.abha_name, linked_at = now()
+  returning * into l;
+  perform _audit(pat.id, jsonb_build_object('id', pat.id, 'role', 'patient', 'name', pat.full_name), 'abha_linked',
+    jsonb_build_object('type', 'account', 'label', 'ABHA xx-xxxx-xxxx-' || right(regexp_replace(num, '\D', '', 'g'), 4)));
+  return _abha_json(l);
+end $$;
+revoke execute on function public._link_abha(uuid, jsonb) from public, anon, authenticated;
+grant execute on function public._link_abha(uuid, jsonb) to service_role;
+
+create or replace function public.my_abha() returns jsonb
+language sql stable security definer set search_path = public, pg_temp as $$
+  select _abha_json(l) from abha_links l where l.patient_id = my_patient_id()
+$$;
+
+create or replace function public.unlink_abha() returns void
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare me text := my_patient_id(); n text;
+begin
+  if me is null then perform fail('ACCESS_DENIED', 'Only patients can unlink an ABHA.'); end if;
+  delete from abha_links where patient_id = me returning abha_number into n;
+  if n is null then perform fail('NOT_FOUND', 'No ABHA is linked.'); end if;
+  perform _audit(me, _actor(), 'abha_unlinked', jsonb_build_object('type', 'account', 'label', 'ABHA xx-xxxx-xxxx-' || right(regexp_replace(n, '\D', '', 'g'), 4)));
+end $$;
+
+revoke execute on function public.my_abha(), public.unlink_abha(), public._abha_json(abha_links) from public, anon;
+grant execute on function public.my_abha(), public.unlink_abha() to authenticated;
+
+-- ==================================================================
+-- 20261010000003_encrypt_sensitive.sql
+-- ==================================================================
+
+-- Field-level encryption for mental-health and other sensitive entries.
+--
+-- The contents (records.data and every record_versions.data) of entries whose
+-- category is mental_health or sensitive are stored encrypted with AES-256
+-- (pgcrypto, OpenPGP symmetric format). The key lives in Supabase Vault, never in
+-- a table or the app, and only these security-definer functions can read it.
+-- A database dump, a backup or someone browsing tables sees only ciphertext.
+--
+-- Reading: row-level security still decides who can see an entry; the app then
+-- asks open_records() for the plaintext, which applies the same rule again.
+-- Audit-log labels for these entries never contain their contents.
+
+-- The key, created once. Rotating it: see docs/SECURITY.md.
+do $$
+begin
+  if not exists (select 1 from vault.secrets where name = 'niveda_record_key') then
+    perform vault.create_secret(encode(extensions.gen_random_bytes(32), 'base64'), 'niveda_record_key',
+      'Encrypts the contents of mental-health and sensitive records. Never delete: those records become unreadable.');
+  end if;
+end $$;
+
+create or replace function public._record_key() returns text
+language sql stable security definer set search_path = '' as $$
+  select decrypted_secret from vault.decrypted_secrets where name = 'niveda_record_key' limit 1
+$$;
+
+create or replace function public._is_sensitive_type(p_type text) returns boolean
+language sql stable security definer set search_path = public, pg_temp as $$
+  select coalesce((select permission in ('mental_health', 'sensitive') from record_types where type = p_type), true)
+$$;
+
+create or replace function public._is_sealed(d jsonb) returns boolean
+language sql immutable as $$ select coalesce(d ? '_enc', false) $$;
+
+create or replace function public._seal(d jsonb) returns jsonb
+language plpgsql stable security definer set search_path = public, pg_temp as $$
+declare k text := _record_key();
+begin
+  if d is null or _is_sealed(d) then return d; end if;
+  if k is null then raise exception using message = 'UNKNOWN: The encryption key is missing.', errcode = 'P0001'; end if;
+  return jsonb_build_object('_enc', encode(extensions.pgp_sym_encrypt(d::text, k, 'cipher-algo=aes256, compress-algo=0'), 'base64'), '_k', 'v1');
+end $$;
+
+create or replace function public._open(d jsonb) returns jsonb
+language plpgsql stable security definer set search_path = public, pg_temp as $$
+begin
+  if not _is_sealed(d) then return d; end if;
+  return extensions.pgp_sym_decrypt(decode(d ->> '_enc', 'base64'), _record_key())::jsonb;
+end $$;
+
+create or replace function public._seal_record() returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  if _is_sensitive_type(new.type) then new.data := _seal(new.data); end if;
+  return new;
+end $$;
+
+create or replace function public._seal_record_version() returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  if _is_sensitive_type((select type from records where id = new.record_id)) then new.data := _seal(new.data); end if;
+  return new;
+end $$;
+
+create trigger records_seal before insert or update of data on public.records
+  for each row execute function public._seal_record();
+create trigger record_versions_seal before insert on public.record_versions
+  for each row execute function public._seal_record_version();
+
+-- Encrypt what's already there. Versions are append-only, so the guard is lifted
+-- only for this one-time rewrite of their storage format (contents unchanged).
+update public.records set data = data where public._is_sensitive_type(type) and not public._is_sealed(data);
+alter table public.record_versions disable trigger record_versions_immutable;
+update public.record_versions v set data = public._seal(v.data)
+  from public.records r where r.id = v.record_id and public._is_sensitive_type(r.type) and not public._is_sealed(v.data);
+alter table public.record_versions enable trigger record_versions_immutable;
+
+-- Titles of sensitive entries (used in notifications and audit labels) are just the category.
+create or replace function public._record_title(r records) returns text
+language sql stable security definer set search_path = public, pg_temp as $$
+  select case when _is_sealed(r.data) then rt.label
+              else coalesce(nullif(trim(r.data ->> rt.title_key), ''), rt.label) end
+  from record_types rt where rt.type = r.type
+$$;
+
+-- Corrections work on the plaintext; the trigger encrypts the new version.
+create or replace function public.amend_record(p_id text, p_date date, p_data jsonb, p_reason text) returns void
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare r records; nxt jsonb; changed text[]; actor jsonb := _actor(); internal jsonb;
+begin
+  if coalesce(trim(p_reason), '') = '' then perform fail('VALIDATION', 'Give a reason for the correction.'); end if;
+  select * into r from records where id = p_id for update;
+  if not found then perform fail('NOT_FOUND', 'This record could not be found.'); end if;
+  r.data := _open(r.data); -- sensitive entries are stored encrypted
+  if actor ->> 'role' = 'patient' then
+    if r.patient_id <> my_patient_id() then perform fail('ACCESS_DENIED', 'You can only change your own record.'); end if;
+    if r.created_by ->> 'role' = 'doctor' then
+      perform fail('ACCESS_DENIED', 'Entries added by a doctor can only be corrected by a doctor. You can add a note as a new record.');
+    end if;
+  else
+    perform _require_grant(r.patient_id, perm_for_type(r.type));
+  end if;
+  select coalesce(jsonb_object_agg(key, value), '{}') into internal from jsonb_each(r.data)
+  where key in ('medStatus', 'discontinuedOn', 'discontinueReason', 'resultRecordId', 'orderRecordId');
+  nxt := _clean_data(r.type, coalesce(p_data, '{}') || internal);
+  perform _validate_data(r.type, nxt);
+  select array_agg(k order by k) into changed from (select jsonb_object_keys(r.data) k union select jsonb_object_keys(nxt)) keys
+  where (r.data -> k) is distinct from (nxt -> k);
+  if changed is null and p_date = r.date then perform fail('VALIDATION', 'Nothing has changed.'); end if;
+  if p_date is distinct from r.date then changed := coalesce(changed, '{}') || 'date'::text; end if;
+  r := _push_version(r.id, 'amended', nxt, coalesce(p_date, r.date), trim(p_reason));
+  perform _audit(r.patient_id, actor, 'record_amended', jsonb_build_object('type', r.type, 'id', r.id, 'label', _record_label(r)),
+    jsonb_build_object('reason', trim(p_reason), 'fields', to_jsonb(changed), 'version', r.version));
+  if actor ->> 'role' = 'doctor' then
+    perform _notify(_patient_user(r.patient_id), 'record', 'Record corrected',
+      (actor ->> 'name') || ' amended “' || _record_title(r) || '”. The original is kept in its history.', '/app/timeline?record=' || r.id);
+  end if;
+end $$;
+
+-- Plaintext of the entries (and their history) this person may see — the same
+-- rule as the row-level security policy on records.
+create or replace function public.open_records(p_ids text[]) returns jsonb
+language sql stable security definer set search_path = public, pg_temp as $$
+  select coalesce(jsonb_object_agg(r.id, jsonb_build_object(
+      'data', _open(r.data),
+      'versions', coalesce((select jsonb_object_agg(v.version::text, _open(v.data)) from record_versions v where v.record_id = r.id), '{}'::jsonb))), '{}'::jsonb)
+  from records r
+  where r.id = any (coalesce(p_ids, '{}')) and _is_sealed(r.data)
+    and (r.patient_id = my_patient_id() or has_grant(r.patient_id, perm_for_type(r.type)))
+$$;
+
+revoke execute on function public._record_key(), public._seal(jsonb), public._open(jsonb), public._seal_record(),
+  public._seal_record_version(), public._is_sensitive_type(text) from public, anon, authenticated;
+revoke execute on function public.open_records(text[]) from public, anon;
+grant execute on function public.open_records(text[]) to authenticated;
+
+-- ==================================================================
+-- 20261010000004_dpdp.sql
+-- ==================================================================
+
+-- India's Digital Personal Data Protection Act 2023 and DPDP Rules 2025.
+--
+--   * Consent: a ledger of what each person agreed to, per purpose, with the
+--     version of the privacy notice they saw. Withdrawing is as easy as giving.
+--   * Erasure (s.12): a person can ask to delete their account. It is erased after
+--     a 7-day window in which they can change their mind (well inside the 90 days
+--     the Rules allow). The process-deletions Edge Function does the erasing.
+--   * Grievances (s.13): complaints get a reference and must be answered within
+--     90 days; the Niveda team (grievance officer) sees and answers them.
+--   * Nominee (s.14): someone who can exercise these rights if the person dies or
+--     can't act for themselves.
+--   * Children (s.9): people under 18 can't open their own account; verifiable
+--     parental consent (e.g. DigiLocker) comes with family accounts.
+--   * Logs: the audit log is append-only and kept for the life of the account
+--     (the Rules require at least one year).
+
+create table public.consents (
+  id text primary key default public.new_id('cns'),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  purpose text not null check (purpose in ('core_record', 'reminders', 'abdm_sharing', 'product_updates')),
+  granted boolean not null,
+  notice_version text not null check (length(notice_version) between 1 and 40),
+  at timestamptz not null default now(),
+  seq bigint generated always as identity  -- orders decisions made at the same instant
+);
+create index consents_user_idx on public.consents (user_id, purpose, at desc, seq desc);
+alter table public.consents enable row level security;
+create policy "own consents" on public.consents for select to authenticated using (user_id = auth.uid());
+create trigger consents_immutable before update or delete on public.consents for each row execute function public.forbid_change();
+
+create table public.deletion_requests (
+  id text primary key default public.new_id('del'),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  requested_at timestamptz not null default now(),
+  erase_after timestamptz not null,
+  status text not null default 'pending' check (status in ('pending', 'cancelled', 'completed')),
+  reason text check (reason is null or length(reason) <= 500)
+);
+create unique index deletion_requests_one_pending on public.deletion_requests (user_id) where status = 'pending';
+alter table public.deletion_requests enable row level security;
+create policy "own deletion requests" on public.deletion_requests for select to authenticated using (user_id = auth.uid());
+
+create table public.grievances (
+  id text primary key default public.new_id('grv'),
+  user_id uuid references auth.users(id) on delete set null,
+  reference text not null unique,
+  category text not null check (category in ('access', 'correction', 'erasure', 'consent', 'security', 'other')),
+  description text not null check (length(trim(description)) between 10 and 4000),
+  status text not null default 'open' check (status in ('open', 'in_progress', 'resolved')),
+  created_at timestamptz not null default now(),
+  respond_by timestamptz not null,
+  response text,
+  resolved_at timestamptz,
+  handled_by uuid
+);
+alter table public.grievances enable row level security;
+create policy "own grievances" on public.grievances for select to authenticated using (user_id = auth.uid());
+
+alter table public.patients add column if not exists nominee jsonb
+  check (nominee is null or (jsonb_typeof(nominee) = 'object' and length(nominee::text) < 1000));
+
+revoke insert, update, delete on public.consents, public.deletion_requests, public.grievances from anon, authenticated;
+grant select on public.consents, public.deletion_requests, public.grievances to authenticated;
+
+/* ---------- consent ---------- */
+
+create or replace function public._consent_json(c consents) returns jsonb
+language sql immutable as $$
+  select jsonb_build_object('id', c.id, 'purpose', c.purpose, 'granted', c.granted, 'noticeVersion', c.notice_version, 'at', c.at)
+$$;
+
+create or replace function public._set_med_alarms(p_user uuid, p_on boolean) returns void
+language sql security definer set search_path = public, pg_temp as $$
+  insert into preferences (user_id, prefs) values (p_user, jsonb_build_object('medAlarms', p_on))
+  on conflict (user_id) do update set prefs = preferences.prefs || jsonb_build_object('medAlarms', p_on)
+$$;
+
+create or replace function public.record_consent(p_purpose text, p_granted boolean, p_notice_version text) returns jsonb
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare c consents;
+begin
+  if auth.uid() is null then perform fail('NOT_SIGNED_IN', 'Please sign in to continue.'); end if;
+  if p_purpose = 'core_record' and not p_granted then
+    perform fail('VALIDATION', 'Niveda can’t keep your record without this. To stop entirely, delete your account instead.');
+  end if;
+  insert into consents (user_id, purpose, granted, notice_version) values (auth.uid(), p_purpose, p_granted, coalesce(nullif(trim(p_notice_version), ''), 'unknown'))
+  returning * into c;
+  -- Withdrawing reminder consent stops the reminders (pushed ones check this setting).
+  if p_purpose = 'reminders' then perform _set_med_alarms(auth.uid(), p_granted); end if;
+  perform _audit(my_patient_id(), _actor(), case when p_granted then 'consent_given' else 'consent_withdrawn' end,
+    jsonb_build_object('type', 'consent', 'id', c.id, 'label', p_purpose));
+  return _consent_json(c);
+end $$;
+
+-- The latest decision per purpose.
+create or replace function public.my_consents() returns jsonb
+language sql stable security definer set search_path = public, pg_temp as $$
+  select coalesce(jsonb_agg(_consent_json(c) order by c.purpose), '[]'::jsonb)
+  from (select distinct on (purpose) * from consents where user_id = auth.uid() order by purpose, at desc, seq desc) c
+$$;
+
+/* ---------- sign-up: consent required, under-18s can't sign up alone ---------- */
+
+create or replace function public._signup_consents(p_user uuid, meta jsonb) returns void
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare v text := coalesce(nullif(meta ->> 'privacy_notice_version', ''), 'unknown'); p text;
+begin
+  insert into consents (user_id, purpose, granted, notice_version) values (p_user, 'core_record', true, v);
+  foreach p in array array['reminders', 'product_updates'] loop
+    if meta ? ('consent_' || p) then
+      insert into consents (user_id, purpose, granted, notice_version) values (p_user, p, coalesce((meta ->> ('consent_' || p))::boolean, false), v);
+      if p = 'reminders' then perform _set_med_alarms(p_user, coalesce((meta ->> 'consent_reminders')::boolean, false)); end if;
+    end if;
+  end loop;
+end $$;
+
+create or replace function public.complete_signup() returns jsonb
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare meta jsonb; v_email text; v_code text; v_pid text; v_name text; v_dob date; v_phone text; c jsonb;
+begin
+  if auth.uid() is null then perform fail('NOT_SIGNED_IN', 'Please sign in to continue.'); end if;
+  if exists (select 1 from accounts where user_id = auth.uid()) then return my_account(); end if;
+  select raw_user_meta_data, email into meta, v_email from auth.users where id = auth.uid();
+
+  if coalesce((meta ->> 'privacy_consent')::boolean, false) is not true then
+    perform fail('VALIDATION', 'Please read and accept the privacy notice to create your account.');
+  end if;
+
+  if meta ->> 'signup_kind' = 'doctor' then
+    c := _clean_application(meta);
+    perform _assert_registration_free(c ->> 'registrationNumber', auth.uid());
+    insert into accounts (user_id, role, onboarded) values (auth.uid(), 'applicant', true);
+    insert into doctor_applications (user_id, full_name, email, phone, registration_number, medical_council, registration_year,
+      specialization, qualifications, years_of_practice, hospital_name, hospital_city, hospital_type)
+    values (auth.uid(), c ->> 'fullName', v_email, c ->> 'phone', c ->> 'registrationNumber', c ->> 'medicalCouncil',
+      (c ->> 'registrationYear')::int, c ->> 'specialization', c ->> 'qualifications', (c ->> 'yearsOfPractice')::int,
+      c ->> 'hospitalName', c ->> 'hospitalCity', c ->> 'hospitalType');
+    perform _signup_consents(auth.uid(), meta);
+    insert into notifications (user_id, kind, title, body, link) values (auth.uid(), 'security', 'Application received',
+      'The Niveda team will check your registration and let you know here. This usually takes 1–2 working days.', '/doctor-application');
+    return my_account();
+  end if;
+
+  v_name := trim(coalesce(meta ->> 'full_name', ''));
+  v_phone := trim(coalesce(meta ->> 'phone', ''));
+  begin v_dob := (meta ->> 'date_of_birth')::date; exception when others then v_dob := null; end;
+  if v_name = '' or v_dob is null or length(regexp_replace(v_phone, '\D', '', 'g')) < 10 then
+    perform fail('VALIDATION', 'Your sign-up details are incomplete. Please sign up again.');
+  end if;
+  if v_dob > current_date - interval '18 years' then
+    perform fail('VALIDATION', 'You need to be 18 or older to create your own account. A parent or guardian can keep your records for now.');
+  end if;
+  if exists (select 1 from patients where right(regexp_replace(patients.phone, '\D', '', 'g'), 10) = right(regexp_replace(v_phone, '\D', '', 'g'), 10)) then
+    perform fail('CONFLICT', 'This phone number is already linked to an account.');
+  end if;
+  loop
+    v_code := 'NV-' || lpad((floor(random() * 10000))::int::text, 4, '0') || '-' || lpad((floor(random() * 10000))::int::text, 4, '0');
+    exit when not exists (select 1 from patients where patient_code = v_code);
+  end loop;
+  insert into accounts (user_id, role) values (auth.uid(), 'patient');
+  insert into patients (user_id, patient_code, full_name, date_of_birth, email, phone)
+  values (auth.uid(), v_code, v_name, v_dob, v_email, v_phone) returning id into v_pid;
+  perform _audit(v_pid, jsonb_build_object('id', v_pid, 'role', 'patient', 'name', v_name), 'account_created', '{"type":"account","label":"Patient account"}');
+  perform _signup_consents(auth.uid(), meta);
+  insert into notifications (user_id, kind, title, body, link) values (auth.uid(), 'security', 'Welcome to Niveda',
+    'Your record is private by default. Only doctors you grant access to can see it, and every view is logged.', '/app/privacy');
+  return my_account();
+end $$;
+
+/* ---------- nominee ---------- */
+
+create or replace function public.set_nominee(p jsonb) returns void
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare me text := my_patient_id(); n jsonb;
+begin
+  if me is null then perform fail('ACCESS_DENIED', 'Only patients can name a nominee.'); end if;
+  if p is null or p = 'null'::jsonb then update patients set nominee = null where id = me; return; end if;
+  n := jsonb_build_object('name', left(trim(coalesce(p ->> 'name', '')), 120), 'relationship', left(trim(coalesce(p ->> 'relationship', '')), 60),
+    'phone', left(trim(coalesce(p ->> 'phone', '')), 20), 'email', left(trim(coalesce(p ->> 'email', '')), 120));
+  if n ->> 'name' = '' or n ->> 'relationship' = '' or length(regexp_replace(n ->> 'phone', '\D', '', 'g')) < 10 then
+    perform fail('VALIDATION', 'Give your nominee’s name, relationship and phone number.');
+  end if;
+  update patients set nominee = n where id = me;
+end $$;
+
+/* ---------- erasure ---------- */
+
+create or replace function public._deletion_json(d deletion_requests) returns jsonb
+language sql immutable as $$
+  select case when d.id is null then null else jsonb_build_object('id', d.id, 'requestedAt', d.requested_at, 'eraseAfter', d.erase_after,
+    'status', d.status, 'reason', d.reason) end
+$$;
+
+create or replace function public.request_deletion(p_reason text default null) returns jsonb
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare d deletion_requests;
+begin
+  if auth.uid() is null then perform fail('NOT_SIGNED_IN', 'Please sign in to continue.'); end if;
+  perform _require_step_up();
+  if exists (select 1 from deletion_requests where user_id = auth.uid() and status = 'pending') then
+    perform fail('CONFLICT', 'Your account is already scheduled for deletion.');
+  end if;
+  insert into deletion_requests (user_id, erase_after, reason) values (auth.uid(), now() + interval '7 days', nullif(left(trim(coalesce(p_reason, '')), 500), ''))
+  returning * into d;
+  -- Nobody keeps access to a record that's about to be erased.
+  update access_grants set status = 'revoked', revoked_at = now() where patient_id = my_patient_id() and status = 'active';
+  perform _audit(my_patient_id(), _actor(), 'deletion_requested', jsonb_build_object('type', 'account', 'label', 'Erase on ' || to_char(d.erase_after at time zone 'Asia/Kolkata', 'DD Mon YYYY')));
+  insert into notifications (user_id, kind, title, body, link) values (auth.uid(), 'security', 'Account deletion scheduled',
+    'Your account and record will be erased on ' || to_char(d.erase_after at time zone 'Asia/Kolkata', 'DD Mon YYYY') || '. You can cancel until then in Privacy & security.', '/app/privacy');
+  return _deletion_json(d);
+end $$;
+
+create or replace function public.cancel_deletion() returns void
+language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  update deletion_requests set status = 'cancelled' where user_id = auth.uid() and status = 'pending';
+  if not found then perform fail('NOT_FOUND', 'There’s no deletion to cancel.'); end if;
+  perform _audit(my_patient_id(), _actor(), 'deletion_cancelled', '{"type":"account","label":"Deletion cancelled"}');
+end $$;
+
+create or replace function public.my_deletion_request() returns jsonb
+language sql stable security definer set search_path = public, pg_temp as $$
+  select _deletion_json(d) from deletion_requests d where d.user_id = auth.uid() and d.status = 'pending'
+$$;
+
+-- For the process-deletions Edge Function (service role): who is due, and their document folder.
+create or replace function public._due_deletions() returns jsonb
+language sql stable security definer set search_path = public, pg_temp as $$
+  select coalesce(jsonb_agg(jsonb_build_object('requestId', d.id, 'userId', d.user_id, 'patientId', p.id)), '[]'::jsonb)
+  from deletion_requests d left join patients p on p.user_id = d.user_id
+  where d.status = 'pending' and d.erase_after <= now()
+$$;
+
+-- Erases everything about the person. Grievances are kept, without the link to them.
+create or replace function public._erase_account(p_request text) returns void
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare d deletion_requests;
+begin
+  select * into d from deletion_requests where id = p_request and status = 'pending' and erase_after <= now() for update;
+  if d.id is null then perform fail('NOT_FOUND', 'No deletion is due for this request.'); end if;
+  perform set_config('niveda.allow_erasure', 'on', true);
+  delete from auth.users where id = d.user_id;
+  perform set_config('niveda.allow_erasure', 'off', true);
+end $$;
+
+/* ---------- grievances ---------- */
+
+create or replace function public._grievance_json(g grievances) returns jsonb
+language sql immutable as $$
+  select jsonb_build_object('id', g.id, 'reference', g.reference, 'category', g.category, 'description', g.description,
+    'status', g.status, 'createdAt', g.created_at, 'respondBy', g.respond_by, 'response', g.response, 'resolvedAt', g.resolved_at)
+$$;
+
+create or replace function public.file_grievance(p_category text, p_description text) returns jsonb
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare g grievances; ref text;
+begin
+  if auth.uid() is null then perform fail('NOT_SIGNED_IN', 'Please sign in to continue.'); end if;
+  if length(trim(coalesce(p_description, ''))) < 10 then perform fail('VALIDATION', 'Tell us a little more (at least 10 characters).'); end if;
+  if (select count(*) from grievances where user_id = auth.uid() and created_at > now() - interval '1 day') >= 5 then
+    perform fail('VALIDATION', 'You’ve raised several grievances today. We’ll respond to those first.');
+  end if;
+  loop
+    ref := 'NV-GRV-' || to_char(now(), 'YYMM') || '-' || lpad((floor(random() * 100000))::int::text, 5, '0');
+    exit when not exists (select 1 from grievances where reference = ref);
+  end loop;
+  insert into grievances (user_id, reference, category, description, respond_by)
+  values (auth.uid(), ref, p_category, trim(p_description), now() + interval '90 days') returning * into g;
+  perform _audit(my_patient_id(), _actor(), 'grievance_filed', jsonb_build_object('type', 'grievance', 'id', g.id, 'label', ref));
+  return _grievance_json(g);
+end $$;
+
+create or replace function public.my_grievances() returns jsonb
+language sql stable security definer set search_path = public, pg_temp as $$
+  select coalesce(jsonb_agg(_grievance_json(g) order by g.created_at desc), '[]'::jsonb) from grievances g where g.user_id = auth.uid()
+$$;
+
+create or replace function public.admin_grievances(p_status text default null) returns jsonb
+language plpgsql stable security definer set search_path = public, pg_temp as $$
+begin
+  if not is_admin() then perform fail('ACCESS_DENIED', 'Only the Niveda team can see grievances.'); end if;
+  return coalesce((select jsonb_agg(_grievance_json(g) order by (g.status = 'resolved'), g.respond_by) from grievances g
+    where p_status is null or g.status = p_status), '[]'::jsonb);
+end $$;
+
+create or replace function public.admin_respond_grievance(p_id text, p_status text, p_response text) returns void
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare g grievances;
+begin
+  if not is_admin() then perform fail('ACCESS_DENIED', 'Only the Niveda team can answer grievances.'); end if;
+  if p_status not in ('in_progress', 'resolved') then perform fail('VALIDATION', 'Choose in progress or resolved.'); end if;
+  if p_status = 'resolved' and length(trim(coalesce(p_response, ''))) < 10 then perform fail('VALIDATION', 'Write the response the person will see.'); end if;
+  update grievances set status = p_status, response = nullif(trim(coalesce(p_response, '')), ''), handled_by = auth.uid(),
+    resolved_at = case when p_status = 'resolved' then now() end
+  where id = p_id returning * into g;
+  if g.id is null then perform fail('NOT_FOUND', 'Grievance not found.'); end if;
+  if g.user_id is not null then
+    insert into notifications (user_id, kind, title, body, link) values (g.user_id, 'security',
+      case when p_status = 'resolved' then 'Your grievance was answered' else 'We’re working on your grievance' end,
+      g.reference || ': ' || coalesce(left(g.response, 200), 'The Niveda team is looking into it.'), '/app/privacy');
+  end if;
+end $$;
+
+/* ---------- privileges ---------- */
+
+revoke execute on function public._set_med_alarms(uuid, boolean), public._consent_json(consents), public._signup_consents(uuid, jsonb), public._deletion_json(deletion_requests),
+  public._due_deletions(), public._erase_account(text), public._grievance_json(grievances) from public, anon, authenticated;
+grant execute on function public._due_deletions(), public._erase_account(text) to service_role;
+revoke execute on function public.record_consent(text, boolean, text), public.my_consents(), public.set_nominee(jsonb),
+  public.request_deletion(text), public.cancel_deletion(), public.my_deletion_request(), public.file_grievance(text, text),
+  public.my_grievances(), public.admin_grievances(text), public.admin_respond_grievance(text, text, text) from public, anon;
+grant execute on function public.record_consent(text, boolean, text), public.my_consents(), public.set_nominee(jsonb),
+  public.request_deletion(text), public.cancel_deletion(), public.my_deletion_request(), public.file_grievance(text, text),
+  public.my_grievances(), public.admin_grievances(text), public.admin_respond_grievance(text, text, text) to authenticated;
+
+/* ---------- daily erasure job ---------- */
+
+-- select public.configure_deletions('https://<project>.supabase.co/functions/v1/process-deletions', '<CRON_SECRET>');
+create or replace function public.configure_deletions(p_function_url text, p_secret text)
+returns text language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  if coalesce(p_function_url, '') !~ '^https?://' or length(coalesce(p_secret, '')) < 16 then
+    perform fail('VALIDATION', 'Give the process-deletions function URL and a secret of at least 16 characters.');
+  end if;
+  create extension if not exists pg_net;
+  create extension if not exists pg_cron;
+  perform cron.unschedule(jobid) from cron.job where jobname = 'niveda-process-deletions';
+  perform cron.schedule('niveda-process-deletions', '17 * * * *', format(
+    'select net.http_post(url := %L, headers := jsonb_build_object(%L, %L, %L, %L), body := %L::jsonb)',
+    p_function_url, 'content-type', 'application/json', 'x-niveda-cron', p_secret, '{}'));
+  return 'Account deletions will be processed every hour.';
+end $$;
+revoke execute on function public.configure_deletions(text, text) from public, anon, authenticated;
+
+-- ==================================================================
+-- 20261010000005_security_hardening.sql
+-- ==================================================================
+
+-- Security hardening found by the automated audit in tests/db/backend.test.mjs.
+--
+-- Supabase grants every new table's privileges to anon and authenticated by
+-- default. Row-level security stops INSERT/UPDATE/DELETE without a policy, but
+-- TRUNCATE ignores row-level security. The REST API never issues TRUNCATE, so this
+-- wasn't reachable, but no client role should hold privileges it doesn't use.
+
+-- Nobody signed out writes anything directly; signed-in users never truncate.
+revoke insert, update, delete, truncate, references, trigger on all tables in schema public from anon;
+revoke truncate, references, trigger on all tables in schema public from authenticated;
+
+-- Tables written only through security-definer functions.
+revoke insert, update, delete on public.admins, public.doctor_applications, public.emergency_accesses,
+  public.abha_links, public.consents, public.deletion_requests, public.grievances from authenticated;
+
+-- And for tables created later.
+alter default privileges in schema public revoke truncate, references, trigger on tables from anon, authenticated;
+alter default privileges in schema public revoke insert, update, delete on tables from anon;
+
+-- Postgres lets everyone (PUBLIC) execute new functions unless told otherwise, so a
+-- few functions added after the original privilege reset were callable without
+-- signing in. Each checks permissions itself, but signed-out callers get nothing.
+-- The only function meant for signed-out use is "Taken" from a push notification.
+do $$
+declare f record;
+begin
+  for f in select p.oid::regprocedure as sig from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'public' and p.proname <> 'mark_dose_from_push'
+  loop
+    execute format('revoke execute on function %s from public, anon', f.sig);
+  end loop;
+end $$;
+
+-- Internal helpers aren't for signed-in clients either.
+revoke execute on function public._application_json(doctor_applications), public._assert_registration_free(text, uuid),
+  public._clean_application(jsonb), public._emergency_reason_label(text), public._is_sealed(jsonb) from authenticated;
+
+-- New functions start private; each migration grants what clients need.
+alter default privileges in schema public revoke execute on functions from public;
+
+-- ==================================================================
+-- 20261010000006_push_token_clock.sql
+-- ==================================================================
+
+-- "Taken" tokens on pushed reminders now expire 12 hours after the push's own time
+-- (p_now) rather than the database clock. They're the same moment in production;
+-- using one clock keeps the cleanup at the top of the function from deleting a
+-- token it just created when the job is run for a given time (as the tests do).
+
+create or replace function public._due_push_reminders(p_now timestamptz default now())
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
+declare out jsonb := '[]'; s record; tok text; names text;
+begin
+  delete from push_sent where sent_at < p_now - interval '2 days';
+  delete from dose_push_tokens where expires_at < p_now;
+  for s in
+    with subs as (
+      select ps.id, ps.endpoint, ps.p256dh, ps.auth, pt.id as patient_id, (p_now at time zone ps.time_zone) as local_now
+      from push_subscriptions ps
+      join patients pt on pt.user_id = ps.user_id
+      left join preferences pr on pr.user_id = ps.user_id
+      where coalesce(pr.prefs ->> 'medAlarms', 'true') <> 'false'
+    ), due as (
+      select subs.id as sub_id, subs.endpoint, subs.p256dh, subs.auth, subs.patient_id,
+             subs.local_now::date as d, t.time, r.id as record_id, r.data
+      from subs
+      join medication_reminders mr on mr.patient_id = subs.patient_id and mr.enabled
+      join records r on r.id = mr.record_id and r.type = 'medication'
+      cross join lateral unnest(mr.times) as t(time)
+      where subs.local_now::date >= r.date
+        and (coalesce(r.data ->> 'endDate', '') = '' or subs.local_now::date <= (r.data ->> 'endDate')::date)
+        and (coalesce(r.data ->> 'discontinuedOn', '') = '' or subs.local_now::date < (r.data ->> 'discontinuedOn')::date)
+        and (r.data ->> 'frequency' is distinct from 'Weekly' or extract(dow from subs.local_now) = extract(dow from r.date))
+        and subs.local_now >= subs.local_now::date + t.time::time
+        and subs.local_now < subs.local_now::date + t.time::time + interval '10 minutes'
+        and not exists (select 1 from dose_logs dl where dl.record_id = r.id and dl.date = subs.local_now::date and dl.time = t.time)
+    )
+    select sub_id, endpoint, p256dh, auth, patient_id, d, time,
+           jsonb_agg(jsonb_build_object('recordId', record_id, 'date', d, 'time', time,
+                     'label', trim(coalesce(data ->> 'name', 'Medicine') || ' ' || coalesce(data ->> 'dosage', ''))) order by data ->> 'name') as doses
+    from due group by sub_id, endpoint, p256dh, auth, patient_id, d, time
+  loop
+    insert into push_sent (subscription_id, slot) values (s.sub_id, s.d || ' ' || s.time) on conflict do nothing;
+    if not found then continue; end if;
+    tok := replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', '');
+    insert into dose_push_tokens (token, patient_id, doses, expires_at)
+    values (tok, s.patient_id, (select jsonb_agg(x - 'label') from jsonb_array_elements(s.doses) x), p_now + interval '12 hours');
+    select string_agg(x ->> 'label', ', ') into names from jsonb_array_elements(s.doses) x;
+    out := out || jsonb_build_object(
+      'endpoint', s.endpoint, 'p256dh', s.p256dh, 'auth', s.auth,
+      'title', 'Time for your medicine',
+      'body', names || ' · ' || to_char(s.time::time, 'FMHH12:MI AM'),
+      'tag', 'dose-' || s.d || '-' || s.time,
+      'url', '#/app/medications',
+      'token', tok);
+  end loop;
+  return out;
+end $$;

@@ -135,7 +135,7 @@ Password for all demo accounts: **`demo1234`**. Logging in starts with **Who's l
 1. As **Meera**, open *Timeline* — nine years of history, with visits grouped with their diagnoses, prescriptions and lab results.
 2. Go to *Doctors & access → Requests* and approve Dr. Arvind Rao with fewer permissions than he asked for.
 3. On *Medications*, see today's doses, adherence and reminder times; try *Phone & smartwatch*.
-4. As **Dr. Priya**, open Meera → *Add to medical record*. Enter a visit with a diagnosis, a prescription, a lab order and a PDF attachment. Save.
+4. As **Dr. Priya**, open Meera → *Add to medical record*. Enter a visit with a diagnosis, a prescription, a lab order, a PDF attachment and the note for the next visit. Save.
 5. Back as **Meera**: the visit is in the timeline, the medicine is in *Medications* with a reminder already set, there's a notification, and the *Access log* shows exactly what happened.
 6. As **Dr. Priya**, open the diagnosis and *Correct this entry*. See the old and new versions side by side.
 7. As **Meera**, revoke Dr. Priya's access. Her tab immediately shows "You don't have access to this record".
@@ -226,6 +226,23 @@ Password for all demo accounts: **`demo1234`**. Logging in starts with **Who's l
 - Doctors are reminded to patients a day before access ends; expiry is logged and both sides are notified.
 - A doctor can't browse patients. Looking up an ID without access returns only a masked name.
 
+## Pre-visit brief
+
+Doctors can spend 15–20 minutes going through a patient's old records before a consultation. When a doctor opens a patient, Niveda opens on a **Brief** tab that sums up the record on one screen:
+
+| Section | What it shows |
+|---|---|
+| Needs attention | the last visit's follow-up (due or overdue), lab results still awaited, vaccines due within 30 days |
+| Allergies | severest first, life-threatening ones in red |
+| Active problems | ongoing, managed and suspected conditions, with who diagnosed them and since when |
+| Current medicines | dose, frequency, what for, prescriber, start and end dates |
+| Stopped recently | medicines stopped in the last 2 years, with the reason |
+| Lab results | latest result per test, flagged, with earlier results of the same test so the trend is visible; recent results outside the normal range come first |
+| Last visit | reason, diagnosis, doctor, hospital and the note for the next visit |
+| Surgeries & hospital stays, imaging, past problems, family history | one line each |
+
+Every line opens the entry it came from (and its documents), so the summary is never the only evidence. The brief is built only from what the patient has shared with that doctor and says which sections weren't shared. It's built from the structured entries; reading uploaded PDFs into it is a planned next step. The logic is in [`src/lib/brief.ts`](src/lib/brief.ts).
+
 ## How a doctor adds to the record
 
 One form captures a whole visit and saves it in a single step:
@@ -238,10 +255,17 @@ One form captures a whole visit and saves it in a single step:
 | Tests to order | linked **Lab test** orders; results can be added later and link back |
 | Follow-up date | a linked **Follow-up** entry, shown on the patient's dashboard |
 | Files | **Attachments** on the consultation |
+| Note for the next visit (**required**) | saved on the consultation and shown at the top of the record to whoever sees the patient next |
 
 While writing, the doctor sees a side panel with the patient's allergies, current medicines and conditions, and a warning appears if they prescribe while the patient has a severe allergy. The doctor's name and hospital are filled in automatically and cannot be changed. After saving, the patient is notified ("Dr. Priya Sharma added a consultation, a diagnosis, 1 prescription and 1 lab order to your medical record") and every entry is logged.
 
-Doctors can also add any single entry type — clinical note, vaccination, imaging, procedure and so on.
+### Note for the next visit
+
+Every visit ends with a short, compulsory note for the next visit — what the same doctor at the follow-up, or a different doctor if the patient goes elsewhere, should know or check (e.g. "Review chest X-ray. If fever persists beyond 72 h, switch antibiotic"). The visit can't be saved without it (at least 10 characters), and the database enforces the same rule, so it can't be skipped from another client.
+
+The newest note sits at the top of the patient's record for the next doctor, with who wrote it, where, when and the follow-up date, and in the side panel while they write their own entry. It lives on the consultation, so it follows the same sharing rules (the patient's *history* permission), keeps version history if corrected, and the patient can read it in their timeline. Consultations a patient adds themselves don't need one.
+
+Doctors can also add any other single entry type — clinical note, vaccination, imaging, procedure and so on. Visits always go through the consultation form, so they always end with the note.
 
 ## Corrections and versioning
 
@@ -446,18 +470,25 @@ Done with the live backend:
 - ✅ **Doctor sign-up with verification** — doctors apply with their medical council registration; a Niveda administrator checks it on the Indian Medical Register and verifies or asks for changes.
 - ✅ Encryption in transit and at rest (provided by Supabase).
 
-Still to do:
+Done in October 2026:
 
-1. **Identity** — server-enforced multi-factor authentication (Supabase MFA), SMS codes (e.g. MSG91/Twilio), device management beyond sign-out.
-2. **Encryption** — field-level encryption for mental-health and other sensitive categories, with key management.
-3. **Document handling** — virus scanning, and downloads through an Edge Function so document views are logged by the server rather than the app.
-4. **Clinician verification** — automatic checks through ABDM's Healthcare Professionals Registry instead of by hand; hospital and organisation accounts.
-5. **Emergency ("break-glass") access** — ✅ built: verified doctors only, a stated reason and justification, a fresh emailed code, allergies/medicines/conditions/surgeries only, 4 hours, at most 3 uses a day, the patient told at once, and every use reviewed by the Niveda team. Still to do: a formal policy reviewed by clinicians and lawyers, and notifying the emergency contact.
-6. **Compliance** — India's Digital Personal Data Protection Act 2023, ABDM / ABHA integration and consent artefacts, and HIPAA / GDPR where relevant; retention and deletion policies; security audits and penetration testing.
-7. **Interoperability** — FHIR R4 import and export; integrations with labs and hospital systems.
-8. **Operations** — monitoring and alerting, backups with point-in-time recovery, tuned rate limits, custom email delivery at scale.
-9. **Mobile app** — ✅ Android app with medicine alarms that ring when the app is closed (see below). ✅ The website installs as an app on iPhone, iPad and computers, opens offline, and gets medicine reminders pushed by the server. Still to do: a Play Store release (needs a release signing key and a Play Console account), an App Store iPhone app, and the lock-screen emergency card.
-10. **Smartwatch integration** — ✅ reminders with Taken / Snooze / Skip appear on paired Wear OS watches through the phone's notifications. Still to do: a dedicated watch app and Apple HealthKit / Google Health Connect sync.
+- ✅ **SMS codes** — sign-in and step-up codes by SMS to a verified phone (MSG91 for India, or Twilio) through Supabase's Send SMS hook. Setup: [docs/SUPABASE_SETUP.md §10](docs/SUPABASE_SETUP.md#10-sms-codes-optional-recommended-for-india).
+- ✅ **ABHA linking (ABDM M1)** — link an ABHA by ABHA number or mobile with ABDM's OTP; verified server-side and matched to the patient. [docs/ABDM.md](docs/ABDM.md)
+- ✅ **Field-level encryption** — mental-health and sensitive entries (and their history) encrypted with AES-256, key in Supabase Vault. [docs/SECURITY.md](docs/SECURITY.md#key-management)
+- ✅ **DPDP Act** — consent ledger with one-tap withdrawal, account deletion with a 7-day undo window, grievances with a 90-day deadline, nominee, under-18 protection, a real privacy notice. [docs/DPDP.md](docs/DPDP.md)
+- ✅ **Security review** — automated audit in the database tests (RLS everywhere, no unbacked privileges, no internal functions exposed); two privilege issues found and fixed; Content Security Policy. [docs/SECURITY.md](docs/SECURITY.md)
+- ✅ **Store-ready builds** — signed Play Store bundle workflow, iPhone app with TestFlight workflow. [docs/STORE_RELEASE.md](docs/STORE_RELEASE.md)
+- ✅ **Pre-visit brief** and the required **note for the next visit**.
+
+Still needs you (accounts, money or outside people):
+
+1. **Independent penetration test** by a CERT-In empanelled auditor — scope in [docs/SECURITY.md](docs/SECURITY.md#penetration-test-scope-for-the-auditor).
+2. **Legal review** of the privacy notice, terms and DPDP map; real grievance officer and support email in `src/config/brand.ts`.
+3. **Accounts and keys:** MSG91/Twilio (with DLT templates), ABDM sandbox → production credentials, Google Play Console, Apple Developer Program.
+4. **Server-enforced MFA** (Supabase MFA), virus scanning of uploads, unskippable document-view logging.
+5. **ABDM M2/M3** — share and fetch records as FHIR with consent artefacts; FHIR R4 import/export.
+6. **Operations** — monitoring and alerts, point-in-time recovery, incident drill ([docs/INCIDENT_RESPONSE.md](docs/INCIDENT_RESPONSE.md)).
+7. Dedicated smartwatch app and Apple HealthKit / Google Health Connect sync.
 
 ## Roadmap ideas
 

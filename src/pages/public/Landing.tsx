@@ -70,26 +70,79 @@ export function LandingPage() {
 }
 
 export function LegalPage({ kind }: { kind: 'terms' | 'privacy' }) {
-  useDocumentTitle(`${kind === 'terms' ? 'Terms' : 'Privacy'} · ${brand.name}`);
+  useDocumentTitle(`${kind === 'terms' ? 'Terms' : 'Privacy notice'} · ${brand.name}`);
+  const g = brand.grievanceOfficer;
   return (
     <div className="landing">
       <header className="landing-nav"><Brand /><Link to="/" className="btn btn-ghost">Back</Link></header>
-      <main className="content" style={{ maxWidth: 720 }}>
-        <div className="alert alert-warn"><TriangleAlert aria-hidden /><div>This is placeholder text for a prototype. It is not a legal document.</div></div>
+      <main className="content legal" style={{ maxWidth: 760 }}>
+        {!brand.legalReviewed && <div className="alert alert-warn"><TriangleAlert aria-hidden /><div>Draft pending legal review. It describes how {brand.name} actually works, but it hasn’t yet been checked by a lawyer.</div></div>}
         {kind === 'privacy' ? (
           <div className="stack">
-            <h1>Privacy notice (draft)</h1>
-            <p>Your medical record belongs to you. {brand.name} stores it so that you can see it and decide who else can.</p>
-            <h3>Who can see your record</h3><p>Only you, and doctors you grant access to. Each grant is limited to the parts of your record you choose and ends automatically. You can revoke it at any time.</p>
-            <h3>What we log</h3><p>Every time a doctor opens your record, views a document or adds or corrects an entry, we record who, what and when. You can see this in your access log.</p>
-            <h3>Emergencies</h3><p>If you turn on your emergency card, the details you choose (blood group, allergies, key conditions and an emergency contact) can be shown without signing in.</p>
-            <h3>Your rights</h3><p>You can export your full record and ask for your account to be closed.</p>
+            <h1>Privacy notice</h1>
+            <p className="small muted">Version {brand.privacyNoticeVersion}. Written for India’s Digital Personal Data Protection Act, 2023 and the DPDP Rules, 2025.</p>
+            <p>Your medical record belongs to you. {brand.dataFiduciary} (“we”) keeps it so that you can see it and decide who else can. This notice explains what we collect, why, who sees it, how long we keep it and your rights. You can read it in any of the 22 languages of the Eighth Schedule on request.</p>
+
+            <h2>What we collect</h2>
+            <ul>
+              <li><b>Account details:</b> name, date of birth, email, mobile number, password (stored only as a one-way hash).</li>
+              <li><b>Your health record:</b> what you or the doctors you allow add — visits, diagnoses, medicines, allergies, test results, surgeries, vaccinations, documents and notes.</li>
+              <li><b>Emergency details:</b> blood group, emergency contact and anything you choose to show on your emergency card.</li>
+              <li><b>ABHA details,</b> only if you link your Ayushman Bharat Health Account: ABHA number, ABHA address and the name on it.</li>
+              <li><b>Activity and security logs:</b> sign-ins, devices, and every view, addition or correction of your record.</li>
+            </ul>
+
+            <h2>Why we use it — and what you agree to</h2>
+            <p>We use your data only for the purposes you agree to, and you can withdraw any optional consent at any time in <b>Privacy &amp; security</b>. Withdrawing doesn’t affect what was done before.</p>
+            <ul>
+              <li><b>Keeping your health record</b> (needed to use {brand.name}): storing it, showing it to you, and sharing the parts you choose with the doctors you approve, for as long as you allow.</li>
+              <li><b>Medicine reminders</b> (optional): sending reminders to your phone, computer or watch.</li>
+              <li><b>Sharing through ABDM</b> (optional): linking your ABHA and exchanging records with other ABDM apps when you approve each request.</li>
+              <li><b>Product updates</b> (optional): occasional news about new features. Never advertising; we never sell your data.</li>
+            </ul>
+
+            <h2>Who can see your record</h2>
+            <p>Only you, and doctors you grant access to. Each grant covers only the parts you choose and ends automatically; you can revoke it at any time. Mental-health and other sensitive entries are hidden unless you share them, and are stored encrypted. In an emergency a verified doctor can see only your allergies, medicines, conditions and surgeries, for 4 hours; you are told immediately and our team reviews every such access.</p>
+            <p>Our staff can’t read your record. We use these service providers, under contracts that require the same protection: Supabase (database and file storage, India region), our SMS provider (MSG91 or Twilio, for one-time codes) and our email provider. If you link ABHA, the National Health Authority’s ABDM systems receive what that linking needs.</p>
+
+            <h2>How long we keep it</h2>
+            <p>As long as you have an account. If you ask us to delete your account, it is erased 7 days later (so you can change your mind) — your record, documents, logs and consents. Backups that still contain it are overwritten within 30 days. Grievances are kept without your name, as the law requires. Activity logs are kept for at least one year while your account exists.</p>
+
+            <h2>Your rights</h2>
+            <ul>
+              <li><b>See your data:</b> everything is visible in the app, and you can download it all from Settings → Data &amp; export.</li>
+              <li><b>Correct it:</b> edit what you added; ask the doctor (or us) to correct their entries. Every correction keeps the original.</li>
+              <li><b>Erase it:</b> delete your account from Privacy &amp; security.</li>
+              <li><b>Withdraw consent</b> for any optional purpose, at any time.</li>
+              <li><b>Nominate someone</b> to exercise these rights if you die or can’t act yourself.</li>
+              <li><b>Raise a grievance</b> — we reply within 90 days at most, and aim for 7. If you’re not satisfied, you can complain to the Data Protection Board of India.</li>
+            </ul>
+
+            <h2>Children</h2>
+            <p>You must be 18 or older to create an account. Parents and guardians can keep a child’s records in their own account; family accounts with verified parental consent are coming.</p>
+
+            <h2>Security and breaches</h2>
+            <p>Data is encrypted in transit and at rest; sensitive entries are encrypted again with a separate key. Access is enforced by the database itself, every sign-in needs a one-time code, and every access is logged. If a breach ever affects your data, we will tell you and the Data Protection Board without delay, with what happened and what you can do.</p>
+
+            <h2>Contact</h2>
+            <p>{g.name} · <a href={`mailto:${g.email}`}>{g.email}</a>. You can also raise a grievance in the app under Privacy &amp; security.</p>
+            <p className="small muted">If this notice changes we’ll show you the new version and ask before applying it to optional uses.</p>
           </div>
         ) : (
           <div className="stack">
-            <h1>Terms of use (draft)</h1>
-            <p>{brand.name} helps you keep and share your health information. It does not give medical advice. Always follow the advice of your doctor.</p>
-            <p>Entries you add yourself are marked as added by you. Entries added by clinicians carry their name and organisation and can only be corrected through a recorded amendment.</p>
+            <h1>Terms of use</h1>
+            <p>{brand.name} helps you keep and share your health information. It does not give medical advice or replace your doctor; always follow their advice, and in an emergency call 112.</p>
+            <h2>Your account</h2>
+            <p>You must be 18 or older and give true details. Keep your password and one-time codes private — {brand.name} staff will never ask for them. You’re responsible for the doctors you choose to share your record with.</p>
+            <h2>Entries in your record</h2>
+            <p>Entries you add are marked as added by you. Entries added by clinicians carry their name and organisation, and can only be changed by a recorded correction that keeps the original.</p>
+            <h2>Doctors</h2>
+            <p>Doctors must be registered with a State Medical Council or the National Medical Commission and are verified by our team. They may open a record only with the patient’s permission (or the limited, reviewed emergency access) and only for that patient’s care. Misuse ends their access and may be reported to their council.</p>
+            <h2>Availability</h2>
+            <p>We work to keep {brand.name} available and your data safe, but we can’t promise it will never be interrupted. Keep copies of documents you can’t replace.</p>
+            <h2>Ending</h2>
+            <p>You can delete your account at any time. We may suspend accounts that misuse the service, and will tell you why.</p>
+            <p className="small muted">Questions: <a href={`mailto:${brand.supportEmail}`}>{brand.supportEmail}</a>. Privacy: see the <Link to="/legal/privacy">privacy notice</Link>.</p>
           </div>
         )}
       </main>

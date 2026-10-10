@@ -30,6 +30,10 @@ import {
   remoteAuditService, remoteExportService, remoteMedicationService, remoteNotificationService, remotePushService, remoteSearchPatient, remoteSettingsService,
 } from './remote/misc';
 import { subscribe as liveSubscribe } from './remote/client';
+import { abhaService as demoAbha } from './abhaService';
+import { remoteAbhaService } from './remote/abha';
+import { privacyService as demoPrivacy } from './privacyService';
+import { remotePrivacyService } from './remote/privacy';
 
 export { isLive };
 export const authService = isLive ? remoteAuthService : demoAuth;
@@ -47,6 +51,8 @@ export const searchPatient = isLive ? remoteSearchPatient : demoSearch;
 export const subscribe = isLive ? liveSubscribe : demoSubscribe;
 export const applicationService = isLive ? remoteApplicationService : demoApplications;
 export const adminService = isLive ? remoteAdminService : demoAdmin;
+export const abhaService = isLive ? remoteAbhaService : demoAbha;
+export const privacyService = isLive ? remotePrivacyService : demoPrivacy;
 /** Pushed medicine reminders need a server, so the demo has none. */
 export const pushService = isLive ? remotePushService : {
   saveSubscription: async (..._a: [string, string, string, string]) => undefined,
@@ -58,7 +64,7 @@ export const resetDemoData = isLive ? async () => undefined : demoReset;
 export { DURATIONS, durationLabel, maskName, EMERGENCY_REASONS, EMERGENCY_PERMISSIONS, EMERGENCY_HOURS, emergencyReasonLabel } from './accessService';
 export type { EmergencyReason } from './accessService';
 export type { GrantView, RequestView, DoctorGrantView } from './accessService';
-export { isMedicationActive } from './recordService';
+export { isMedicationActive, latestHandover, checkHandoverNote, HANDOVER_MIN_LENGTH } from './recordService';
 export type { ConsultationBundleInput, PrescriptionInput, NewRecordInput } from './recordService';
 export { DOC_CATEGORY_LABEL, ACCEPT_ATTR, guessCategory, validateFile, MAX_FILE_BYTES } from './documentService';
 export type { NewFile, DocumentView } from './documentService';
@@ -71,4 +77,8 @@ export type { SearchResult } from './searchService';
 export { otpService } from './otpService';
 export type { OtpChallenge } from './otpService';
 export { AppError, friendlyError } from './core';
+export { formatAbhaNumber, validateAbhaInput } from './abhaService';
+export { CONSENT_DEFAULTS, CONSENT_PURPOSES, GRIEVANCE_CATEGORIES, DELETION_DAYS, GRIEVANCE_DAYS } from './privacyService';
+export type { Nominee } from './privacyService';
+export type { AbhaMethod, AbhaVerifyResult } from './abhaService';
 export { MEDICAL_COUNCILS, REGISTER_CHECK_URL, DEMO_ONLY_MESSAGE, validateApplication } from './applicationService';
