@@ -135,7 +135,7 @@ Password for all demo accounts: **`demo1234`**. Logging in starts with **Who's l
 1. As **Meera**, open *Timeline* — nine years of history, with visits grouped with their diagnoses, prescriptions and lab results.
 2. Go to *Doctors & access → Requests* and approve Dr. Arvind Rao with fewer permissions than he asked for.
 3. On *Medications*, see today's doses, adherence and reminder times; try *Phone & smartwatch*.
-4. As **Dr. Priya**, open Meera → *Add to medical record*. Enter a visit with a diagnosis, a prescription, a lab order and a PDF attachment. Save.
+4. As **Dr. Priya**, open Meera → *Add to medical record*. Enter a visit with a diagnosis, a prescription, a lab order, a PDF attachment and the note for the next visit. Save.
 5. Back as **Meera**: the visit is in the timeline, the medicine is in *Medications* with a reminder already set, there's a notification, and the *Access log* shows exactly what happened.
 6. As **Dr. Priya**, open the diagnosis and *Correct this entry*. See the old and new versions side by side.
 7. As **Meera**, revoke Dr. Priya's access. Her tab immediately shows "You don't have access to this record".
@@ -226,6 +226,23 @@ Password for all demo accounts: **`demo1234`**. Logging in starts with **Who's l
 - Doctors are reminded to patients a day before access ends; expiry is logged and both sides are notified.
 - A doctor can't browse patients. Looking up an ID without access returns only a masked name.
 
+## Pre-visit brief
+
+Doctors can spend 15–20 minutes going through a patient's old records before a consultation. When a doctor opens a patient, Niveda opens on a **Brief** tab that sums up the record on one screen:
+
+| Section | What it shows |
+|---|---|
+| Needs attention | the last visit's follow-up (due or overdue), lab results still awaited, vaccines due within 30 days |
+| Allergies | severest first, life-threatening ones in red |
+| Active problems | ongoing, managed and suspected conditions, with who diagnosed them and since when |
+| Current medicines | dose, frequency, what for, prescriber, start and end dates |
+| Stopped recently | medicines stopped in the last 2 years, with the reason |
+| Lab results | latest result per test, flagged, with earlier results of the same test so the trend is visible; recent results outside the normal range come first |
+| Last visit | reason, diagnosis, doctor, hospital and the note for the next visit |
+| Surgeries & hospital stays, imaging, past problems, family history | one line each |
+
+Every line opens the entry it came from (and its documents), so the summary is never the only evidence. The brief is built only from what the patient has shared with that doctor and says which sections weren't shared. It's built from the structured entries; reading uploaded PDFs into it is a planned next step. The logic is in [`src/lib/brief.ts`](src/lib/brief.ts).
+
 ## How a doctor adds to the record
 
 One form captures a whole visit and saves it in a single step:
@@ -238,10 +255,17 @@ One form captures a whole visit and saves it in a single step:
 | Tests to order | linked **Lab test** orders; results can be added later and link back |
 | Follow-up date | a linked **Follow-up** entry, shown on the patient's dashboard |
 | Files | **Attachments** on the consultation |
+| Note for the next visit (**required**) | saved on the consultation and shown at the top of the record to whoever sees the patient next |
 
 While writing, the doctor sees a side panel with the patient's allergies, current medicines and conditions, and a warning appears if they prescribe while the patient has a severe allergy. The doctor's name and hospital are filled in automatically and cannot be changed. After saving, the patient is notified ("Dr. Priya Sharma added a consultation, a diagnosis, 1 prescription and 1 lab order to your medical record") and every entry is logged.
 
-Doctors can also add any single entry type — clinical note, vaccination, imaging, procedure and so on.
+### Note for the next visit
+
+Every visit ends with a short, compulsory note for the next visit — what the same doctor at the follow-up, or a different doctor if the patient goes elsewhere, should know or check (e.g. "Review chest X-ray. If fever persists beyond 72 h, switch antibiotic"). The visit can't be saved without it (at least 10 characters), and the database enforces the same rule, so it can't be skipped from another client.
+
+The newest note sits at the top of the patient's record for the next doctor, with who wrote it, where, when and the follow-up date, and in the side panel while they write their own entry. It lives on the consultation, so it follows the same sharing rules (the patient's *history* permission), keeps version history if corrected, and the patient can read it in their timeline. Consultations a patient adds themselves don't need one.
+
+Doctors can also add any other single entry type — clinical note, vaccination, imaging, procedure and so on. Visits always go through the consultation form, so they always end with the note.
 
 ## Corrections and versioning
 
