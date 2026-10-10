@@ -10,6 +10,7 @@
 import type { User as AuthUser } from '@supabase/supabase-js';
 import type { Session, User } from '../../types';
 import { backend } from '../../config/backend';
+import { brand } from '../../config/brand';
 import { uid } from '../../lib/ids';
 import { AppError } from '../core';
 import { maskDestination, type OtpChallenge, type OtpPurpose } from '../otpService';
@@ -121,7 +122,7 @@ export const remoteAuthService: typeof MockAuth = {
   async startDoctorApplication(input) {
     const email = norm(input.email);
     const { email: _e, password, ...details } = input;
-    const { data, error } = await sb().auth.signUp({ email, password, options: { data: { signup_kind: 'doctor', ...details } } });
+    const { data, error } = await sb().auth.signUp({ email, password, options: { data: { signup_kind: 'doctor', ...details, privacy_consent: true, privacy_notice_version: brand.privacyNoticeVersion } } });
     if (error) throw authError(error);
     if (data.user && (data.user.identities?.length ?? 0) === 0) {
       throw new AppError('CONFLICT', 'An account with this email already exists. Try signing in instead.');
@@ -135,7 +136,11 @@ export const remoteAuthService: typeof MockAuth = {
     const email = norm(input.email);
     const { data, error } = await sb().auth.signUp({
       email, password: input.password,
-      options: { data: { full_name: input.fullName.trim(), date_of_birth: input.dateOfBirth, phone: input.phone.trim() } },
+      options: { data: {
+        full_name: input.fullName.trim(), date_of_birth: input.dateOfBirth, phone: input.phone.trim(),
+        privacy_consent: true, privacy_notice_version: brand.privacyNoticeVersion,
+        consent_reminders: !!input.consents?.reminders, consent_product_updates: !!input.consents?.productUpdates,
+      } },
     });
     if (error) throw authError(error);
     // Supabase hides whether an email is taken; an empty identity list means it is.

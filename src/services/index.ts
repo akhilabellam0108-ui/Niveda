@@ -32,6 +32,8 @@ import {
 import { subscribe as liveSubscribe } from './remote/client';
 import { abhaService as demoAbha } from './abhaService';
 import { remoteAbhaService } from './remote/abha';
+import { privacyService as demoPrivacy } from './privacyService';
+import { remotePrivacyService } from './remote/privacy';
 
 export { isLive };
 export const authService = isLive ? remoteAuthService : demoAuth;
@@ -50,6 +52,7 @@ export const subscribe = isLive ? liveSubscribe : demoSubscribe;
 export const applicationService = isLive ? remoteApplicationService : demoApplications;
 export const adminService = isLive ? remoteAdminService : demoAdmin;
 export const abhaService = isLive ? remoteAbhaService : demoAbha;
+export const privacyService = isLive ? remotePrivacyService : demoPrivacy;
 /** Pushed medicine reminders need a server, so the demo has none. */
 export const pushService = isLive ? remotePushService : {
   saveSubscription: async (..._a: [string, string, string, string]) => undefined,
@@ -75,5 +78,7 @@ export { otpService } from './otpService';
 export type { OtpChallenge } from './otpService';
 export { AppError, friendlyError } from './core';
 export { formatAbhaNumber, validateAbhaInput } from './abhaService';
+export { CONSENT_DEFAULTS, CONSENT_PURPOSES, GRIEVANCE_CATEGORIES, DELETION_DAYS, GRIEVANCE_DAYS } from './privacyService';
+export type { Nominee } from './privacyService';
 export type { AbhaMethod, AbhaVerifyResult } from './abhaService';
 export { MEDICAL_COUNCILS, REGISTER_CHECK_URL, DEMO_ONLY_MESSAGE, validateApplication } from './applicationService';

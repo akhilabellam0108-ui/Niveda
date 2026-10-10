@@ -21,6 +21,15 @@ export interface SignUpInput {
   email: string;
   phone: string;
   password: string;
+  /** Optional purposes agreed to at sign-up (the record itself is always required). */
+  consents?: { reminders?: boolean; productUpdates?: boolean };
+}
+
+/** Must be 18 to open your own account (DPDP Act s.9). */
+export function isAdult(dateOfBirth: string, today = new Date()): boolean {
+  const d = new Date(`${dateOfBirth}T00:00:00`);
+  const eighteen = new Date(d.getFullYear() + 18, d.getMonth(), d.getDate());
+  return eighteen <= today;
 }
 
 interface PendingSignup extends SignUpInput { challengeId: string }
@@ -65,6 +74,7 @@ export const authService = {
     const db = await getDb();
     if (db.users.some((u) => norm(u.email) === norm(input.email))) throw new AppError('CONFLICT', 'An account with this email already exists. Try signing in instead.');
     if (db.users.some((u) => normPhone(u.phone) === normPhone(input.phone))) throw new AppError('CONFLICT', 'This phone number is already linked to an account.');
+    if (!isAdult(input.dateOfBirth)) throw new AppError('VALIDATION', 'You need to be 18 or older to create your own account. A parent or guardian can keep your records for now.');
     const challenge = otpService.request('signup', input.phone);
     pendingSignup = { ...input, challengeId: challenge.id };
     return challenge;
@@ -87,6 +97,11 @@ export const authService = {
       const u: User = { id: userId, role: 'patient', email: patient.email, phone: patient.phone, passwordHash: hash, passwordSalt: salt, createdAt: t, profileId: patient.id, onboarded: false };
       db.users.push(u);
       db.patients.push(patient);
+      const version = brand.privacyNoticeVersion;
+      db.consents = [...(db.consents ?? []),
+        { id: uid('cns'), userId, purpose: 'core_record', granted: true, noticeVersion: version, at: t },
+        { id: uid('cns'), userId, purpose: 'reminders', granted: !!input.consents?.reminders, noticeVersion: version, at: t },
+        { id: uid('cns'), userId, purpose: 'product_updates', granted: !!input.consents?.productUpdates, noticeVersion: version, at: t }];
       audit(db, { patientId: patient.id, actor: { id: patient.id, role: 'patient', name: patient.fullName }, action: 'account_created', target: { type: 'account', label: 'Patient account' } });
       db.notifications.push({ id: uid('ntf'), userId, kind: 'security', title: `Welcome to ${brand.name}`, body: 'Your record is private by default. Only doctors you grant access to can see it, and every view is logged.', createdAt: t, read: false, link: '/app/privacy' });
       return u;

@@ -6,7 +6,7 @@ import { latency } from '../src/mock/db';
 import { advanceClock, todayISO } from '../src/lib/dates';
 import {
   accessService, auditService, authService, documentService, notificationService,
-  patientService, recordService, medicationService, doctorService, AppError,
+  patientService, recordService, medicationService, doctorService, AppError, abhaService, privacyService,
 } from '../src/services';
 import { DEMO_PASSWORD } from '../src/mock/seed';
 import { DEFAULT_PERMISSIONS, RECORD_TYPES } from '../src/lib/recordMeta';
@@ -326,6 +326,48 @@ await step('a doctor can open emergency essentials when the patient can’t cons
   await accessService.revoke(eg.id);
   await login('arvind.rao@lakeview.example');
   await recordService.list(r.patientId).then(() => { throw new Error('still had access'); }, (e) => assert(e instanceof AppError && e.code === 'ACCESS_DENIED', 'the patient can end it'));
+});
+
+
+console.log('\nABHA and data rights (DPDP Act)');
+await step('under-18s can’t create their own account', async () => {
+  const dob = new Date(Date.now() - 15 * 365.25 * 864e5).toISOString().slice(0, 10);
+  await expectRejectsValidation(() => authService.startSignUp({ ...newPatient, email: 'kid@example.com', phone: '+91 90000 77777', dateOfBirth: dob }), 'minor sign-up');
+});
+await step('a patient links an ABHA with a code; the same ABHA can’t go on two records', async () => {
+  await login('meera@example.com');
+  const start = await abhaService.requestOtp('abha-number', '91-1234-5678-9012');
+  try { await abhaService.verifyOtp('abha-number', start.txnId, start.demoCode === '000000' ? '111111' : '000000'); throw new Error('wrong code accepted'); } catch (e) { if (!(e instanceof AppError)) throw e; }
+  const again = await abhaService.requestOtp('abha-number', '91 1234 5678 9012');
+  const r = await abhaService.verifyOtp('abha-number', again.txnId, again.demoCode!);
+  assert('linked' in r && r.linked.abhaNumber === '91-1234-5678-9012', 'linked');
+  assert((await abhaService.get())?.abhaAddress.endsWith('@sbx'), 'address shown');
+  await expectRejectsValidation(() => abhaService.requestOtp('abha-number', '123'), 'short ABHA number');
+  await abhaService.unlink();
+  assert((await abhaService.get()) === null, 'unlinked');
+  const log = await auditService.forPatient();
+  assert(log.some((a) => a.action === 'abha_linked') && log.some((a) => a.action === 'abha_unlinked'), 'both are in the access log');
+});
+await step('consents can be withdrawn and given again, but not the core record', async () => {
+  await privacyService.setConsent('product_updates', true);
+  await privacyService.setConsent('product_updates', false);
+  const c = await privacyService.consents();
+  assert(c.find((x) => x.purpose === 'product_updates')?.granted === false, 'latest decision wins');
+  await expectRejectsValidation(() => privacyService.setConsent('core_record', false), 'core record');
+});
+await step('grievances get a reference and a 90-day deadline; deletion needs a code and can be cancelled', async () => {
+  const g = await privacyService.fileGrievance('correction', 'The date on my blood test is wrong.');
+  assert(/^NV-GRV-\d{4}-\d{5}$/.test(g.reference), g.reference);
+  assert(new Date(g.respondBy).getTime() - new Date(g.createdAt).getTime() >= 89 * 864e5, '90 days');
+  await privacyService.setNominee({ name: 'Ravi Rao', relationship: 'Brother', phone: '+91 90000 11111' });
+  assert((await privacyService.nominee())?.name === 'Ravi Rao', 'nominee saved');
+  const c = await privacyService.requestDeletionCode();
+  const d = await privacyService.requestDeletion(c.prototypeCode, 'Testing');
+  assert(Math.round((new Date(d.eraseAfter).getTime() - new Date(d.requestedAt).getTime()) / 864e5) === 7, '7-day window');
+  assert((await accessService.listForPatient()).active.length === 0, 'doctors lose access straight away');
+  await privacyService.cancelDeletion();
+  assert((await privacyService.deletionRequest()) === null, 'cancelled');
+  await authService.logout();
 });
 
 console.log('\nPhone alarms (Android app)');

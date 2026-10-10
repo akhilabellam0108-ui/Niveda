@@ -75,7 +75,7 @@ async function rejects(p, pattern) {
 async function addUser(key, email, meta = {}) {
   const id = randomUUID();
   const session = randomUUID();
-  await db.query('insert into auth.users (id, email, raw_user_meta_data) values ($1, $2, $3)', [id, email, meta]);
+  await db.query('insert into auth.users (id, email, raw_user_meta_data) values ($1, $2, $3)', [id, email, { privacy_consent: true, privacy_notice_version: '2026-10', ...meta }]);
   await db.query("insert into auth.sessions (id, user_id, user_agent) values ($1, $2, 'Test browser')", [session, id]);
   users[key] = { id, session };
 }
@@ -724,4 +724,103 @@ test('mental-health and sensitive entries are stored encrypted; only allowed rea
   await rejects(rpc('asha', '_record_key'), /permission denied/);
   await rejects(rpc('asha', '_open', [{ _enc: 'x' }]), /permission denied/);
   await rejects(as('asha', (q) => q('select * from vault.decrypted_secrets')), /permission denied/);
+});
+
+/* ---------- DPDP Act: consent, erasure, grievances, nominee, children ---------- */
+
+test('DPDP: sign-up needs the privacy notice, under-18s can’t sign up alone, consents are a ledger', async () => {
+  await addUser('noconsent', 'dpdp-nc@example.com', { privacy_consent: false, full_name: 'No Consent', date_of_birth: '1990-01-01', phone: '+91 95555 00001' });
+  await rejects(rpc('noconsent', 'complete_signup'), /accept the privacy notice/);
+  const minorDob = new Date(Date.now() - 16 * 365.25 * 864e5).toISOString().slice(0, 10);
+  await addUser('teen', 'dpdp-teen@example.com', { full_name: 'Teen', date_of_birth: minorDob, phone: '+91 95555 00002' });
+  await rejects(rpc('teen', 'complete_signup'), /18 or older/);
+
+  await addUser('mdas', 'dpdp-meera@example.com', { full_name: 'Meera Das', date_of_birth: '1988-08-08', phone: '+91 95555 00003', consent_reminders: true, consent_product_updates: false });
+  await rpc('mdas', 'complete_signup');
+  users.mdas.patientId = (await rpc('mdas', 'my_account')).profileId;
+  const c = await rpc('mdas', 'my_consents');
+  assert.deepEqual(c.map((x) => [x.purpose, x.granted, x.noticeVersion]), [['core_record', true, '2026-10'], ['product_updates', false, '2026-10'], ['reminders', true, '2026-10']]);
+
+  await rpc('mdas', 'record_consent', ['reminders', false, '2026-10']);
+  assert.equal((await rpc('mdas', 'my_consents')).find((x) => x.purpose === 'reminders').granted, false, 'withdrawing is one call');
+  assert.equal((await as('mdas', (q) => q('select prefs from preferences')))[0].prefs.medAlarms, false, 'and it really stops pushed reminders');
+  await rejects(rpc('mdas', 'record_consent', ['core_record', false, '2026-10']), /delete your account instead/);
+  await rejects(as('mdas', (q) => q("update consents set granted = true")), /permission denied|IMMUTABLE/);
+  assert.equal((await as('asha', (q) => q('select count(*)::int n from consents where user_id = $1', [users.mdas.id])))[0].n, 0, 'private');
+  const log = await as('mdas', (q) => q("select action from audit_log where action = 'consent_withdrawn'"));
+  assert.equal(log.length, 1);
+});
+
+test('DPDP: nominee, grievances answered within 90 days by the team', async () => {
+  await rejects(rpc('mdas', 'set_nominee', [{ name: 'Arun' }]), /name, relationship and phone/);
+  await rpc('mdas', 'set_nominee', [{ name: 'Arun Das', relationship: 'Husband', phone: '+91 95555 00004' }]);
+  assert.equal((await as('mdas', (q) => q('select nominee from patients')))[0].nominee.name, 'Arun Das');
+  await rejects(rpc('kavya', 'set_nominee', [{ name: 'X', relationship: 'Y', phone: '9999999999' }]), /Only patients/);
+
+  await rejects(rpc('mdas', 'file_grievance', ['access', 'short']), /at least 10/);
+  const g = await rpc('mdas', 'file_grievance', ['correction', 'A doctor’s entry has the wrong date on it.']);
+  assert.match(g.reference, /^NV-GRV-\d{4}-\d{5}$/);
+  assert.ok(new Date(g.respondBy) - new Date(g.createdAt) >= 89 * 864e5, 'answer within 90 days');
+  assert.equal((await rpc('mdas', 'my_grievances')).length, 1);
+  assert.equal((await rpc('asha', 'my_grievances')).length, 0);
+  await rejects(rpc('mdas', 'admin_grievances'), /Only the Niveda team/);
+  await rejects(rpc('team', 'admin_respond_grievance', [g.id, 'resolved', '']), /Write the response/);
+  assert.equal((await rpc('team', 'admin_grievances', ['open'])).length, 1);
+  await rpc('team', 'admin_respond_grievance', [g.id, 'resolved', 'We asked the doctor to correct it; it’s fixed now.']);
+  const mine = (await rpc('mdas', 'my_grievances'))[0];
+  assert.equal(mine.status, 'resolved');
+  assert.match((await as('mdas', (q) => q("select body from notifications where title = 'Your grievance was answered'")))[0].body, /fixed now/);
+});
+
+test('DPDP: deletion has a 7-day undo window, then erases everything', async () => {
+  await rejects(rpc('mdas', 'request_deletion', ['Moving abroad']), /OTP_EXPIRED/, 'needs a fresh code');
+  const d = await rpc('mdas', 'request_deletion', ['Moving abroad'], freshCode());
+  assert.ok(Math.abs(new Date(d.eraseAfter) - Date.now() - 7 * 864e5) < 6e4);
+  await rejects(rpc('mdas', 'request_deletion', [null], freshCode()), /already scheduled/);
+  await rpc('mdas', 'cancel_deletion');
+  assert.equal(await rpc('mdas', 'my_deletion_request'), null);
+  await rejects(rpc('mdas', 'cancel_deletion'), /no deletion/);
+
+  const again = await rpc('mdas', 'request_deletion', [null], freshCode());
+  await rejects(rpc('mdas', '_erase_account', [again.id]), /permission denied/, 'only the server erases');
+  await rejects(db.query('select public._erase_account($1)', [again.id]), /No deletion is due/, 'not before the 7 days');
+  await db.query("update deletion_requests set erase_after = now() - interval '1 minute' where id = $1", [again.id]);
+  const due = (await db.query('select public._due_deletions() as r')).rows[0].r;
+  assert.deepEqual(due.map((x) => x.patientId), [users.mdas.patientId]);
+  await db.query('select public._erase_account($1)', [again.id]);
+  for (const t of ['patients', 'consents', 'audit_log', 'deletion_requests']) {
+    const col = t === 'patients' || t === 'audit_log' ? (t === 'patients' ? 'id' : 'patient_id') : 'user_id';
+    const val = col === 'user_id' ? users.mdas.id : users.mdas.patientId;
+    assert.equal((await db.query(`select count(*)::int n from ${t} where ${col} = $1`, [val])).rows[0].n, 0, `${t} erased`);
+  }
+  assert.equal((await db.query('select count(*)::int n from grievances where user_id is null')).rows[0].n, 1, 'grievance kept, unlinked');
+  await rejects(db.query('delete from audit_log where true'), /IMMUTABLE/, 'the guard is back on after erasure');
+});
+
+/* ---------- Security audit (runs on every test run) ---------- */
+
+test('security: every table has row-level security, and clients can’t call internal functions', async () => {
+  const noRls = (await db.query("select relname from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind = 'r' and not c.relrowsecurity order by 1")).rows.map((r) => r.relname);
+  // record_types is public reference data, read-only to clients.
+  assert.deepEqual(noRls.filter((t) => !['record_types'].includes(t)), [], 'tables without row-level security');
+
+  // Every direct write privilege a client holds must be backed by a policy for that command; no TRUNCATE, nothing for anon.
+  const grants = (await db.query(`select grantee, table_name, privilege_type from information_schema.role_table_grants
+    where table_schema = 'public' and grantee in ('anon', 'authenticated') and privilege_type in ('INSERT', 'UPDATE', 'DELETE', 'TRUNCATE')`)).rows;
+  const policies = new Set((await db.query("select tablename, cmd from pg_policies where schemaname = 'public'")).rows.map((p) => `${p.tablename}:${p.cmd}`));
+  const unbacked = grants.filter((g) => g.grantee === 'anon' || g.privilege_type === 'TRUNCATE' || (!policies.has(`${g.table_name}:${g.privilege_type}`) && !policies.has(`${g.table_name}:ALL`)));
+  assert.deepEqual(unbacked, [], 'write privileges without a matching policy');
+
+  const anonFns = (await db.query(`select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute') order by 1`)).rows.map((r) => r.proname);
+  const internal = anonFns.filter((f) => f.startsWith('_') || /^admin_|erase|configure|link_abha|record_key|seal|open$/.test(f));
+  assert.deepEqual(internal, [], 'internal functions callable without signing in');
+
+  const authInternal = (await db.query(`select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.prosecdef and p.proname ~ '^_(erase|link_abha|record_key|seal|open|due_)' and has_function_privilege('authenticated', p.oid, 'execute')`)).rows;
+  assert.deepEqual(authInternal, [], 'signed-in users can’t call server-only functions');
+
+  const noPath = (await db.query(`select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.prosecdef and not exists (select 1 from unnest(coalesce(p.proconfig, '{}')) c where c like 'search_path=%')`)).rows.map((r) => r.proname);
+  assert.deepEqual(noPath, [], 'security-definer functions must pin search_path');
 });

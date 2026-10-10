@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { LockKeyhole, ShieldCheck, Eye, Clock3, ScrollText, Smartphone, Laptop, Monitor, KeyRound, LogOut, Fingerprint, Info, ShieldOff, MessageSquare } from 'lucide-react';
 import { isLive, type OtpChallenge } from '../../services';
 import { OtpInput, PrototypeCode } from '../../components/ui/Otp';
+import { YourRights } from '../../components/privacy/YourRights';
 import { accessService, auditService, authService, friendlyError } from '../../services';
 import { useLive, useDocumentTitle } from '../../state/hooks';
 import { useSession } from '../../state/SessionContext';
@@ -187,7 +188,9 @@ export function PrivacyPage() {
 
       <SecuritySection />
 
-      <div className="alert alert-warn"><Info aria-hidden /><div><div className="alert-title">About this prototype</div>Sessions, one-time codes and encryption are simulated here. A production version needs a real identity provider, server-side access checks, encryption at rest and in transit, and audited infrastructure.</div></div>
+      <YourRights />
+
+      {!isLive && <div className="alert alert-warn"><Info aria-hidden /><div><div className="alert-title">About this demo</div>Sessions, one-time codes and encryption are simulated here. The live version uses Supabase: real sign-in, access rules enforced by the database, and encryption at rest and in transit.</div></div>}
 
       <ConfirmDialog open={!!revokeTarget} onClose={() => setRevokeId(undefined)} danger confirmLabel="Revoke access" title={`Revoke ${revokeTarget?.doctor.fullName}’s access?`}
         body="They immediately lose access. Entries they already added stay in your record."
