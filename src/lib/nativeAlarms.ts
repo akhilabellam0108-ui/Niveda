@@ -1,5 +1,5 @@
 /**
- * Medicine alarms in the Android app. They are scheduled with the phone's own
+ * Medicine alarms in the Android and iPhone apps. They are scheduled with the phone's own
  * alarm service, so they ring on time even when Niveda is closed, the phone is
  * idle or it has been restarted. Each has Taken / Snooze / Skip buttons, which
  * also appear on a paired smartwatch (Wear OS shows the phone's notifications).
@@ -7,9 +7,10 @@
  * In a browser every function here does nothing; the in-app alarm
  * (components/medications/Doses.tsx) covers the web version.
  */
+import { Capacitor } from '@capacitor/core';
 import { LocalNotifications, type ActionPerformed } from '@capacitor/local-notifications';
 import { medicationService } from '../services';
-import { planAlarms, type PlannedAlarm } from './alarmPlan';
+import { MAX_ALARMS, MAX_ALARMS_IOS, planAlarms, type PlannedAlarm } from './alarmPlan';
 
 import { isNativeApp } from './nativeFiles';
 
@@ -28,7 +29,8 @@ export function initNativeAlarms(): Promise<void> {
   if (!isNativeApp()) return Promise.resolve();
   if (!ready) {
     ready = (async () => {
-      await LocalNotifications.createChannel({
+      // Channels exist only on Android; iPhone uses the notification settings for the app.
+      if (Capacitor.getPlatform() === 'android') await LocalNotifications.createChannel({
         id: CHANNEL, name: 'Medicine reminders', description: 'Rings when it’s time to take a medicine',
         importance: 5, visibility: 0, vibration: true, lights: true, lightColor: '#1d6b5f',
       });
@@ -79,6 +81,7 @@ export async function alarmPermission(): Promise<AlarmPermission> {
   if (!isNativeApp()) return 'unsupported';
   const p = await LocalNotifications.checkPermissions();
   if (p.display !== 'granted') return 'needs-permission';
+  if (Capacitor.getPlatform() !== 'android') return 'granted';
   try {
     const exact = await LocalNotifications.checkExactNotificationSetting();
     if (exact.exact_alarm !== 'granted') return 'needs-exact';
@@ -110,7 +113,7 @@ export async function syncNativeAlarms(enabled: boolean): Promise<number> {
   if (enabled) {
     const [schedules, today] = await Promise.all([medicationService.schedules(), medicationService.today()]);
     const logged = new Set(today.filter((d) => d.status === 'taken' || d.status === 'skipped').map((d) => `${d.recordId}|${d.date}|${d.time}`));
-    plan = planAlarms({ schedules, logged, now: new Date(), enabled });
+    plan = planAlarms({ schedules, logged, now: new Date(), enabled, max: Capacitor.getPlatform() === 'ios' ? MAX_ALARMS_IOS : MAX_ALARMS });
   }
   const signature = plan.map((p) => `${p.id}@${p.at.getTime()}:${p.title}:${p.body}`).join(',');
   if (signature === lastPlan) return plan.length;

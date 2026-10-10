@@ -372,7 +372,7 @@ await step('grievances get a reference and a 90-day deadline; deletion needs a c
 
 console.log('\nPhone alarms (Android app)');
 await step('plans an exact alarm for each future dose, skipping taken doses and finished courses', async () => {
-  const { planAlarms, alarmId, MAX_ALARMS } = await import('../src/lib/alarmPlan');
+  const { planAlarms, alarmId, MAX_ALARMS, MAX_ALARMS_IOS } = await import('../src/lib/alarmPlan');
   const now = new Date(2026, 8, 30, 10, 0);
   const med = (id: string, data: Record<string, unknown>) => ({ id, patientId: 'p', type: 'medication', date: '2026-09-01', data, createdAt: '', updatedAt: '', createdBy: { id: 'p', role: 'patient', name: 'P' }, attachments: [], source: 'patient', version: 1, versions: [] }) as never;
   const rem = (recordId: string, times: string[], enabled = true) => ({ recordId, patientId: 'p', times, enabled, updatedAt: '' });
@@ -395,6 +395,8 @@ await step('plans an exact alarm for each future dose, skipping taken doses and 
   assert(planAlarms({ schedules, logged: new Set(), now, enabled: false }).length === 0, 'the setting turns them all off');
   const many = Array.from({ length: 40 }, (_, i) => ({ record: med(`x${i}`, { name: `M${i}`, startDate: '2026-01-01' }), reminder: rem(`x${i}`, ['06:00', '14:00', '22:00']) }));
   assert(planAlarms({ schedules: many, logged: new Set(), now, enabled: true }).length === MAX_ALARMS, 'capped below Android’s limit, soonest first');
+  const ios = planAlarms({ schedules: many, logged: new Set(), now, enabled: true, max: MAX_ALARMS_IOS });
+  assert(ios.length === MAX_ALARMS_IOS && ios.every((p, i) => i === 0 || p.at >= ios[i - 1].at), 'iPhone: only the soonest 60, under its limit of 64');
 });
 
 console.log(`\n${passed} passed, ${failures.length} failed`);
