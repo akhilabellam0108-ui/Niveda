@@ -470,18 +470,25 @@ Done with the live backend:
 - ✅ **Doctor sign-up with verification** — doctors apply with their medical council registration; a Niveda administrator checks it on the Indian Medical Register and verifies or asks for changes.
 - ✅ Encryption in transit and at rest (provided by Supabase).
 
-Still to do:
+Done in October 2026:
 
-1. **Identity** — server-enforced multi-factor authentication (Supabase MFA), SMS codes (e.g. MSG91/Twilio), device management beyond sign-out.
-2. **Encryption** — field-level encryption for mental-health and other sensitive categories, with key management.
-3. **Document handling** — virus scanning, and downloads through an Edge Function so document views are logged by the server rather than the app.
-4. **Clinician verification** — automatic checks through ABDM's Healthcare Professionals Registry instead of by hand; hospital and organisation accounts.
-5. **Emergency ("break-glass") access** — ✅ built: verified doctors only, a stated reason and justification, a fresh emailed code, allergies/medicines/conditions/surgeries only, 4 hours, at most 3 uses a day, the patient told at once, and every use reviewed by the Niveda team. Still to do: a formal policy reviewed by clinicians and lawyers, and notifying the emergency contact.
-6. **Compliance** — India's Digital Personal Data Protection Act 2023, ABDM / ABHA integration and consent artefacts, and HIPAA / GDPR where relevant; retention and deletion policies; security audits and penetration testing.
-7. **Interoperability** — FHIR R4 import and export; integrations with labs and hospital systems.
-8. **Operations** — monitoring and alerting, backups with point-in-time recovery, tuned rate limits, custom email delivery at scale.
-9. **Mobile app** — ✅ Android app with medicine alarms that ring when the app is closed (see below). ✅ The website installs as an app on iPhone, iPad and computers, opens offline, and gets medicine reminders pushed by the server. Still to do: a Play Store release (needs a release signing key and a Play Console account), an App Store iPhone app, and the lock-screen emergency card.
-10. **Smartwatch integration** — ✅ reminders with Taken / Snooze / Skip appear on paired Wear OS watches through the phone's notifications. Still to do: a dedicated watch app and Apple HealthKit / Google Health Connect sync.
+- ✅ **SMS codes** — sign-in and step-up codes by SMS to a verified phone (MSG91 for India, or Twilio) through Supabase's Send SMS hook. Setup: [docs/SUPABASE_SETUP.md §10](docs/SUPABASE_SETUP.md#10-sms-codes-optional-recommended-for-india).
+- ✅ **ABHA linking (ABDM M1)** — link an ABHA by ABHA number or mobile with ABDM's OTP; verified server-side and matched to the patient. [docs/ABDM.md](docs/ABDM.md)
+- ✅ **Field-level encryption** — mental-health and sensitive entries (and their history) encrypted with AES-256, key in Supabase Vault. [docs/SECURITY.md](docs/SECURITY.md#key-management)
+- ✅ **DPDP Act** — consent ledger with one-tap withdrawal, account deletion with a 7-day undo window, grievances with a 90-day deadline, nominee, under-18 protection, a real privacy notice. [docs/DPDP.md](docs/DPDP.md)
+- ✅ **Security review** — automated audit in the database tests (RLS everywhere, no unbacked privileges, no internal functions exposed); two privilege issues found and fixed; Content Security Policy. [docs/SECURITY.md](docs/SECURITY.md)
+- ✅ **Store-ready builds** — signed Play Store bundle workflow, iPhone app with TestFlight workflow. [docs/STORE_RELEASE.md](docs/STORE_RELEASE.md)
+- ✅ **Pre-visit brief** and the required **note for the next visit**.
+
+Still needs you (accounts, money or outside people):
+
+1. **Independent penetration test** by a CERT-In empanelled auditor — scope in [docs/SECURITY.md](docs/SECURITY.md#penetration-test-scope-for-the-auditor).
+2. **Legal review** of the privacy notice, terms and DPDP map; real grievance officer and support email in `src/config/brand.ts`.
+3. **Accounts and keys:** MSG91/Twilio (with DLT templates), ABDM sandbox → production credentials, Google Play Console, Apple Developer Program.
+4. **Server-enforced MFA** (Supabase MFA), virus scanning of uploads, unskippable document-view logging.
+5. **ABDM M2/M3** — share and fetch records as FHIR with consent artefacts; FHIR R4 import/export.
+6. **Operations** — monitoring and alerts, point-in-time recovery, incident drill ([docs/INCIDENT_RESPONSE.md](docs/INCIDENT_RESPONSE.md)).
+7. Dedicated smartwatch app and Apple HealthKit / Google Health Connect sync.
 
 ## Roadmap ideas
 

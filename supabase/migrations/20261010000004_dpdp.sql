@@ -20,9 +20,10 @@ create table public.consents (
   purpose text not null check (purpose in ('core_record', 'reminders', 'abdm_sharing', 'product_updates')),
   granted boolean not null,
   notice_version text not null check (length(notice_version) between 1 and 40),
-  at timestamptz not null default now()
+  at timestamptz not null default now(),
+  seq bigint generated always as identity  -- orders decisions made at the same instant
 );
-create index consents_user_idx on public.consents (user_id, purpose, at desc);
+create index consents_user_idx on public.consents (user_id, purpose, at desc, seq desc);
 alter table public.consents enable row level security;
 create policy "own consents" on public.consents for select to authenticated using (user_id = auth.uid());
 create trigger consents_immutable before update or delete on public.consents for each row execute function public.forbid_change();
@@ -95,7 +96,7 @@ end $$;
 create or replace function public.my_consents() returns jsonb
 language sql stable security definer set search_path = public, pg_temp as $$
   select coalesce(jsonb_agg(_consent_json(c) order by c.purpose), '[]'::jsonb)
-  from (select distinct on (purpose) * from consents where user_id = auth.uid() order by purpose, at desc) c
+  from (select distinct on (purpose) * from consents where user_id = auth.uid() order by purpose, at desc, seq desc) c
 $$;
 
 /* ---------- sign-up: consent required, under-18s can't sign up alone ---------- */

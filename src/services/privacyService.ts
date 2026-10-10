@@ -42,7 +42,9 @@ let pendingDeletion: { challengeId: string } | null = null;
 export const privacyService = {
   async consents(): Promise<ConsentRecord[]> {
     const ctx = await requireCtx();
-    const mine = (ctx.db.consents ?? []).filter((c) => c.userId === ctx.user.id).sort((a, b) => b.at.localeCompare(a.at));
+    // Newest first; entries made in the same millisecond keep the order they were recorded in.
+    const mine = (ctx.db.consents ?? []).map((c, i) => ({ c, i })).filter(({ c }) => c.userId === ctx.user.id)
+      .sort((a, b) => b.c.at.localeCompare(a.c.at) || b.i - a.i).map(({ c }) => c);
     const latest = new Map<ConsentPurpose, ConsentRecord>();
     for (const c of mine) if (!latest.has(c.purpose)) latest.set(c.purpose, c);
     return [...latest.values()];

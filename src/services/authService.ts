@@ -100,8 +100,8 @@ export const authService = {
       const version = brand.privacyNoticeVersion;
       db.consents = [...(db.consents ?? []),
         { id: uid('cns'), userId, purpose: 'core_record', granted: true, noticeVersion: version, at: t },
-        { id: uid('cns'), userId, purpose: 'reminders', granted: !!input.consents?.reminders, noticeVersion: version, at: t },
-        { id: uid('cns'), userId, purpose: 'product_updates', granted: !!input.consents?.productUpdates, noticeVersion: version, at: t }];
+        ...(input.consents?.reminders !== undefined ? [{ id: uid('cns'), userId, purpose: 'reminders' as const, granted: input.consents.reminders, noticeVersion: version, at: t }] : []),
+        ...(input.consents?.productUpdates !== undefined ? [{ id: uid('cns'), userId, purpose: 'product_updates' as const, granted: input.consents.productUpdates, noticeVersion: version, at: t }] : [])];
       audit(db, { patientId: patient.id, actor: { id: patient.id, role: 'patient', name: patient.fullName }, action: 'account_created', target: { type: 'account', label: 'Patient account' } });
       db.notifications.push({ id: uid('ntf'), userId, kind: 'security', title: `Welcome to ${brand.name}`, body: 'Your record is private by default. Only doctors you grant access to can see it, and every view is logged.', createdAt: t, read: false, link: '/app/privacy' });
       return u;

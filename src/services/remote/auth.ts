@@ -139,7 +139,9 @@ export const remoteAuthService: typeof MockAuth = {
       options: { data: {
         full_name: input.fullName.trim(), date_of_birth: input.dateOfBirth, phone: input.phone.trim(),
         privacy_consent: true, privacy_notice_version: brand.privacyNoticeVersion,
-        consent_reminders: !!input.consents?.reminders, consent_product_updates: !!input.consents?.productUpdates,
+        // Only choices the person actually made; an unanswered one stays undecided.
+        ...(input.consents?.reminders !== undefined ? { consent_reminders: input.consents.reminders } : {}),
+        ...(input.consents?.productUpdates !== undefined ? { consent_product_updates: input.consents.productUpdates } : {}),
       } },
     });
     if (error) throw authError(error);

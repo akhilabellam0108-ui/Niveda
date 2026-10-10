@@ -14,7 +14,8 @@
     "test:live": "node --test --test-concurrency=1 tests/live/live.test.mjs",
     "create-doctor": "node scripts/create-doctor.mjs",
     "android": "npm run build && npx cap sync android && npx cap open android",
-    "ios": "npm run build && npx cap sync ios && npx cap open ios"
+    "ios": "npm run build && npx cap sync ios && npx cap open ios",
+    "test:edge": "node --test tests/edge.test.mjs"
   },
   "license": "UNLICENSED",
   "dependencies": {
@@ -39,6 +40,7 @@
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "^4.7.0",
     "pg": "^8.23.0",
+    "standardwebhooks": "^1.0.0",
     "typescript": "^5.9.3",
     "vite": "^5.4.21",
     "vite-plugin-singlefile": "^2.3.3",
