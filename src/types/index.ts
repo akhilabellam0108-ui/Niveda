@@ -285,7 +285,15 @@ export type AuditAction =
   | 'emergency_viewed'
   | 'emergency_access'
   | 'invite_sent'
-  | 'sessions_revoked';
+  | 'sessions_revoked'
+  | 'phone_verified'
+  | 'abha_linked'
+  | 'abha_unlinked'
+  | 'consent_given'
+  | 'consent_withdrawn'
+  | 'deletion_requested'
+  | 'deletion_cancelled'
+  | 'grievance_filed';
 
 export interface AuditLog {
   id: ID;

@@ -28,6 +28,7 @@ interface PendingLogin { challengeId: string; userId: string; phone: string }
 let pendingSignup: PendingSignup | null = null;
 let pendingLogin: PendingLogin | null = null;
 let pendingReset: { challengeId: string; userId: string } | null = null;
+let pendingPhone: { challengeId: string; phone: string } | null = null;
 
 const norm = (s: string) => s.trim().toLowerCase();
 const normPhone = (s: string) => s.replace(/\D/g, '').slice(-10);
@@ -135,6 +136,34 @@ export const authService = {
 
   hasPending(purpose: 'signup' | 'login') {
     return purpose === 'signup' ? !!pendingSignup : !!pendingLogin;
+  },
+
+  /** Demo: codes are always "texted" to the phone on the account. */
+  async phoneStatus(): Promise<{ smsEnabled: boolean; phone: string; verified: boolean }> {
+    const { user } = await requireCtx();
+    return { smsEnabled: true, phone: user.phone, verified: true };
+  },
+
+  async startPhoneVerification(phone: string): Promise<OtpChallenge> {
+    await requireCtx();
+    if (normPhone(phone).length < 10) throw new AppError('VALIDATION', 'Enter a valid mobile number.');
+    const c = otpService.request('change_permissions', phone);
+    pendingPhone = { challengeId: c.id, phone: phone.trim() };
+    return c;
+  },
+
+  async confirmPhone(code: string): Promise<void> {
+    if (!pendingPhone) throw new AppError('OTP_EXPIRED', 'Please start again.');
+    otpService.verify(pendingPhone.challengeId, code, 'change_permissions');
+    const phone = pendingPhone.phone;
+    pendingPhone = null;
+    const { user } = await requireCtx();
+    await mutate((db) => {
+      const u = db.users.find((x) => x.id === user.id);
+      if (u) u.phone = phone;
+      const p = db.patients.find((x) => x.userId === user.id);
+      if (p) p.phone = phone;
+    });
   },
 
   async startPasswordReset(identifier: string): Promise<OtpChallenge | null> {

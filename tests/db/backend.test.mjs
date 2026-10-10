@@ -610,7 +610,7 @@ test('emergency access: verified doctors only, justified, code-confirmed, limite
   await rejects(rpc('kavya', 'emergency_access', [code, 'bored', why], freshCode()), /Choose why/);
   await rejects(rpc('kavya', 'emergency_access', [code, 'unconscious', 'please'], freshCode()), /at least 20 characters/);
   await rejects(rpc('kavya', 'emergency_access', ['NV-0000-0000', 'unconscious', why], freshCode()), /No patient matches/);
-  await rejects(rpc('kavya', 'emergency_access', [code, 'unconscious', why]), /code we email you/, 'needs a fresh code');
+  await rejects(rpc('kavya', 'emergency_access', [code, 'unconscious', why]), /code we send you/, 'needs a fresh code');
   await db.query('update doctors set verified_at = null where id = $1', [users.rohan.doctorId]);
   await rejects(rpc('rohan', 'emergency_access', [code, 'unconscious', why], freshCode()), /Only verified doctors/);
   await db.query('update doctors set verified_at = now() where id = $1', [users.rohan.doctorId]);
@@ -649,4 +649,19 @@ test('emergency access: verified doctors only, justified, code-confirmed, limite
     await db.query("update access_grants set status = 'revoked', revoked_at = now() where doctor_id = $1 and status = 'active' and method = 'emergency'", [users.kavya.doctorId]);
   }
   await rejects(rpc('kavya', 'emergency_access', [code, 'life_threatening', why], freshCode()), /3 times in the last 24 hours/);
+});
+
+/* ---------- SMS codes ---------- */
+
+test('SMS codes: only a confirmed phone becomes the account phone, and it is logged', async () => {
+  await rejects(rpc('asha', 'log_phone_verified', ['+919876500000']), /hasn’t been confirmed/);
+  // Supabase sets these when the code texted to the new number is entered.
+  await db.query("update auth.users set phone = '919876500000', phone_confirmed_at = now() where id = $1", [users.asha.id]);
+  await rejects(rpc('asha', 'log_phone_verified', ['+919999999999']), /hasn’t been confirmed/, 'a different number is refused');
+  await rpc('asha', 'log_phone_verified', ['+91 98765 00000']);
+  assert.equal((await as('asha', (q) => q('select phone from patients')))[0].phone, '+919876500000');
+  const log = await as('asha', (q) => q("select target from audit_log where action = 'phone_verified'"));
+  assert.equal(log[0].target.label, '•••• ••0000');
+  // A step-up code that arrived by SMS works like an emailed one.
+  await rejects(rpc('asha', 'revoke_grant', ['grt_none']), /./);
 });

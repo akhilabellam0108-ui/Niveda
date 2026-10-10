@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { Eye, FilePlus2, PencilLine, ShieldCheck, ShieldOff, TimerOff, Inbox, LogIn, LogOut, KeyRound, FileUp, Trash2, Download, Siren, UserPlus, Ban, Check, X, UserRound, MonitorSmartphone, ScrollText, SlidersHorizontal } from 'lucide-react';
+import { Eye, FilePlus2, PencilLine, ShieldCheck, ShieldOff, TimerOff, Inbox, LogIn, LogOut, KeyRound, FileUp, Trash2, Download, Siren, UserPlus, Ban, Check, X, UserRound, MonitorSmartphone, ScrollText, SlidersHorizontal, Smartphone, Link2, Unlink, Undo2, MessageSquareWarning } from 'lucide-react';
 import type { AuditAction, AuditLog } from '../../types';
 import { auditService } from '../../services';
 import { useLive, useDocumentTitle } from '../../state/hooks';
@@ -33,6 +33,14 @@ export const ACTION_LABEL: Record<AuditAction, string> = {
   emergency_access: 'Used emergency access',
   invite_sent: 'Invited a doctor',
   sessions_revoked: 'Signed out a device',
+  phone_verified: 'Verified a phone number',
+  abha_linked: 'Linked ABHA',
+  abha_unlinked: 'Unlinked ABHA',
+  consent_given: 'Gave consent',
+  consent_withdrawn: 'Withdrew consent',
+  deletion_requested: 'Asked to delete the account',
+  deletion_cancelled: 'Cancelled account deletion',
+  grievance_filed: 'Raised a grievance',
 };
 
 const ICON: Record<AuditAction, [LucideIcon, string]> = {
@@ -43,6 +51,9 @@ const ICON: Record<AuditAction, [LucideIcon, string]> = {
   record_added: [FilePlus2, 'tone-accent'], record_amended: [PencilLine, 'tone-warn'], medication_discontinued: [Ban, ''],
   document_uploaded: [FileUp, 'tone-accent'], document_deleted: [Trash2, 'tone-danger'], export_created: [Download, ''],
   emergency_viewed: [Siren, 'tone-danger'], emergency_access: [Siren, 'tone-danger'], invite_sent: [UserPlus, ''], sessions_revoked: [MonitorSmartphone, 'tone-warn'],
+  phone_verified: [Smartphone, 'tone-ok'], abha_linked: [Link2, 'tone-ok'], abha_unlinked: [Unlink, ''],
+  consent_given: [ShieldCheck, 'tone-ok'], consent_withdrawn: [ShieldOff, 'tone-warn'],
+  deletion_requested: [Trash2, 'tone-danger'], deletion_cancelled: [Undo2, ''], grievance_filed: [MessageSquareWarning, 'tone-warn'],
 };
 
 const FILTERS: { key: string; label: string; match: (a: AuditLog) => boolean }[] = [
@@ -51,7 +62,7 @@ const FILTERS: { key: string; label: string; match: (a: AuditLog) => boolean }[]
   { key: 'views', label: 'Views', match: (a) => a.action.startsWith('viewed') || a.action === 'emergency_viewed' },
   { key: 'changes', label: 'Added & changed', match: (a) => ['record_added', 'record_amended', 'medication_discontinued', 'document_uploaded', 'document_deleted'].includes(a.action) },
   { key: 'access', label: 'Access', match: (a) => a.action.startsWith('access') || a.action.startsWith('request') || a.action === 'invite_sent' },
-  { key: 'security', label: 'Sign-ins & security', match: (a) => ['signed_in', 'signed_out', 'password_changed', 'sessions_revoked', 'account_created', 'export_created'].includes(a.action) },
+  { key: 'security', label: 'Sign-ins & security', match: (a) => ['signed_in', 'signed_out', 'password_changed', 'sessions_revoked', 'account_created', 'export_created', 'phone_verified', 'abha_linked', 'abha_unlinked', 'consent_given', 'consent_withdrawn', 'deletion_requested', 'deletion_cancelled', 'grievance_filed'].includes(a.action) },
 ];
 
 function metaBadges(a: AuditLog): string[] {

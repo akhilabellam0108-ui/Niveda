@@ -14,6 +14,14 @@ export const backend = {
   supabaseAnonKey: env.VITE_SUPABASE_ANON_KEY?.trim() || undefined,
   /** Public VAPID key for medicine reminders by Web Push (live mode). Optional. */
   vapidPublicKey: env.VITE_VAPID_PUBLIC_KEY?.trim() || undefined,
+  /**
+   * Where one-time codes go in live mode. "sms" sends them to the account's verified
+   * phone number (Supabase phone auth + the send-sms hook: MSG91 or Twilio); anyone
+   * who hasn't verified a phone yet keeps getting codes by email.
+   */
+  otpChannel: (env.VITE_OTP_CHANNEL?.trim().toLowerCase() === 'sms' ? 'sms' : 'email') as 'sms' | 'email',
+  /** ABHA (Ayushman Bharat Health Account) linking through the abdm Edge Function. */
+  abdmEnabled: env.VITE_ABDM_ENABLED?.trim() === 'true',
 };
 
 /** True when the app is connected to a real Supabase project. */
