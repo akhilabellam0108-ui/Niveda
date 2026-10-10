@@ -9,6 +9,7 @@ import type { doctorService as MockDoctor } from '../doctorService';
 import { validateFile } from '../documentService';
 import { account, q, read, requireAccount, sb, write } from './client';
 import { RECORD_SELECT, toDoctor, toHospital, toPatient, toRecord } from './mappers';
+import { toRecords } from './sealed';
 import { activeGrant } from './context';
 import { listRecords } from './records';
 import { uploadDocument } from './documents';
@@ -103,7 +104,7 @@ export const remoteDoctorService: typeof MockDoctor = {
     const a = await account();
     if (!a || a.role !== 'doctor') throw new AppError('ACCESS_DENIED', 'This area isn’t available for your account.');
     const rows = await q(sb().from('records').select(RECORD_SELECT).eq('created_by->>id', a.profileId).is('parent_id', null).order('created_at', { ascending: false }).limit(8));
-    const recs = rows.map(toRecord);
+    const recs = await toRecords(rows);
     const ids = [...new Set(recs.map((r) => r.patientId))];
     const pats = ids.length ? await q(sb().from('patients').select('id, full_name').in('id', ids)) : [];
     const names = new Map(pats.map((p: { id: string; full_name: string }) => [p.id, p.full_name]));

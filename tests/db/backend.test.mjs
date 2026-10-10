@@ -688,3 +688,40 @@ test('ABHA: only the server links an ABHA, one ABHA per record, patients can unl
   assert.deepEqual(log.map((l) => l.action), ['abha_linked', 'abha_unlinked']);
   assert.equal(log[0].target.label, 'ABHA xx-xxxx-xxxx-9012');
 });
+
+/* ---------- Encryption of sensitive entries ---------- */
+
+test('mental-health and sensitive entries are stored encrypted; only allowed readers get plaintext', async () => {
+  const id = await rpc('asha', 'create_record', [null, 'mental_health', '2026-09-20', { topic: 'Anxiety follow-up', provider: 'Dr. Mehta', notes: 'Sleeping better' }]);
+  const raw = (await db.query('select data from records where id = $1', [id])).rows[0].data;
+  assert.ok(raw._enc && raw._k === 'v1', 'the table holds ciphertext');
+  assert.ok(!JSON.stringify(raw).includes('Anxiety'), 'no plaintext in the row');
+  const ver = (await db.query('select data from record_versions where record_id = $1', [id])).rows[0].data;
+  assert.ok(ver._enc, 'history is encrypted too');
+  const normal = await rpc('asha', 'create_record', [null, 'allergy', '2026-09-20', { allergen: 'Dust', severity: 'Mild', reaction: 'Sneezing' }]);
+  assert.equal((await db.query('select data from records where id = $1', [normal])).rows[0].data.allergen, 'Dust', 'other entries are untouched');
+
+  // The owner reads the plaintext.
+  const mine = await rpc('asha', 'open_records', [[id, normal]]);
+  assert.equal(mine[id].data.topic, 'Anxiety follow-up');
+  assert.equal(mine[id].versions['1'].notes, 'Sleeping better');
+  assert.ok(!(normal in mine), 'only sealed entries are returned');
+
+  // A doctor without the mental-health category gets nothing, even by id.
+  assert.deepEqual(await rpc('kavya', 'open_records', [[id]]), {});
+  assert.deepEqual(await rpc('stranger', 'open_records', [[id]]), {});
+
+  // Corrections decrypt, change and re-encrypt; the audit label never shows the contents.
+  await rpc('asha', 'amend_record', [id, '2026-09-20', { topic: 'Anxiety follow-up', provider: 'Dr. Mehta', notes: 'Much better' }, 'Update']);
+  const after = await rpc('asha', 'open_records', [[id]]);
+  assert.equal(after[id].data.notes, 'Much better');
+  assert.equal(after[id].versions['1'].notes, 'Sleeping better', 'the original stays in its history');
+  assert.ok((await db.query('select data from records where id = $1', [id])).rows[0].data._enc);
+  const labels = await as('asha', (q) => q("select target from audit_log where target ->> 'id' = $1", [id]));
+  assert.ok(labels.length >= 2 && labels.every((l) => !JSON.stringify(l).includes('Anxiety')));
+
+  // Clients can't read the key or call the sealing functions.
+  await rejects(rpc('asha', '_record_key'), /permission denied/);
+  await rejects(rpc('asha', '_open', [{ _enc: 'x' }]), /permission denied/);
+  await rejects(as('asha', (q) => q('select * from vault.decrypted_secrets')), /permission denied/);
+});

@@ -5,6 +5,7 @@ import { RECORD_TYPES, recordTitle } from '../../lib/recordMeta';
 import { validateFile, type documentService as MockDocs, type DocumentView, type NewFile } from '../documentService';
 import { all, emit, q, read, requireAccount, sb, write } from './client';
 import { toDocument } from './mappers';
+import { openSealed } from './sealed';
 import { patientIdFor } from './context';
 
 const BUCKET = 'documents';
@@ -45,7 +46,7 @@ export const remoteDocumentService: typeof MockDocs = {
     const pid = await patientIdFor(patientId);
     const docs = (await all((from, to) => sb().from('documents').select('*').eq('patient_id', pid).range(from, to))).map(toDocument);
     const recordIds = [...new Set(docs.map((d) => d.recordId).filter(Boolean) as string[])];
-    const recs = recordIds.length ? await q(sb().from('records').select('id, type, data').in('id', recordIds)) : [];
+    const recs = recordIds.length ? await openSealed(await q(sb().from('records').select('id, type, data').in('id', recordIds))) : [];
     const label = new Map(recs.map((r: { id: string; type: keyof typeof RECORD_TYPES; data: Record<string, string> }) => [r.id, `${RECORD_TYPES[r.type].label}: ${recordTitle(r)}`]));
     return docs
       .map((d) => ({ ...d, recordLabel: d.recordId ? label.get(d.recordId) : undefined }))
