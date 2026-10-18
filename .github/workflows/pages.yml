@@ -37,8 +37,10 @@ jobs:
       - name: Build the app
         run: npm run build
         env:
-          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+          # Niveda's Supabase project. Both values are public by design (the database's
+          # access rules protect the data); repository variables override them if set.
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL || 'https://tvtccamcxozjrqxyxtpt.supabase.co' }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY || 'sb_publishable_5-OBRYPrHO17szAj6QBFzw_G8_3BHh3' }}
           VITE_VAPID_PUBLIC_KEY: ${{ vars.VITE_VAPID_PUBLIC_KEY }}
       - run: mv "$RUNNER_TEMP/demo" dist/demo && touch dist/.nojekyll
       - uses: actions/upload-pages-artifact@v3
