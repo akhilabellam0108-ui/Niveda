@@ -6,9 +6,10 @@ import { useNavigate } from 'react-router-dom';
  * opened directly, reloaded, or reached from another site), it goes to `fallback` instead of
  * leaving the app. React Router numbers its own history entries in `history.state.idx`.
  */
-export function BackButton({ fallback, className }: { fallback: string; className?: string }) {
+export function BackButton({ fallback, className, onBack }: { fallback: string; className?: string; onBack?: () => void }) {
   const navigate = useNavigate();
   const goBack = () => {
+    if (onBack) { onBack(); return; }
     const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0;
     if (idx > 0) navigate(-1);
     else navigate(fallback, { replace: true });

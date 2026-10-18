@@ -14,7 +14,7 @@ import { BackButton } from '../../components/ui/BackButton';
 import { OtpInput, PrototypeCode } from '../../components/ui/Otp';
 import { toISODate } from '../../lib/dates';
 
-export function AuthLayout({ children, back = true }: { children: ReactNode; back?: boolean }) {
+export function AuthLayout({ children, back = true, onBack }: { children: ReactNode; back?: boolean; onBack?: () => void }) {
   return (
     <div className="auth">
       <aside className="auth-aside">
@@ -32,7 +32,7 @@ export function AuthLayout({ children, back = true }: { children: ReactNode; bac
       </aside>
       <main className="auth-main">
         <div className="auth-card">
-          {back && <BackButton fallback="/" className="auth-back" />}
+          {back && <BackButton fallback="/" className="auth-back" onBack={onBack} />}
           <div className="mobile-only"><Brand /></div>
           {children}
         </div>
@@ -108,6 +108,7 @@ function RolePicker({ onPick }: { onPick: (r: LoginRole) => void }) {
 export function LoginPage() {
   useDocumentTitle(`Log in · ${brand.name}`);
   const navigate = useNavigate();
+  const location = useLocation();
   const [params, setParams] = useSearchParams();
   const role: LoginRole | undefined = params.get('as') === 'doctor' ? 'doctor' : params.get('as') === 'patient' ? 'patient' : undefined;
   const { notice, clearNotice } = useSession();
@@ -116,7 +117,9 @@ export function LoginPage() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string>();
 
-  if (!role) return <RolePicker onPick={(r) => setParams({ as: r })} />;
+  // The picker is marked in history state so Back on the form can return to it exactly.
+  const fromPicker = (location.state as { fromPicker?: boolean } | null)?.fromPicker === true;
+  if (!role) return <RolePicker onPick={(r) => setParams({ as: r }, { state: { fromPicker: true } })} />;
   const copy = ROLE_COPY[role];
   const other: LoginRole = role === 'doctor' ? 'patient' : 'doctor';
 
@@ -137,10 +140,18 @@ export function LoginPage() {
     }
   };
 
+  // Back on the form always returns to "Who's logging in?", so picking the wrong one is easy to undo —
+  // even after logging out or opening a patient/doctor login link directly.
+  const backToPicker = () => {
+    setErr(undefined);
+    if (fromPicker) navigate(-1);
+    else navigate('/login', { replace: true, state: location.state });
+  };
+
   const demos = role === 'patient' ? (['patient'] as const) : (['doctor', 'doctor2'] as const);
 
   return (
-    <AuthLayout>
+    <AuthLayout onBack={backToPicker}>
       <div>
         <span className={`role-chip role-chip-${role}`}><copy.icon aria-hidden />{role === 'doctor' ? 'Doctor' : 'Patient'}</span>
         <h1>{copy.heading}</h1>
@@ -159,7 +170,7 @@ export function LoginPage() {
           ? <>New here? <Link to="/signup">Create an account</Link></>
           : <>Not on {brand.name} yet? <Link to="/signup/doctor">Apply to join as a doctor</Link></>}
       </p>
-      <button type="button" className="btn btn-ghost btn-sm" style={{ alignSelf: 'center' }} onClick={() => { setErr(undefined); setParams({ as: other }); }}>
+      <button type="button" className="btn btn-ghost btn-sm" style={{ alignSelf: 'center' }} onClick={() => { setErr(undefined); setParams({ as: other }, { replace: true, state: location.state }); }}>
         <ArrowLeftRight aria-hidden />I’m {other === 'doctor' ? 'a doctor' : 'a patient'} instead
       </button>
       {!isLive && <div className="demo-box">
@@ -305,7 +316,12 @@ export function VerifyPage() {
       <InlineError message={err} />
       <Button variant="primary" size="lg" block loading={busy} disabled={code.length !== 6} onClick={() => verify()}>Verify</Button>
       <div className="spread small">
-        <Link to={state.flow === 'signup' ? '/signup' : state.as ? `/login?as=${state.as}` : '/login'}>Back</Link>
+        <a href="#" onClick={(e) => {
+          // Return to the screen before (keeps what was typed), not a new copy of it on top.
+          e.preventDefault();
+          if (((window.history.state as { idx?: number } | null)?.idx ?? 0) > 0) navigate(-1);
+          else navigate(state.flow === 'signup' ? '/signup' : state.as ? `/login?as=${state.as}` : '/login', { replace: true });
+        }}>Back</a>
         <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => { try { setChallenge(authService.resendCode(state.flow)); setCode(''); setErr(undefined); } catch (x) { setErr(friendlyError(x)); } }}>Send a new code</button>
       </div>
       {!isLive && <p className="xs subtle">In the real app this code arrives by email. Here it’s shown on screen because this is the demo.</p>}
