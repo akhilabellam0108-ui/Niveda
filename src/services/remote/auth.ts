@@ -1,11 +1,16 @@
 /**
  * Real authentication with Supabase Auth. Codes arrive by email (the project's
- * email templates must include {{ .Token }} — see docs/SUPABASE_SETUP.md).
+ * email templates must include {{ .Token }} — see docs/SUPABASE_SETUP.md), or by
+ * SMS to a verified phone when VITE_OTP_CHANNEL=sms (Supabase phone auth with the
+ * send-sms hook, which delivers through MSG91 or Twilio).
  *
  * Sign-in is two steps, like the demo: the password is checked, then a one-time
  * code is emailed and must be entered before a session exists.
  */
+import type { User as AuthUser } from '@supabase/supabase-js';
 import type { Session, User } from '../../types';
+import { backend } from '../../config/backend';
+import { brand } from '../../config/brand';
 import { uid } from '../../lib/ids';
 import { AppError } from '../core';
 import { maskDestination, type OtpChallenge, type OtpPurpose } from '../otpService';
@@ -14,12 +19,29 @@ import { account, authError, currentSessionId, emit, onAuthChanged, read, requir
 
 const CODE_MINUTES = 10;
 type Flow = 'signup' | 'login' | 'reset';
-let pending: { flow: Flow; email: string; challengeId: string } | null = null;
+/** Where a code was sent: the account's email, or its verified phone (E.164). */
+export type CodeTarget = { kind: 'email'; to: string } | { kind: 'phone'; to: string };
+let pending: { flow: Flow; email: string; challengeId: string; target?: CodeTarget } | null = null;
+let pendingPhone: string | null = null;
 
 const norm = (s: string) => s.trim().toLowerCase();
 
-export function challengeFor(purpose: OtpPurpose, email: string): OtpChallenge {
-  return { id: uid('otp'), purpose, destination: maskDestination(email), expiresAt: Date.now() + CODE_MINUTES * 60000, prototypeCode: '' };
+export function challengeFor(purpose: OtpPurpose, dest: string): OtpChallenge {
+  return { id: uid('otp'), purpose, destination: maskDestination(dest), expiresAt: Date.now() + CODE_MINUTES * 60000, prototypeCode: '' };
+}
+
+/** Indian 10-digit numbers get +91; anything starting with + is kept as typed. */
+export function toE164(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  if (phone.trim().startsWith('+')) return `+${digits}`;
+  if (digits.length === 12 && digits.startsWith('91')) return `+${digits}`;
+  return `+91${digits.slice(-10)}`;
+}
+
+/** SMS when it's switched on and this login has a verified phone; email otherwise. */
+export function codeTargetFor(user: Pick<AuthUser, 'email' | 'phone' | 'phone_confirmed_at'> | null | undefined, email: string, channel = backend.otpChannel): CodeTarget {
+  if (channel === 'sms' && user?.phone && user.phone_confirmed_at) return { kind: 'phone', to: `+${user.phone.replace(/\D/g, '')}` };
+  return { kind: 'email', to: email };
 }
 
 export function describeDevice(ua?: string | null): string {
@@ -41,6 +63,27 @@ async function verifyEmailCode(email: string, code: string, type: 'email' | 'rec
   onAuthChanged();
 }
 
+async function verifyCode(target: CodeTarget, code: string) {
+  if (target.kind === 'email') return verifyEmailCode(target.to, code, 'email');
+  const token = code.replace(/\D/g, '');
+  if (token.length < 6) throw new AppError('OTP_INVALID', 'Enter the code from the text message.');
+  const { error } = await sb().auth.verifyOtp({ phone: target.to, token, type: 'sms' });
+  if (error) throw authError(error);
+  onAuthChanged();
+}
+
+async function sendCode(target: CodeTarget) {
+  const { error } = target.kind === 'phone'
+    ? await sb().auth.signInWithOtp({ phone: target.to, options: { shouldCreateUser: false, channel: 'sms' } })
+    : await sb().auth.signInWithOtp({ email: target.to, options: { shouldCreateUser: false } });
+  if (error) throw authError(error);
+}
+
+async function myTarget(email: string): Promise<CodeTarget> {
+  const { data } = await sb().auth.getUser();
+  return codeTargetFor(data.user, email);
+}
+
 async function afterSignIn(): Promise<User> {
   resetCaches();
   let a = await account();
@@ -51,25 +94,25 @@ async function afterSignIn(): Promise<User> {
   return toUser(a);
 }
 
-async function sendLoginCode(email: string) {
-  const { error } = await sb().auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
-  if (error) throw authError(error);
-}
-
 /**
  * Step-up verification before sensitive actions. The database accepts the action
  * only if this session was created by a code in the last 10 minutes, once.
  */
+let stepUpTarget: CodeTarget | null = null;
+
 export const stepUp = {
   async request(purpose: OtpPurpose): Promise<OtpChallenge> {
     const a = await requireAccount();
-    await sendLoginCode(a.email);
-    return challengeFor(purpose, a.email);
+    const target = await myTarget(a.email);
+    await sendCode(target);
+    stepUpTarget = target;
+    return challengeFor(purpose, target.to);
   },
   async verify(code: string): Promise<void> {
     const a = await requireAccount();
     const previous = await currentSessionId();
-    await verifyEmailCode(a.email, code, 'email');
+    await verifyCode(stepUpTarget ?? { kind: 'email', to: a.email }, code);
+    stepUpTarget = null;
     // Verifying starts a fresh session; end the one it replaced so it doesn't linger as another "device".
     if (previous) await read('revoke_session', { p_id: previous }).catch(() => undefined);
   },
@@ -79,7 +122,7 @@ export const remoteAuthService: typeof MockAuth = {
   async startDoctorApplication(input) {
     const email = norm(input.email);
     const { email: _e, password, ...details } = input;
-    const { data, error } = await sb().auth.signUp({ email, password, options: { data: { signup_kind: 'doctor', ...details } } });
+    const { data, error } = await sb().auth.signUp({ email, password, options: { data: { signup_kind: 'doctor', ...details, privacy_consent: true, privacy_notice_version: brand.privacyNoticeVersion } } });
     if (error) throw authError(error);
     if (data.user && (data.user.identities?.length ?? 0) === 0) {
       throw new AppError('CONFLICT', 'An account with this email already exists. Try signing in instead.');
@@ -93,7 +136,13 @@ export const remoteAuthService: typeof MockAuth = {
     const email = norm(input.email);
     const { data, error } = await sb().auth.signUp({
       email, password: input.password,
-      options: { data: { full_name: input.fullName.trim(), date_of_birth: input.dateOfBirth, phone: input.phone.trim() } },
+      options: { data: {
+        full_name: input.fullName.trim(), date_of_birth: input.dateOfBirth, phone: input.phone.trim(),
+        privacy_consent: true, privacy_notice_version: brand.privacyNoticeVersion,
+        // Only choices the person actually made; an unanswered one stays undecided.
+        ...(input.consents?.reminders !== undefined ? { consent_reminders: input.consents.reminders } : {}),
+        ...(input.consents?.productUpdates !== undefined ? { consent_product_updates: input.consents.productUpdates } : {}),
+      } },
     });
     if (error) throw authError(error);
     // Supabase hides whether an email is taken; an empty identity list means it is.
@@ -119,19 +168,20 @@ export const remoteAuthService: typeof MockAuth = {
   async startLogin(identifier: string, password: string): Promise<OtpChallenge> {
     const email = norm(identifier);
     if (!email.includes('@')) throw new AppError('AUTH_FAILED', 'Sign in with the email address on your account.');
-    const { error } = await sb().auth.signInWithPassword({ email, password });
+    const { data, error } = await sb().auth.signInWithPassword({ email, password });
     if (error) throw authError(error);
+    const target = codeTargetFor(data.user, email);
     // The password was right. End that session: a session only exists after the code.
     await sb().auth.signOut({ scope: 'local' });
-    await sendLoginCode(email);
-    const c = challengeFor('login', email);
-    pending = { flow: 'login', email, challengeId: c.id };
+    await sendCode(target);
+    const c = challengeFor('login', target.to);
+    pending = { flow: 'login', email, challengeId: c.id, target };
     return c;
   },
 
   async completeLogin(challengeId: string, code: string): Promise<User> {
     if (!pending || pending.flow !== 'login' || pending.challengeId !== challengeId) throw new AppError('OTP_EXPIRED', 'Your sign-in has timed out. Please start again.');
-    await verifyEmailCode(pending.email, code, 'email');
+    await verifyCode(pending.target ?? { kind: 'email', to: pending.email }, code);
     pending = null;
     return afterSignIn();
   },
@@ -139,9 +189,10 @@ export const remoteAuthService: typeof MockAuth = {
   resendCode(purpose: 'signup' | 'login'): OtpChallenge {
     if (!pending || pending.flow !== purpose) throw new AppError('OTP_EXPIRED', 'Please start again.');
     const email = pending.email;
-    const c = challengeFor(purpose, email);
+    const target = pending.target ?? { kind: 'email' as const, to: email };
+    const c = challengeFor(purpose, target.to);
     pending.challengeId = c.id;
-    void (purpose === 'signup' ? sb().auth.resend({ type: 'signup', email }) : sb().auth.signInWithOtp({ email, options: { shouldCreateUser: false } }));
+    void (purpose === 'signup' ? sb().auth.resend({ type: 'signup', email }) : sendCode(target).catch(() => undefined));
     return c;
   },
 
@@ -181,6 +232,36 @@ export const remoteAuthService: typeof MockAuth = {
     const { error } = await sb().auth.updateUser({ password: next });
     if (error) throw authError(error);
     await write('log_password_changed', { p_label: 'Password changed' });
+  },
+
+  /** Whether codes can go by SMS, and to which verified number. */
+  async phoneStatus(): Promise<{ smsEnabled: boolean; phone: string; verified: boolean }> {
+    const a = await requireAccount();
+    const { data } = await sb().auth.getUser();
+    const verified = !!(data.user?.phone && data.user.phone_confirmed_at);
+    return { smsEnabled: backend.otpChannel === 'sms', phone: verified ? `+${data.user!.phone!.replace(/\D/g, '')}` : a.phone, verified };
+  },
+
+  /** Sends a code by SMS to the number; it becomes the login's verified phone once confirmed. */
+  async startPhoneVerification(phone: string): Promise<OtpChallenge> {
+    await requireAccount();
+    const e164 = toE164(phone);
+    if (!/^\+\d{11,15}$/.test(e164)) throw new AppError('VALIDATION', 'Enter a valid mobile number.');
+    const { error } = await sb().auth.updateUser({ phone: e164 });
+    if (error) throw authError(error);
+    pendingPhone = e164;
+    return challengeFor('change_permissions', e164);
+  },
+
+  async confirmPhone(code: string): Promise<void> {
+    if (!pendingPhone) throw new AppError('OTP_EXPIRED', 'Please start again.');
+    const token = code.replace(/\D/g, '');
+    if (token.length < 6) throw new AppError('OTP_INVALID', 'Enter the code from the text message.');
+    const { error } = await sb().auth.verifyOtp({ phone: pendingPhone, token, type: 'phone_change' });
+    if (error) throw authError(error);
+    await write('log_phone_verified', { p_phone: pendingPhone });
+    pendingPhone = null;
+    onAuthChanged();
   },
 
   async currentUser(): Promise<User | null> {

@@ -18,6 +18,7 @@ create table if not exists auth.users (
   id uuid primary key default gen_random_uuid(),
   email text unique,
   phone text,
+  phone_confirmed_at timestamptz,
   raw_user_meta_data jsonb not null default '{}',
   email_confirmed_at timestamptz default now(),
   created_at timestamptz not null default now()
@@ -66,3 +67,13 @@ alter default privileges in schema public grant all on tables to anon, authentic
 alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
 alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;
 grant usage on schema public to anon, authenticated, service_role;
+
+-- Supabase Vault (secrets encrypted at rest by Supabase). Stand-in: plain table.
+create schema if not exists vault;
+create table if not exists vault.secrets (
+  id uuid primary key default gen_random_uuid(), name text unique, description text, secret text not null
+);
+create or replace view vault.decrypted_secrets as select id, name, description, secret, secret as decrypted_secret from vault.secrets;
+create or replace function vault.create_secret(new_secret text, new_name text default null, new_description text default '') returns uuid
+language sql as $$ insert into vault.secrets (name, description, secret) values (new_name, new_description, new_secret) returning id $$;
+revoke all on schema vault from public;

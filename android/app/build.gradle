@@ -1,5 +1,14 @@
 apply plugin: 'com.android.application'
 
+// Release signing for the Play Store. Values come from android/keystore.properties
+// (on your computer, never committed) or from environment variables (CI):
+//   NIVEDA_KEYSTORE_FILE, NIVEDA_KEYSTORE_PASSWORD, NIVEDA_KEY_ALIAS, NIVEDA_KEY_PASSWORD
+def keystoreProps = new Properties()
+def keystorePropsFile = rootProject.file('keystore.properties')
+if (keystorePropsFile.exists()) keystorePropsFile.withInputStream { keystoreProps.load(it) }
+def signing = { String key, String env -> keystoreProps.getProperty(key) ?: System.getenv(env) }
+def releaseStore = signing('storeFile', 'NIVEDA_KEYSTORE_FILE')
+
 android {
     namespace = "in.niveda.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,8 +16,9 @@ android {
         applicationId "in.niveda.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        // CI sets these per build: versionCode must go up with every Play upload.
+        versionCode((System.getenv('NIVEDA_VERSION_CODE') ?: '1') as int)
+        versionName(System.getenv('NIVEDA_VERSION_NAME') ?: '1.0')
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,8 +26,19 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (releaseStore) {
+                storeFile file(releaseStore)
+                storePassword signing('storePassword', 'NIVEDA_KEYSTORE_PASSWORD')
+                keyAlias signing('keyAlias', 'NIVEDA_KEY_ALIAS')
+                keyPassword signing('keyPassword', 'NIVEDA_KEY_PASSWORD')
+            }
+        }
+    }
     buildTypes {
         release {
+            if (releaseStore) signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

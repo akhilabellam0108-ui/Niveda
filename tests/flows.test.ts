@@ -6,10 +6,11 @@ import { latency } from '../src/mock/db';
 import { advanceClock, todayISO } from '../src/lib/dates';
 import {
   accessService, auditService, authService, documentService, notificationService,
-  patientService, recordService, medicationService, AppError,
+  patientService, recordService, medicationService, doctorService, AppError, abhaService, privacyService,
 } from '../src/services';
 import { DEMO_PASSWORD } from '../src/mock/seed';
 import { DEFAULT_PERMISSIONS, RECORD_TYPES } from '../src/lib/recordMeta';
+import { buildBrief } from '../src/lib/brief';
 
 latency.ms = 0;
 let passed = 0;
@@ -159,6 +160,7 @@ await step('consultation bundle adds linked entries', async () => {
   const blob = new Blob(['%PDF-1.4 test'], { type: 'application/pdf' });
   const res = await recordService.addConsultation({
     patientId: newPatientId, date: todayISO(), reason: 'Sore throat', symptoms: 'Pain swallowing, fever 38.2°C',
+    handoverNote: 'Check swab culture result. If strep, complete 5 days and recheck throat.',
     diagnosis: { condition: 'Acute pharyngitis', status: 'Active', severity: 'Mild' },
     prescriptions: [{ name: 'Azithromycin', dosage: '500 mg', frequency: 'Once daily', durationDays: 3, startDate: todayISO(), instructions: 'After food' }],
     labOrders: [{ test: 'Throat swab culture', laboratory: 'Sunrise Diagnostics' }],
@@ -171,6 +173,18 @@ await step('consultation bundle adds linked entries', async () => {
   assert(c.createdBy.name === 'Dr. Priya Sharma' && c.organization?.name === 'Lakeview Hospital', 'attribution + hospital');
   assert(c.attachments.length === 1, 'attachment linked');
   assert(after.filter((r) => r.parentId === consultationId).length === 3, 'children linked to consultation');
+});
+await step('every visit ends with a note for the next visit', async () => {
+  const before = (await recordService.list(newPatientId)).length;
+  const visit = { patientId: newPatientId, date: todayISO(), reason: 'Review', prescriptions: [], labOrders: [], files: [] };
+  await expectRejectsValidation(() => recordService.addConsultation({ ...visit, handoverNote: '' }), 'visit without a note');
+  await expectRejectsValidation(() => recordService.addConsultation({ ...visit, handoverNote: '  ok  ' }), 'visit with a one-word note');
+  await expectRejectsValidation(() => recordService.create({ patientId: newPatientId, type: 'consultation', date: todayISO(), data: { reason: 'Review' } }), 'consultation entry without a note');
+  assert((await recordService.list(newPatientId)).length === before, 'nothing saved when the note is missing');
+  const c = (await recordService.list(newPatientId)).find((r) => r.id === consultationId)!;
+  assert(c.data.handoverNote === 'Check swab culture result. If strep, complete 5 days and recheck throat.', 'note stored on the consultation');
+  const o = await doctorService.patientOverview(newPatientId);
+  assert(o.handover?.id === consultationId, 'the newest note is shown to the next doctor');
 });
 await step('amendment keeps the original version', async () => {
   const dx = (await recordService.list(newPatientId)).find((r) => r.type === 'diagnosis' && r.parentId === consultationId)!;
@@ -217,13 +231,38 @@ await step('revoked doctor loses access immediately', async () => {
   await login('priya.sharma@lakeview.example');
   await expectDenied(() => recordService.list(newPatientId), 'list after revoke');
   await expectDenied(() => recordService.get(consultationId), 'get after revoke');
-  await expectDenied(() => recordService.addConsultation({ patientId: newPatientId, date: todayISO(), reason: 'x', prescriptions: [], labOrders: [], files: [] }), 'write after revoke');
+  await expectDenied(() => recordService.addConsultation({ patientId: newPatientId, date: todayISO(), reason: 'x', handoverNote: 'Nothing further needed.', prescriptions: [], labOrders: [], files: [] }), 'write after revoke');
 });
 await step('sensitive categories stay hidden unless shared', async () => {
   // Meera's mental-health record is not in Dr. Priya's default permissions.
   const recs = await recordService.list('p_meera');
   assert(!recs.some((r) => r.type === 'mental_health'), 'mental health hidden');
   assert(recs.some((r) => r.type === 'allergy'), 'allergies visible');
+});
+
+console.log('\nPre-visit brief');
+await step('the brief summarises the record in one place, with sources', async () => {
+  const recs = await recordService.list('p_meera');
+  const { grant } = await doctorService.patientOverview('p_meera');
+  const b = buildBrief(recs, grant.permissions, '2026-10-01');
+  assert(b.stats.entries === recs.length && b.stats.since === '2018-02-14', 'counts every visible entry');
+  assert(b.allergies[0].title === 'Penicillin' && b.allergies[0].flag === 'danger', 'severe allergy first, flagged');
+  assert(b.activeProblems.map((p) => p.title).join() === 'Tension-type headache,Mild persistent asthma', 'active problems, newest first');
+  assert(b.pastProblems.some((p) => p.title === 'Iron-deficiency anaemia'), 'resolved problems kept as history');
+  assert(b.currentMeds.length === 4 && b.currentMeds.some((m) => m.title.startsWith('Paracetamol')), 'current medicines only');
+  assert(b.stoppedMeds.map((m) => m.title).join() === 'Ferrous sulfate 200 mg' && b.stoppedMeds[0].detail!.includes('Haemoglobin back to normal'), 'recently stopped medicine with the reason');
+  const cbc = b.labs.find((l) => l.test === 'Complete blood count (CBC)')!;
+  assert(cbc.latest.detail!.startsWith('Hb 12.8') && cbc.earlier.map((e) => e.date).join() === '2025-04-14,2025-01-13', 'lab trend: latest result and earlier ones, newest first');
+  assert(b.labs[0].latest.flagLabel === 'Borderline', 'results that need attention come first');
+  assert(b.lastVisit?.recordId === 'r_cons_2026' && b.lastVisit.handoverNote!.includes('MRI brain'), 'last visit with its note for the next visit');
+  assert(b.openItems.map((i) => i.kind).join() === 'follow_up,vaccine_due', 'open items: follow-up and a vaccine due soon');
+  assert(b.surgeriesAndStays.length === 2 && b.familyHistory[0].title === 'Type 2 diabetes', 'surgeries, stays and family history');
+  assert(b.notShared.join() === 'Mental-health records,Other sensitive records', 'says which sections were not shared');
+  const ids = new Set(recs.map((r) => r.id));
+  const lines = [...b.allergies, ...b.activeProblems, ...b.currentMeds, ...b.stoppedMeds, ...b.openItems, ...b.labs.map((l) => l.latest), ...b.imaging];
+  assert(lines.every((l) => ids.has(l.recordId)), 'every line points to an entry the doctor can open');
+  const noLabs = buildBrief(recs.filter((r) => RECORD_TYPES[r.type].permission !== 'labs'), grant.permissions.filter((k) => k !== 'labs'), '2026-10-01');
+  assert(noLabs.labs.length === 0 && noLabs.notShared.includes('Lab reports'), 'unshared sections stay out of the brief');
 });
 await step('access expires on its own', async () => {
   const req = await accessService.requestAccess(newPatientId, ['history'], 1, 'Follow-up review');
@@ -289,9 +328,51 @@ await step('a doctor can open emergency essentials when the patient can’t cons
   await recordService.list(r.patientId).then(() => { throw new Error('still had access'); }, (e) => assert(e instanceof AppError && e.code === 'ACCESS_DENIED', 'the patient can end it'));
 });
 
+
+console.log('\nABHA and data rights (DPDP Act)');
+await step('under-18s can’t create their own account', async () => {
+  const dob = new Date(Date.now() - 15 * 365.25 * 864e5).toISOString().slice(0, 10);
+  await expectRejectsValidation(() => authService.startSignUp({ ...newPatient, email: 'kid@example.com', phone: '+91 90000 77777', dateOfBirth: dob }), 'minor sign-up');
+});
+await step('a patient links an ABHA with a code; the same ABHA can’t go on two records', async () => {
+  await login('meera@example.com');
+  const start = await abhaService.requestOtp('abha-number', '91-1234-5678-9012');
+  try { await abhaService.verifyOtp('abha-number', start.txnId, start.demoCode === '000000' ? '111111' : '000000'); throw new Error('wrong code accepted'); } catch (e) { if (!(e instanceof AppError)) throw e; }
+  const again = await abhaService.requestOtp('abha-number', '91 1234 5678 9012');
+  const r = await abhaService.verifyOtp('abha-number', again.txnId, again.demoCode!);
+  assert('linked' in r && r.linked.abhaNumber === '91-1234-5678-9012', 'linked');
+  assert((await abhaService.get())?.abhaAddress.endsWith('@sbx'), 'address shown');
+  await expectRejectsValidation(() => abhaService.requestOtp('abha-number', '123'), 'short ABHA number');
+  await abhaService.unlink();
+  assert((await abhaService.get()) === null, 'unlinked');
+  const log = await auditService.forPatient();
+  assert(log.some((a) => a.action === 'abha_linked') && log.some((a) => a.action === 'abha_unlinked'), 'both are in the access log');
+});
+await step('consents can be withdrawn and given again, but not the core record', async () => {
+  await privacyService.setConsent('product_updates', true);
+  await privacyService.setConsent('product_updates', false);
+  const c = await privacyService.consents();
+  assert(c.find((x) => x.purpose === 'product_updates')?.granted === false, 'latest decision wins');
+  await expectRejectsValidation(() => privacyService.setConsent('core_record', false), 'core record');
+});
+await step('grievances get a reference and a 90-day deadline; deletion needs a code and can be cancelled', async () => {
+  const g = await privacyService.fileGrievance('correction', 'The date on my blood test is wrong.');
+  assert(/^NV-GRV-\d{4}-\d{5}$/.test(g.reference), g.reference);
+  assert(new Date(g.respondBy).getTime() - new Date(g.createdAt).getTime() >= 89 * 864e5, '90 days');
+  await privacyService.setNominee({ name: 'Ravi Rao', relationship: 'Brother', phone: '+91 90000 11111' });
+  assert((await privacyService.nominee())?.name === 'Ravi Rao', 'nominee saved');
+  const c = await privacyService.requestDeletionCode();
+  const d = await privacyService.requestDeletion(c.prototypeCode, 'Testing');
+  assert(Math.round((new Date(d.eraseAfter).getTime() - new Date(d.requestedAt).getTime()) / 864e5) === 7, '7-day window');
+  assert((await accessService.listForPatient()).active.length === 0, 'doctors lose access straight away');
+  await privacyService.cancelDeletion();
+  assert((await privacyService.deletionRequest()) === null, 'cancelled');
+  await authService.logout();
+});
+
 console.log('\nPhone alarms (Android app)');
 await step('plans an exact alarm for each future dose, skipping taken doses and finished courses', async () => {
-  const { planAlarms, alarmId, MAX_ALARMS } = await import('../src/lib/alarmPlan');
+  const { planAlarms, alarmId, MAX_ALARMS, MAX_ALARMS_IOS } = await import('../src/lib/alarmPlan');
   const now = new Date(2026, 8, 30, 10, 0);
   const med = (id: string, data: Record<string, unknown>) => ({ id, patientId: 'p', type: 'medication', date: '2026-09-01', data, createdAt: '', updatedAt: '', createdBy: { id: 'p', role: 'patient', name: 'P' }, attachments: [], source: 'patient', version: 1, versions: [] }) as never;
   const rem = (recordId: string, times: string[], enabled = true) => ({ recordId, patientId: 'p', times, enabled, updatedAt: '' });
@@ -314,6 +395,8 @@ await step('plans an exact alarm for each future dose, skipping taken doses and 
   assert(planAlarms({ schedules, logged: new Set(), now, enabled: false }).length === 0, 'the setting turns them all off');
   const many = Array.from({ length: 40 }, (_, i) => ({ record: med(`x${i}`, { name: `M${i}`, startDate: '2026-01-01' }), reminder: rem(`x${i}`, ['06:00', '14:00', '22:00']) }));
   assert(planAlarms({ schedules: many, logged: new Set(), now, enabled: true }).length === MAX_ALARMS, 'capped below Android’s limit, soonest first');
+  const ios = planAlarms({ schedules: many, logged: new Set(), now, enabled: true, max: MAX_ALARMS_IOS });
+  assert(ios.length === MAX_ALARMS_IOS && ios.every((p, i) => i === 0 || p.at >= ios[i - 1].at), 'iPhone: only the soonest 60, under its limit of 64');
 });
 
 console.log(`\n${passed} passed, ${failures.length} failed`);

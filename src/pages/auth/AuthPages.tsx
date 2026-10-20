@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-do
 import { Eye, EyeOff, ShieldCheck, Clock3, ScrollText, FlaskConical, Stethoscope, UserRound, Mail, ChevronRight, ArrowLeftRight } from 'lucide-react';
 import { brand } from '../../config/brand';
 import { authService, friendlyError, isLive, type OtpChallenge } from '../../services';
+import { isAdult } from '../../services/authService';
 import { DEMO_ACCOUNTS, DEMO_PASSWORD } from '../../mock/seed';
 import { useSession } from '../../state/SessionContext';
 import { useToast } from '../../state/ToastContext';
@@ -196,6 +197,7 @@ export function SignupPage() {
   const navigate = useNavigate();
   const [f, setF] = useState({ fullName: '', dateOfBirth: '', email: '', phone: '', password: '', confirm: '' });
   const [agree, setAgree] = useState(false);
+  const [optIn, setOptIn] = useState({ reminders: true, productUpdates: false });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string>();
@@ -206,6 +208,7 @@ export function SignupPage() {
     if (f.fullName.trim().length < 2) v.fullName = 'Enter your full name';
     if (!f.dateOfBirth) v.dateOfBirth = 'Enter your date of birth';
     else if (f.dateOfBirth > toISODate(new Date()) || f.dateOfBirth < '1900-01-01') v.dateOfBirth = 'Check your date of birth';
+    else if (!isAdult(f.dateOfBirth)) v.dateOfBirth = 'You need to be 18 or older to create your own account. A parent or guardian can keep your records.';
     if (!EMAIL_RE.test(f.email.trim())) v.email = 'Enter a valid email address';
     if (f.phone.replace(/\D/g, '').length < 10) v.phone = 'Enter a 10-digit mobile number';
     if (f.password.length < 8 || !/[A-Za-z]/.test(f.password) || !/\d/.test(f.password)) v.password = 'Use at least 8 characters with letters and numbers';
@@ -221,7 +224,7 @@ export function SignupPage() {
     setBusy(true);
     setErr(undefined);
     try {
-      const challenge = await authService.startSignUp({ fullName: f.fullName, dateOfBirth: f.dateOfBirth, email: f.email, phone: f.phone, password: f.password });
+      const challenge = await authService.startSignUp({ fullName: f.fullName, dateOfBirth: f.dateOfBirth, email: f.email, phone: f.phone, password: f.password, consents: optIn });
       navigate('/verify', { state: { flow: 'signup', challenge } });
     } catch (x) {
       setErr(friendlyError(x));
@@ -247,9 +250,14 @@ export function SignupPage() {
         </div>
         <label className="check">
           <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} aria-invalid={!!errors.agree} />
-          <span>I agree to the <Link to="/legal/terms" target="_blank">Terms</Link> and <Link to="/legal/privacy" target="_blank">Privacy notice</Link>. I understand my record is shared only with doctors I approve.</span>
+          <span>I have read the <Link to="/legal/privacy" target="_blank">Privacy notice</Link> and agree to the <Link to="/legal/terms" target="_blank">Terms</Link>. I consent to {brand.name} keeping my health record and sharing it only with doctors I approve.</span>
         </label>
         {errors.agree && <span className="field-error">{errors.agree}</span>}
+        <fieldset className="stack consent-optional" style={{ '--gap': '6px', border: 0, padding: 0, margin: 0 } as React.CSSProperties}>
+          <legend className="xs muted" style={{ marginBottom: 4 }}>Optional — change any time in Privacy &amp; security</legend>
+          <label className="check"><input type="checkbox" checked={optIn.reminders} onChange={(e) => setOptIn({ ...optIn, reminders: e.target.checked })} /><span>Send me medicine reminders</span></label>
+          <label className="check"><input type="checkbox" checked={optIn.productUpdates} onChange={(e) => setOptIn({ ...optIn, productUpdates: e.target.checked })} /><span>Tell me about new features (no ads, ever)</span></label>
+        </fieldset>
         <InlineError message={err} />
         <Button type="submit" variant="primary" size="lg" block loading={busy}>Continue</Button>
       </form>

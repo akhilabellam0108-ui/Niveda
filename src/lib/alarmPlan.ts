@@ -14,6 +14,8 @@ import { toISODate } from './dates';
 export const ALARM_DAYS = 14;
 /** Android keeps at most ~500 pending alarms per app; stay well below. */
 export const MAX_ALARMS = 400;
+/** iOS keeps only the soonest 64 scheduled notifications; leave room for snoozes. The window rolls forward each time the app opens. */
+export const MAX_ALARMS_IOS = 60;
 
 export interface PlannedAlarm {
   id: number;
@@ -32,6 +34,8 @@ export interface PlanInput {
   now: Date;
   enabled: boolean;
   days?: number;
+  /** Cap on scheduled alarms (MAX_ALARMS_IOS on iPhone). */
+  max?: number;
 }
 
 /** A stable, positive 31-bit id for a dose (Android notification ids are ints). */
@@ -44,7 +48,7 @@ export function alarmId(recordId: string, date: string, time: string): number {
   return (h >>> 1) || 1;
 }
 
-export function planAlarms({ schedules, logged, now, enabled, days = ALARM_DAYS }: PlanInput): PlannedAlarm[] {
+export function planAlarms({ schedules, logged, now, enabled, days = ALARM_DAYS, max = MAX_ALARMS }: PlanInput): PlannedAlarm[] {
   if (!enabled) return [];
   const out: PlannedAlarm[] = [];
   for (let d = 0; d < days; d++) {
@@ -67,5 +71,5 @@ export function planAlarms({ schedules, logged, now, enabled, days = ALARM_DAYS 
       }
     }
   }
-  return out.sort((a, b) => a.at.getTime() - b.at.getTime()).slice(0, MAX_ALARMS);
+  return out.sort((a, b) => a.at.getTime() - b.at.getTime()).slice(0, max);
 }

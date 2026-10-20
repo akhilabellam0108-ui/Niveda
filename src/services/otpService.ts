@@ -7,7 +7,7 @@ import { randomDigits, uid } from '../lib/ids';
 import { now } from '../lib/dates';
 import { AppError } from './core';
 
-export type OtpPurpose = 'signup' | 'login' | 'grant_access' | 'approve_request' | 'change_permissions' | 'reset_password' | 'export' | 'emergency_access';
+export type OtpPurpose = 'signup' | 'login' | 'grant_access' | 'approve_request' | 'change_permissions' | 'reset_password' | 'export' | 'emergency_access' | 'delete_account';
 
 export interface OtpChallenge {
   id: string;
