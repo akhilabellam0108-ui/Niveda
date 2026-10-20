@@ -2,8 +2,10 @@
 // Called every minute by pg_cron (see public.configure_push_reminders).
 //
 // Deploy:  supabase functions deploy send-reminders --no-verify-jwt
-// Secrets: supabase secrets set VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=... \
-//            VAPID_SUBJECT=mailto:you@example.com CRON_SECRET=<long random string>
+// No secrets to set: the cron secret is checked with the database, and the Web Push
+// key pair is made on the first run and kept in the database (only the public half
+// is handed out). CRON_SECRET / VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBJECT
+// set as function secrets still take priority.
 import webpush from 'npm:web-push@3.6.7';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { sendDueReminders, type DueMessage } from './reminders.ts';
@@ -11,13 +13,23 @@ import { sendDueReminders, type DueMessage } from './reminders.ts';
 const env = (k: string) => Deno.env.get(k) ?? '';
 
 Deno.serve(async (req) => {
-  const secret = env('CRON_SECRET');
-  if (!secret || req.headers.get('x-niveda-cron') !== secret) return new Response('Forbidden', { status: 403 });
-  if (!env('VAPID_PUBLIC_KEY') || !env('VAPID_PRIVATE_KEY')) return new Response('VAPID keys are not set', { status: 500 });
-
-  webpush.setVapidDetails(env('VAPID_SUBJECT') || 'mailto:support@niveda.app', env('VAPID_PUBLIC_KEY'), env('VAPID_PRIVATE_KEY'));
   const url = env('SUPABASE_URL');
   const db = createClient(url, env('SUPABASE_SERVICE_ROLE_KEY'), { auth: { persistSession: false } });
+
+  const given = req.headers.get('x-niveda-cron') ?? '';
+  const ok = env('CRON_SECRET') ? given === env('CRON_SECRET') : (await db.rpc('_cron_secret_ok', { p_secret: given })).data === true;
+  if (!ok) return new Response('Forbidden', { status: 403 });
+
+  let keys = env('VAPID_PUBLIC_KEY') && env('VAPID_PRIVATE_KEY')
+    ? { publicKey: env('VAPID_PUBLIC_KEY'), privateKey: env('VAPID_PRIVATE_KEY') }
+    : ((await db.rpc('_push_vapid')).data as { publicKey: string; privateKey: string } | null);
+  if (!keys) {
+    const made = webpush.generateVAPIDKeys();
+    const { data, error } = await db.rpc('_save_push_vapid', { p_public: made.publicKey, p_private: made.privateKey });
+    if (error || !data) return new Response('Could not store the Web Push keys', { status: 500 });
+    keys = data as { publicKey: string; privateKey: string };
+  }
+  webpush.setVapidDetails(env('VAPID_SUBJECT') || 'mailto:support@niveda.app', keys.publicKey, keys.privateKey);
 
   const result = await sendDueReminders({
     async due() {

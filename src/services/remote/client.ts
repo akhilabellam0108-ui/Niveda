@@ -36,6 +36,7 @@ export function toAppError(e: { message?: string; code?: string; status?: number
     return new AppError('UNKNOWN', 'Can’t reach Niveda right now. Check your internet connection and try again.');
   }
   if (typeof console !== 'undefined') console.error('[niveda]', e);
+  if (e?.status && e.status >= 500) return new AppError('UNKNOWN', 'Niveda’s server had a problem. Please try again in a minute.');
   return new AppError('UNKNOWN', 'Something went wrong. Please try again.');
 }
 
@@ -49,6 +50,11 @@ export function authError(e: { message?: string; status?: number; code?: string 
   if (/rate limit|too many|security purposes/i.test(msg) || e.status === 429) return new AppError('VALIDATION', 'Too many attempts. Please wait a minute and try again.');
   if (/password/i.test(msg) && /(weak|short|at least|characters)/i.test(msg)) return new AppError('VALIDATION', 'Choose a stronger password: at least 8 characters with letters and numbers.');
   if (/signups not allowed|signup is disabled/i.test(msg)) return new AppError('VALIDATION', 'New sign-ups are closed right now.');
+  if (/invalid.*email|email.*invalid/i.test(msg)) return new AppError('VALIDATION', 'That email address doesn’t look right. Check it and try again.');
+  // The code email couldn't be sent (mail server refused, or the address doesn't exist).
+  if (/error sending|sending .*email|smtp/i.test(msg) || (e.status === 500 && /unexpected_failure/i.test(e.code ?? '')))
+    return new AppError('UNKNOWN', 'We couldn’t send the code email. Check the email address is right and try again in a minute. If it keeps happening, contact support.');
+  if (/phone/i.test(msg) && /invalid|unsupported/i.test(msg)) return new AppError('VALIDATION', 'That mobile number doesn’t look right. Check it and try again.');
   return toAppError(e);
 }
 
