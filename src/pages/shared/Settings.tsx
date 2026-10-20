@@ -14,6 +14,7 @@ import { BLOOD_GROUPS, readImage } from '../auth/Onboarding';
 import { NotificationPrompt } from '../patient/Medications';
 import { testAlarm } from '../../components/medications/Doses';
 import { isLive } from '../../config/backend';
+import { AbhaCard } from '../../components/abha/AbhaCard';
 
 /* ---------------- Profile ---------------- */
 
@@ -80,6 +81,7 @@ export function ProfilePage() {
         <InlineError message={err} />
         <div><Button type="submit" variant="primary" loading={busy}>Save changes</Button></div>
       </form>
+      <AbhaCard />
     </>
   );
 }

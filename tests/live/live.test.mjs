@@ -159,6 +159,7 @@ test('the doctor adds a visit; the patient sees it, with the doctor’s file', a
   const p = apps.patient;
   const res = await d.recordService.addConsultation({
     patientId: shared.patientId, date: '2026-09-28', reason: 'Fatigue', symptoms: 'Tired for 3 weeks',
+    handoverNote: 'Recheck Hb at follow-up; if no rise on iron, look for blood loss.',
     diagnosis: { condition: 'Anaemia', status: 'Active', severity: 'Mild' },
     prescriptions: [{ name: 'Ferrous sulphate', dosage: '200 mg', frequency: 'Once daily', durationDays: 30, startDate: '2026-09-28' }],
     labOrders: [{ test: 'Complete blood count' }], followUp: '2026-10-12',
@@ -168,6 +169,9 @@ test('the doctor adds a visit; the patient sees it, with the doctor’s file', a
   assert.equal(res.consultation.createdBy.name, doctor.name);
   assert.equal(res.consultation.organization.name, 'Northbridge Hospital');
   assert.equal(res.consultation.attachments.length, 1);
+  assert.equal(res.consultation.data.handoverNote, 'Recheck Hb at follow-up; if no rise on iron, look for blood loss.');
+  assert.equal((await d.doctorService.patientOverview(shared.patientId)).handover?.id, res.consultation.id);
+  await rejectsWith(d.recordService.addConsultation({ patientId: shared.patientId, date: '2026-09-28', reason: 'Review', handoverNote: '', prescriptions: [], labOrders: [], files: [] }), /VALIDATION: Write a note for the next visit/);
 
   const dx = res.created.find((r) => r.type === 'diagnosis');
   const amended = await d.recordService.amend(dx.id, { date: dx.date, data: { ...dx.data, condition: 'Iron-deficiency anaemia' }, reason: 'Confirmed by ferritin' });

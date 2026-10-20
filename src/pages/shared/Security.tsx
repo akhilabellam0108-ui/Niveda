@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { LockKeyhole, ShieldCheck, Eye, Clock3, ScrollText, Smartphone, Laptop, Monitor, KeyRound, LogOut, Fingerprint, Info, ShieldOff } from 'lucide-react';
+import { LockKeyhole, ShieldCheck, Eye, Clock3, ScrollText, Smartphone, Laptop, Monitor, KeyRound, LogOut, Fingerprint, Info, ShieldOff, MessageSquare } from 'lucide-react';
+import { isLive, type OtpChallenge } from '../../services';
+import { OtpInput, PrototypeCode } from '../../components/ui/Otp';
+import { YourRights } from '../../components/privacy/YourRights';
 import { accessService, auditService, authService, friendlyError } from '../../services';
 import { useLive, useDocumentTitle } from '../../state/hooks';
 import { useSession } from '../../state/SessionContext';
@@ -16,7 +19,9 @@ export function SecuritySection() {
   const toast = useToast();
   const sessions = useLive(() => authService.listSessions(), []);
   const signIns = useLive(() => auditService.signIns(), []);
+  const phone = useLive(() => authService.phoneStatus(), []);
   const [pwOpen, setPwOpen] = useState(false);
+  const [phoneOpen, setPhoneOpen] = useState(false);
   const [confirmAll, setConfirmAll] = useState(false);
   const deviceIcon = (d: string) => (/Android|iOS|Pixel|iPhone/.test(d) ? Smartphone : /laptop|Windows|macOS/i.test(d) ? Laptop : Monitor);
   return (
@@ -41,6 +46,12 @@ export function SecuritySection() {
         <ul className="list">
           <li className="list-item"><span className="type-icon sm"><KeyRound aria-hidden /></span><div className="grow"><div className="strong small">Password</div><div className="xs muted">Use a unique password you don’t use elsewhere.</div></div><Button size="sm" onClick={() => setPwOpen(true)}>Change</Button></li>
           <li className="list-item"><span className="type-icon sm tone-ok"><Fingerprint aria-hidden /></span><div className="grow"><div className="strong small">One-time codes</div><div className="xs muted">Required to sign in, grant access, approve requests and share more.</div></div><Badge tone="ok">On</Badge></li>
+          {phone.data?.smsEnabled && (
+            <li className="list-item"><span className="type-icon sm"><MessageSquare aria-hidden /></span>
+              <div className="grow"><div className="strong small">Codes by text message</div>
+                <div className="xs muted">{phone.data.verified ? `Codes are texted to ${phone.data.phone}.` : 'Verify your mobile number to get codes by SMS instead of email.'}</div></div>
+              <Button size="sm" onClick={() => setPhoneOpen(true)}>{phone.data.verified ? 'Change number' : 'Verify phone'}</Button></li>
+          )}
         </ul>
       </Card>
       <Card title="Recent sign-ins">
@@ -57,10 +68,48 @@ export function SecuritySection() {
         )}
       </Card>
       <ChangePassword open={pwOpen} onClose={() => setPwOpen(false)} />
+      <VerifyPhone open={phoneOpen} initial={phone.data?.phone ?? ''} onClose={() => setPhoneOpen(false)} />
       <ConfirmDialog open={confirmAll} onClose={() => setConfirmAll(false)} danger confirmLabel="Sign out other devices" title="Sign out everywhere else?"
         body="Every other device will need to sign in again with your password and a one-time code."
         onConfirm={async () => { const n = await authService.revokeOtherSessions(); toast(`Signed out ${n} device${n === 1 ? '' : 's'}`); }} />
     </>
+  );
+}
+
+function VerifyPhone({ open, initial, onClose }: { open: boolean; initial: string; onClose: () => void }) {
+  const toast = useToast();
+  const [number, setNumber] = useState(initial);
+  const [challenge, setChallenge] = useState<OtpChallenge>();
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string>();
+  const close = () => { setChallenge(undefined); setCode(''); setErr(undefined); onClose(); };
+  const send = async () => {
+    setBusy(true); setErr(undefined);
+    try { setChallenge(await authService.startPhoneVerification(number || initial)); } catch (e) { setErr(friendlyError(e)); } finally { setBusy(false); }
+  };
+  const confirm = async (c = code) => {
+    setBusy(true); setErr(undefined);
+    try { await authService.confirmPhone(c); toast('Phone verified — codes will now come by SMS'); close(); } catch (e) { setErr(friendlyError(e)); } finally { setBusy(false); }
+  };
+  return (
+    <Modal open={open} onClose={close} title="Codes by text message" size="sm"
+      footer={<><Button onClick={close}>Cancel</Button>{challenge
+        ? <Button variant="primary" loading={busy} onClick={() => confirm()}>Verify</Button>
+        : <Button variant="primary" loading={busy} onClick={send}>Send code</Button>}</>}>
+      <div className="stack">
+        {!challenge ? (
+          <Field label="Mobile number" help="Indian numbers can be typed without +91.">{(p) => <Input {...p} type="tel" inputMode="tel" autoComplete="tel" value={number || initial} onChange={(e) => setNumber(e.target.value)} />}</Field>
+        ) : (
+          <>
+            <p className="small muted">Enter the 6-digit code we texted to {challenge.destination}.</p>
+            <OtpInput value={code} onChange={setCode} onComplete={(c) => void confirm(c)} disabled={busy} />
+            {!isLive && <PrototypeCode challenge={challenge} onUse={(c) => { setCode(c); void confirm(c); }} />}
+          </>
+        )}
+        <InlineError message={err} />
+      </div>
+    </Modal>
   );
 }
 
@@ -139,7 +188,9 @@ export function PrivacyPage() {
 
       <SecuritySection />
 
-      <div className="alert alert-warn"><Info aria-hidden /><div><div className="alert-title">About this prototype</div>Sessions, one-time codes and encryption are simulated here. A production version needs a real identity provider, server-side access checks, encryption at rest and in transit, and audited infrastructure.</div></div>
+      <YourRights />
+
+      {!isLive && <div className="alert alert-warn"><Info aria-hidden /><div><div className="alert-title">About this demo</div>Sessions, one-time codes and encryption are simulated here. The live version uses Supabase: real sign-in, access rules enforced by the database, and encryption at rest and in transit.</div></div>}
 
       <ConfirmDialog open={!!revokeTarget} onClose={() => setRevokeId(undefined)} danger confirmLabel="Revoke access" title={`Revoke ${revokeTarget?.doctor.fullName}’s access?`}
         body="They immediately lose access. Entries they already added stay in your record."

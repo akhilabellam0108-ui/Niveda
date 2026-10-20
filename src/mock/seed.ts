@@ -126,7 +126,7 @@ export async function buildSeed(): Promise<Database> {
   rec('r_med_vitd', meera, 'medication', '2024-02-22', { name: 'Cholecalciferol (Vitamin D3)', dosage: '60,000 IU', frequency: 'Weekly', endDate: '2024-04-18', prescriber: 'Dr. Priya Sharma', reason: 'Vitamin D deficiency', instructions: 'With milk, 8 weeks.' }, priya, { org: 'h_lakeview', parentId: 'r_lab_vitd' });
 
   // 2025 anaemia episode: consultation -> diagnosis -> medication later discontinued (shows versioning)
-  rec('r_cons_2025', meera, 'consultation', '2025-01-14', { reason: 'Tiredness and breathlessness on stairs', doctor: 'Dr. Priya Sharma', facility: 'Lakeview Hospital', symptoms: 'Fatigue for 6 weeks, pale, occasional dizziness', diagnosis: 'Iron-deficiency anaemia', followUp: '2025-04-15', notes: 'Hb 9.8 g/dL. Start oral iron, recheck in 3 months.' }, priya, { org: 'h_lakeview' });
+  rec('r_cons_2025', meera, 'consultation', '2025-01-14', { reason: 'Tiredness and breathlessness on stairs', doctor: 'Dr. Priya Sharma', facility: 'Lakeview Hospital', symptoms: 'Fatigue for 6 weeks, pale, occasional dizziness', diagnosis: 'Iron-deficiency anaemia', followUp: '2025-04-15', notes: 'Hb 9.8 g/dL. Start oral iron, recheck in 3 months.', handoverNote: 'Repeat CBC and ferritin in 3 months. If Hb not rising on oral iron, look for a cause of blood loss before continuing.' }, priya, { org: 'h_lakeview' });
   rec('r_dx_anaemia', meera, 'diagnosis', '2025-01-14', { condition: 'Iron-deficiency anaemia', status: 'Resolved', severity: 'Moderate', doctor: 'Dr. Priya Sharma', facility: 'Lakeview Hospital', notes: 'Resolved after iron therapy (Apr 2025).' }, priya, { org: 'h_lakeview', parentId: 'r_cons_2025' });
   const iron = rec('r_med_iron', meera, 'medication', '2025-01-14', { name: 'Ferrous sulfate', dosage: '200 mg', frequency: 'Twice daily', prescriber: 'Dr. Priya Sharma', reason: 'Iron-deficiency anaemia', instructions: 'Take before food with orange juice.' }, priya, { org: 'h_lakeview', parentId: 'r_cons_2025' });
   // Discontinued version (history is preserved, not overwritten)
@@ -134,6 +134,10 @@ export async function buildSeed(): Promise<Database> {
   iron.versions.push({ version: 2, date: iron.date, data: ironV2, changedAt: '2025-04-15T10:20:00.000Z', changedBy: priya, changeType: 'discontinued', reason: 'Haemoglobin back to normal (12.9 g/dL).' });
   iron.data = ironV2; iron.version = 2; iron.updatedAt = '2025-04-15T10:20:00.000Z';
 
+  // Earlier results of the same tests, so the doctor's brief can show the trend.
+  rec('r_lab_cbc_2501', meera, 'lab_result', '2025-01-13', { test: 'Complete blood count (CBC)', laboratory: 'Sunrise Diagnostics', result: 'Hb 9.8 g/dL · MCV 71 fL', referenceRange: 'Hb 12.0 – 15.5 g/dL', status: 'Abnormal', notes: 'Microcytic anaemia.' }, priya, { org: 'h_sunrise', parentId: 'r_cons_2025' });
+  rec('r_lab_cbc_2504', meera, 'lab_result', '2025-04-14', { test: 'Complete blood count (CBC)', laboratory: 'Sunrise Diagnostics', result: 'Hb 12.9 g/dL', referenceRange: 'Hb 12.0 – 15.5 g/dL', status: 'Normal', notes: 'Recovered on oral iron.' }, priya, { org: 'h_sunrise' });
+  rec('r_lab_hba1c_2508', meera, 'lab_result', '2025-08-05', { test: 'HbA1c', laboratory: 'Sunrise Diagnostics', result: '5.4 %', referenceRange: 'Below 5.7 %', status: 'Normal' }, priya, { org: 'h_sunrise' });
   rec('r_mh_2025', meera, 'mental_health', '2025-06-09', { topic: 'Counselling — work-related stress', provider: 'Ms. Leela Nair, counsellor', notes: 'Six sessions completed. Sleep improved.' }, me);
   rec('r_vax_flu', meera, 'vaccination', '2025-10-21', { vaccine: 'Influenza (quadrivalent)', dose: 'Annual', facility: 'Lakeview Hospital', nextDue: '2026-10-20' }, me);
 
@@ -147,7 +151,7 @@ export async function buildSeed(): Promise<Database> {
   ]);
 
   // The most recent consultation, by Dr. Priya Sharma
-  rec('r_cons_2026', meera, 'consultation', '2026-09-24', { reason: 'Recurring headaches for 3 weeks', doctor: 'Dr. Priya Sharma', facility: 'Lakeview Hospital', symptoms: 'Band-like headache in the evenings, worse with screen time. No vomiting or visual changes.', diagnosis: 'Tension-type headache', followUp: '2026-10-08', notes: 'BP 118/76. Neuro exam normal. Advised screen breaks, hydration, sleep routine.' }, priya, { org: 'h_lakeview', attachments: ['doc_rx_0924'], enteredAt: '2026-09-24T05:40:00.000Z' });
+  rec('r_cons_2026', meera, 'consultation', '2026-09-24', { reason: 'Recurring headaches for 3 weeks', doctor: 'Dr. Priya Sharma', facility: 'Lakeview Hospital', symptoms: 'Band-like headache in the evenings, worse with screen time. No vomiting or visual changes.', diagnosis: 'Tension-type headache', followUp: '2026-10-08', notes: 'BP 118/76. Neuro exam normal. Advised screen breaks, hydration, sleep routine.', handoverNote: 'Review headache diary at follow-up. If still daily after 2 weeks of screen breaks, or any new visual symptoms, consider MRI brain. Paracetamol only — iron was stopped in 2025, recheck Hb if fatigue returns.' }, priya, { org: 'h_lakeview', attachments: ['doc_rx_0924'], enteredAt: '2026-09-24T05:40:00.000Z' });
   rec('r_dx_tth', meera, 'diagnosis', '2026-09-24', { condition: 'Tension-type headache', status: 'Active', severity: 'Mild', doctor: 'Dr. Priya Sharma', facility: 'Lakeview Hospital' }, priya, { org: 'h_lakeview', parentId: 'r_cons_2026', enteredAt: '2026-09-24T05:41:00.000Z' });
   rec('r_med_pcm', meera, 'medication', '2026-09-24', { name: 'Paracetamol', dosage: '650 mg', frequency: 'As needed', endDate: '2026-10-08', prescriber: 'Dr. Priya Sharma', reason: 'Tension-type headache', instructions: 'Max 3 tablets a day. Avoid on an empty stomach.' }, priya, { org: 'h_lakeview', parentId: 'r_cons_2026', enteredAt: '2026-09-24T05:42:00.000Z' });
   doc('doc_rx_0924', meera, 'Prescription — 24 Sep 2026.pdf', 'prescription', '2026-09-24', 'r_cons_2026', priya, 'Prescription', [
@@ -238,4 +242,4 @@ export async function buildSeed(): Promise<Database> {
   };
 }
 
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 6;

@@ -13,6 +13,13 @@ const opt = <T>(v: T | null | undefined): T | undefined => (v === null ? undefin
 
 export const RECORD_SELECT = '*, record_versions(*)';
 
+/**
+ * Mental-health and sensitive entries are stored encrypted ({_enc, _k}); the
+ * database decrypts them for people allowed to see them (open_records). Until
+ * then they're shown as locked rather than as gibberish.
+ */
+export const isSealed = (d: unknown): boolean => !!d && typeof d === 'object' && '_enc' in (d as object);
+
 export function toRecord(r: Row): MedicalRecord {
   const versions: RecordVersion[] = ((r.record_versions ?? []) as Row[])
     .map((v) => ({

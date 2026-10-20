@@ -194,6 +194,59 @@ Patients then see **Allow** on the *Medications* page. Each device gets reminder
 
 Privacy: messages are end-to-end encrypted to the device, but the notification shows the medicine's name and dose, as on the Android app.
 
+## 10. SMS codes (optional, recommended for India)
+
+Codes go by email by default. To text them instead:
+
+1. **Pick a provider.** In India use **MSG91** (or another DLT-registered provider): register your
+   sender ID and an OTP template on the DLT portal, e.g.
+   `##otp## is your Niveda code. It expires in 10 minutes. Never share it.` — note the **template ID**.
+   Outside India, **Twilio** works (a number or Messaging Service SID).
+2. **Turn on phone sign-in:** Authentication → Providers → **Phone** → enable. (The provider there doesn't
+   matter; the hook below replaces it.)
+3. **Deploy the hook:**
+   ```bash
+   supabase functions deploy send-sms --no-verify-jwt
+   ```
+   Authentication → **Hooks** → *Send SMS hook* → HTTPS → URL
+   `https://<project>.supabase.co/functions/v1/send-sms` → **Generate secret** and copy it.
+4. **Secrets:**
+   ```bash
+   supabase secrets set SEND_SMS_HOOK_SECRET="v1,whsec_…" SMS_PROVIDER=msg91 \
+     MSG91_AUTH_KEY=… MSG91_TEMPLATE_ID=…
+   # or: SMS_PROVIDER=twilio TWILIO_ACCOUNT_SID=AC… TWILIO_AUTH_TOKEN=… TWILIO_FROM=+1… (or MG…)
+   ```
+5. Build the app with `VITE_OTP_CHANNEL=sms`. Each person verifies their mobile once in
+   **Privacy & security → Codes by text message**; from then on their sign-in and step-up codes are
+   texted. Anyone who hasn't verified a phone keeps getting email codes.
+
+## 11. ABHA linking (optional)
+
+See [ABDM.md](ABDM.md): get ABDM sandbox credentials, `supabase functions deploy abdm`, set
+`ABDM_CLIENT_ID` / `ABDM_CLIENT_SECRET`, and build the app with `VITE_ABDM_ENABLED=true`.
+
+## 12. Encryption of sensitive records
+
+Nothing to set up: the migration creates the Vault secret `niveda_record_key` and encrypts
+mental-health and sensitive entries. **Back that secret up offline and never delete it**
+(see [SECURITY.md](SECURITY.md#key-management)). Vault must be available on the project
+(it is on all current Supabase projects; if not, enable *Vault* under Database → Extensions first).
+
+## 13. Account deletion job (DPDP Act)
+
+People can delete their account; it's erased 7 days later by an Edge Function:
+
+```bash
+supabase functions deploy process-deletions --no-verify-jwt
+supabase secrets set CRON_SECRET=<the same long random string as for reminders>
+```
+Then in the SQL editor:
+```sql
+select public.configure_deletions('https://<project>.supabase.co/functions/v1/process-deletions', '<CRON_SECRET>');
+```
+Set the real grievance officer in `src/config/brand.ts`, and answer grievances in **Admin → Grievances**.
+See [DPDP.md](DPDP.md) for the full compliance map.
+
 ## Operating it
 
 - **Access expiry job**: **Database → Cron Jobs** should list `niveda-sweep-grants` every 5 minutes. If pg_cron was enabled after running the migrations, run the "Background job" block from the third migration again.
@@ -212,21 +265,22 @@ Privacy: messages are end-to-end encrypted to the device, but the notification s
 
 ## Still to do before real patients
 
-This backend makes the core rules real, but a health-records service needs more before launch:
+Done since the first version: SMS codes, ABHA linking (M1), field-level encryption, DPDP consent /
+erasure / grievances / nominee, and an automated security audit. Still needed:
 
-- **Server-enforced two-factor sign-in.** The app requires password + emailed code, but the server would also accept a code alone. Turn on Supabase MFA (authenticator app) to enforce a second factor on the server.
-- **SMS codes.** Codes go by email; for SMS, connect a provider (Twilio, MessageBird or Vonage in Supabase's phone settings, or MSG91 via a custom hook for India).
-- **Unskippable view logging for documents.** Views are logged by the app. To make logging impossible to skip even with a modified app, serve downloads through an Edge Function that logs and then issues a short-lived signed link.
-- **Doctor invitations** are recorded but not yet emailed.
-- **Automatic doctor verification.** Doctors are verified by an administrator checking the register by hand. Connecting to ABDM's Healthcare Professionals Registry would confirm them automatically.
-- **Virus scanning** of uploads and **field-level encryption** for mental-health and other sensitive records (Supabase already encrypts all data at rest and in transit).
-- Hospital accounts, **ABDM/ABHA** and **FHIR**, an **iPhone app** and a dedicated **smartwatch** app (Android alarms and pushed web reminders already work).
-- **A security review and penetration test**, and a DPDP Act compliance review (consent notices, retention, a grievance officer).
+- **Independent penetration test** — scope in [SECURITY.md](SECURITY.md#penetration-test-scope-for-the-auditor).
+- **Legal review** of the privacy notice, terms and [DPDP.md](DPDP.md); real grievance officer details.
+- **Server-enforced two-factor sign-in** (Supabase MFA) on top of the one-time codes.
+- **Unskippable document-view logging** through an Edge Function, and **virus scanning** of uploads.
+- **ABDM M2/M3** (share and fetch records as FHIR with consent artefacts) — see [ABDM.md](ABDM.md).
+- **Doctor invitations** by email; automatic doctor checks through ABDM's Healthcare Professionals Registry.
+- Store releases — see [STORE_RELEASE.md](STORE_RELEASE.md).
 
 ## Tests
 
 ```bash
-npm test                 # demo service flows (18 checks)
+npm test                 # demo service flows
+node --test tests/edge.test.mjs   # Edge Function logic: SMS, ABDM
 npm run test:db          # access rules in the database (needs a Postgres; see tests/db)
 npm run test:live        # the live app code against Supabase Auth + PostgREST (see tests/live/README.md)
 ```
