@@ -1,4 +1,5 @@
 import type { DocumentCategory, MedicalDocument, PermissionKey } from '../types';
+import { scanFile } from '../lib/fileScan';
 import { delay, mutate, mutateQuiet } from '../mock/db';
 import { deleteBlob, getBlob, putBlob } from '../mock/blobStore';
 import { makeTextPdf } from '../mock/pdf';
@@ -46,11 +47,13 @@ export function validateFile(f: { name: string; type: string; size: number }) {
 /** Saves a file and its metadata. Callers link it to a record. */
 export async function storeFile(ctx: Ctx, patientId: string, f: NewFile, date: string, recordId?: string): Promise<string> {
   validateFile({ name: f.name, type: f.type, size: f.blob.size });
+  const check = scanFile(new Uint8Array(await f.blob.arrayBuffer()), f.type);
+  if (!check.ok) throw new AppError('VALIDATION', `${f.name} can’t be added: ${check.reason}`);
   const id = uid('doc');
   await putBlob(id, f.blob);
   const doc: MedicalDocument = {
     id, patientId, name: f.name, mimeType: f.type || 'application/octet-stream', size: f.blob.size, category: f.category,
-    date: date || todayISO(), recordId, uploadedBy: ctx.actor, uploadedAt: nowISO(),
+    date: date || todayISO(), recordId, uploadedBy: ctx.actor, uploadedAt: nowISO(), scanStatus: 'clean',
   };
   await mutateQuiet((db) => {
     db.documents.push(doc);

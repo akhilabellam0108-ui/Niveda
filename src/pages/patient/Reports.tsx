@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Upload, FileText, Download, Trash2, Link2, Search, Lock } from 'lucide-react';
+import { Upload, FileText, Download, Trash2, Link2, Search, Lock, ShieldAlert } from 'lucide-react';
 import type { DocumentCategory, MedicalRecord } from '../../types';
 import { documentService, recordService, DOC_CATEGORY_LABEL, type DocumentView } from '../../services';
 import { useLive, useDocumentTitle } from '../../state/hooks';
@@ -66,7 +66,7 @@ export function ReportsPage() {
                     <div className="doc-thumb"><Icon aria-hidden /></div>
                     <div className="stack" style={{ '--gap': '4px' } as React.CSSProperties}>
                       <button className="rec-open truncate" onClick={(e) => { e.stopPropagation(); setViewing(d.id); }}>{d.name}</button>
-                      <div className="row-wrap"><Badge>{DOC_CATEGORY_LABEL[d.category]}</Badge><span className="xs subtle">{fmtDate(d.date)} · {formatBytes(d.size)}</span></div>
+                      <div className="row-wrap">{d.scanStatus === 'blocked' && <Badge tone="danger" icon={ShieldAlert}>Blocked</Badge>}<Badge>{DOC_CATEGORY_LABEL[d.category]}</Badge><span className="xs subtle">{fmtDate(d.date)} · {formatBytes(d.size)}</span></div>
                       <div className="xs muted truncate">{d.recordLabel ? <><Link2 size={11} aria-hidden /> {d.recordLabel}</> : 'Not linked to an entry'}</div>
                       <div className="xs subtle truncate">Added by {d.uploadedBy.role === 'patient' ? 'you' : d.uploadedBy.name}</div>
                     </div>

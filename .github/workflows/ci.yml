@@ -18,14 +18,14 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
-      - name: Edge Function logic (SMS, ABDM)
+      - name: Edge Function logic (SMS, ABDM, file check)
         run: node --test tests/edge.test.mjs
       - run: npm run build
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
       - name: Type-check the Edge Functions
-        run: deno check supabase/functions/send-reminders/index.ts supabase/functions/send-sms/index.ts supabase/functions/abdm/index.ts supabase/functions/process-deletions/index.ts
+        run: deno check supabase/functions/send-reminders/index.ts supabase/functions/send-sms/index.ts supabase/functions/abdm/index.ts supabase/functions/process-deletions/index.ts supabase/functions/document-access/index.ts
 
   database:
     name: Database access rules (Postgres)

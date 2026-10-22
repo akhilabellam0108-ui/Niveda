@@ -88,6 +88,7 @@ export const toNotification = (n: Row): Notification => ({
 export const toDocument = (d: Row): MedicalDocument => ({
   id: d.id, patientId: d.patient_id, name: d.name, mimeType: d.mime_type, size: Number(d.size), category: d.category,
   date: d.date, recordId: opt(d.record_id), uploadedBy: d.uploaded_by, uploadedAt: ts(d.uploaded_at), generated: opt(d.generated),
+  scanStatus: opt(d.scan_status), scanNote: opt(d.scan_note),
 });
 
 export const toReminder = (r: Row): MedicationReminder => ({

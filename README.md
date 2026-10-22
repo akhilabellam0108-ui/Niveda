@@ -479,13 +479,17 @@ Done in October 2026:
 - ✅ **Security review** — automated audit in the database tests (RLS everywhere, no unbacked privileges, no internal functions exposed); two privilege issues found and fixed; Content Security Policy. [docs/SECURITY.md](docs/SECURITY.md)
 - ✅ **Store-ready builds** — signed Play Store bundle workflow, iPhone app with TestFlight workflow. [docs/STORE_RELEASE.md](docs/STORE_RELEASE.md)
 - ✅ **Pre-visit brief** and the required **note for the next visit**.
+- ✅ **Two-step sign-in** (authenticator app) for doctors and the Niveda team, enforced by the database.
+- ✅ **Safety check on every uploaded file** before it can be opened; dangerous files are blocked and deleted.
+- ✅ **Every document a doctor opens is logged** — files can only be read through a server function that writes the log first.
+- ✅ **Monitoring** every 30 minutes with automatic alerts — [docs/MONITORING.md](docs/MONITORING.md).
 
 Still needs you (accounts, money or outside people):
 
 1. **Independent penetration test** by a CERT-In empanelled auditor — scope in [docs/SECURITY.md](docs/SECURITY.md#penetration-test-scope-for-the-auditor).
 2. **Legal review** of the privacy notice, terms and DPDP map; real grievance officer and support email in `src/config/brand.ts`.
 3. **Accounts and keys:** MSG91/Twilio (with DLT templates), ABDM sandbox → production credentials, Google Play Console, Apple Developer Program.
-4. **Server-enforced MFA** (Supabase MFA), virus scanning of uploads, unskippable document-view logging.
+4. **A full antivirus** for uploads (the built-in check blocks programs, packed files, web pages and PDFs that can run code, but doesn't know specific viruses) — see [docs/SECURITY.md](docs/SECURITY.md#uploaded-files).
 5. **ABDM M2/M3** — share and fetch records as FHIR with consent artefacts; FHIR R4 import/export.
 6. **Operations** — monitoring and alerts, point-in-time recovery, incident drill ([docs/INCIDENT_RESPONSE.md](docs/INCIDENT_RESPONSE.md)).
 7. Dedicated smartwatch app and Apple HealthKit / Google Health Connect sync.

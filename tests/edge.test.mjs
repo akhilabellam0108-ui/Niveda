@@ -133,3 +133,37 @@ test('ABHA: a mobile number with several ABHAs asks the patient to choose', () =
   assert.equal(v.accounts.length, 2);
   assert.throws(() => abdm.parseVerify({ authResult: 'failed', message: 'Wrong OTP' }), /Wrong OTP/);
 });
+
+const scan = await load('supabase/functions/document-access/scan.ts');
+const bytes = (s) => new Uint8Array([...s].map((c) => c.charCodeAt(0) & 0xff));
+
+test('file check: real PDFs, photos and text pass; the type comes from the bytes', () => {
+  assert.deepEqual(scan.scanFile(bytes('%PDF-1.7\n1 0 obj << /Type /Catalog >> endobj\n%%EOF'), 'application/pdf'), { ok: true, kind: 'pdf' });
+  assert.deepEqual(scan.scanFile(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0]), 'image/png'), { ok: true, kind: 'png' });
+  assert.deepEqual(scan.scanFile(new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0x10]), 'image/jpeg'), { ok: true, kind: 'jpeg' });
+  assert.deepEqual(scan.scanFile(bytes('\0\0\0\x18ftypheic\0\0'), 'image/heic'), { ok: true, kind: 'heic' });
+  assert.deepEqual(scan.scanFile(bytes('Haemoglobin 13.2 g/dL'), 'text/plain'), { ok: true, kind: 'text' });
+  assert.deepEqual(scan.scanFile(new Uint8Array([0xff, 0xd8, 0xff, 0xe0]), 'image/png'), { ok: true, kind: 'jpeg' }, 'a JPEG named .png is still a photo');
+});
+
+test('file check: programs, packed files, web pages, disguised and dangerous PDFs are blocked', () => {
+  const no = (b, t, re) => { const r = scan.scanFile(b, t); assert.equal(r.ok, false); assert.match(r.reason, re); };
+  no(bytes('MZ\x90\0\x03'), 'application/pdf', /program/);
+  no(bytes('\x7fELF\x02'), 'application/octet-stream', /program/);
+  no(bytes('PK\x03\x04docx'), 'application/pdf', /Zip, Office/);
+  no(bytes('<html><script>alert(1)</script>'), 'text/plain', /Web pages/);
+  no(bytes('<?xml version="1.0"?><svg onload="x()"/>'), 'image/svg+xml', /SVG|Web pages/);
+  no(bytes('%PDF-1.4\n<< /OpenAction << /S /JavaScript /JS (app.alert(1)) >> >>'), 'application/pdf', /JavaScript/);
+  no(bytes('%PDF-1.4\n<< /S /J#61vaScript >>'), 'application/pdf', /JavaScript/, 'hidden with #xx codes');
+  no(bytes('%PDF-1.4\n<< /Type /Action /S /Launch /F (cmd.exe) >>'), 'application/pdf', /other programs/);
+  no(bytes('%PDF-1.4\n<< /Names << /EmbeddedFiles 3 0 R >> >>'), 'application/pdf', /hidden inside/);
+  no(bytes('X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*'), 'text/plain', /antivirus test/);
+  no(bytes('%PDF-1.4 fine'), 'image/jpeg', /isn’t what its name says/);
+  no(new Uint8Array([1, 0, 2, 0, 3]), 'text/plain', /isn’t recognised/);
+  no(new Uint8Array(), 'text/plain', /empty/);
+});
+
+test('file check: the app and the server use the same code', async () => {
+  const { readFileSync } = await import('node:fs');
+  assert.match(readFileSync('src/lib/fileScan.ts', 'utf8'), /supabase\/functions\/document-access\/scan/);
+});

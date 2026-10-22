@@ -1,0 +1,73 @@
+name: Monitor
+
+# Every 30 minutes: is the website up, does the database answer, and are the
+# background jobs (access expiry, medicine reminders, account erasure) healthy?
+# If not, opens an issue labelled "outage" — GitHub emails the repository owner.
+# When everything is healthy again, the issue is closed automatically.
+
+on:
+  schedule:
+    - cron: '7,37 * * * *'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  contents: read
+
+concurrency:
+  group: monitor
+  cancel-in-progress: false
+
+env:
+  SITE_URL: https://akhilabellam0108-ui.github.io/Niveda/
+  SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL || 'https://tvtccamcxozjrqxyxtpt.supabase.co' }}
+  SUPABASE_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY || 'sb_publishable_5-OBRYPrHO17szAj6QBFzw_G8_3BHh3' }}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the website, database and background jobs
+        id: check
+        run: |
+          problems=""
+          site=$(curl -s -o /tmp/site.html -w '%{http_code}' --max-time 30 "$SITE_URL" || echo 000)
+          if [ "$site" != "200" ] || ! grep -qi 'niveda' /tmp/site.html; then problems="$problems- Website: HTTP $site at $SITE_URL\n"; fi
+          health=$(curl -s --max-time 30 -X POST "$SUPABASE_URL/rest/v1/rpc/system_health" \
+            -H "apikey: $SUPABASE_KEY" -H "Authorization: Bearer $SUPABASE_KEY" -H 'Content-Type: application/json' -d '{}' || true)
+          echo "health=$health"
+          if ! echo "$health" | jq -e . >/dev/null 2>&1; then
+            problems="$problems- Database: no answer from Supabase (the project may be paused or down). Reply: $(echo "$health" | head -c 300)\n"
+          elif [ "$(echo "$health" | jq -r .ok)" != "true" ]; then
+            problems="$problems- Background jobs need attention:\n\`\`\`json\n$(echo "$health" | jq .)\n\`\`\`\n"
+          fi
+          {
+            echo 'problems<<EOF'
+            printf "%b" "$problems"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+      - name: Open or update the outage issue
+        if: steps.check.outputs.problems != ''
+        uses: actions/github-script@v7
+        env:
+          PROBLEMS: ${{ steps.check.outputs.problems }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            await github.rest.issues.createLabel({ owner, repo, name: 'outage', color: 'd73a4a', description: 'Opened by the Monitor workflow' }).catch(() => undefined);
+            const open = await github.rest.issues.listForRepo({ owner, repo, state: 'open', labels: 'outage' });
+            const body = `Monitor found a problem at ${new Date().toISOString()}:\n\n${process.env.PROBLEMS}\n\nWhat to check: docs/MONITORING.md`;
+            if (open.data.length) await github.rest.issues.createComment({ owner, repo, issue_number: open.data[0].number, body });
+            else await github.rest.issues.create({ owner, repo, title: 'Niveda: something needs attention', body, labels: ['outage'] });
+            core.setFailed('Niveda needs attention — see the outage issue.');
+      - name: Close the outage issue once healthy
+        if: steps.check.outputs.problems == ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const open = await github.rest.issues.listForRepo({ owner, repo, state: 'open', labels: 'outage' });
+            for (const i of open.data) {
+              await github.rest.issues.createComment({ owner, repo, issue_number: i.number, body: `All checks passed again at ${new Date().toISOString()}. Closing.` });
+              await github.rest.issues.update({ owner, repo, issue_number: i.number, state: 'closed' });
+            }
