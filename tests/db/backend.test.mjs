@@ -824,3 +824,23 @@ test('security: every table has row-level security, and clients can’t call int
     where n.nspname = 'public' and p.prosecdef and not exists (select 1 from unnest(coalesce(p.proconfig, '{}')) c where c like 'search_path=%')`)).rows.map((r) => r.proname);
   assert.deepEqual(noPath, [], 'security-definer functions must pin search_path');
 });
+
+test('background jobs: the database makes the cron secret and keeps the push keys private', async () => {
+  await db.query("delete from push_config"); await db.query("delete from push_vapid");
+  await rejects(as('nadia', (q) => q("select public.setup_background_jobs('https://abcd.supabase.co')")), /permission denied/);
+  await rejects(as('nadia', (q) => q('select public._push_vapid()')), /permission denied/);
+  await rejects(as('nadia', (q) => q("select public._cron_secret_ok('x')")), /permission denied/);
+  await rejects(db.query("select public.setup_background_jobs('https://evil.example.com')"), /project URL/);
+  await db.query("select public.setup_background_jobs('https://abcd.supabase.co')").catch(() => undefined); // scheduling needs pg_cron
+  const { secret, function_url } = (await db.query('select * from push_config')).rows[0] ?? {};
+  assert.match(secret ?? '', /^[0-9a-f]{64}$/, 'a 32-byte secret was made');
+  assert.equal(function_url, 'https://abcd.supabase.co/functions/v1/send-reminders');
+  assert.equal((await db.query('select public._cron_secret_ok($1) ok', [secret])).rows[0].ok, true);
+  assert.equal((await db.query("select public._cron_secret_ok('wrong') ok")).rows[0].ok, false);
+  assert.equal((await as('nadia', (q) => q('select public.push_public_key() k')))[0].k, null, 'no key until the job has run');
+  const pub = 'B' + 'p'.repeat(86), priv = 'q'.repeat(43);
+  await db.query('select public._save_push_vapid($1, $2)', [pub, priv]);
+  await db.query('select public._save_push_vapid($1, $2)', ['B' + 'z'.repeat(86), 'z'.repeat(43)]);
+  assert.equal((await as('nadia', (q) => q('select public.push_public_key() k')))[0].k, pub, 'first key pair is kept; only the public half is handed out');
+  await rejects(as('nadia', (q) => q('select * from push_vapid')), /permission denied/);
+});

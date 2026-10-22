@@ -5,16 +5,18 @@
 // (which SQL can't do), then erases the account and everything linked to it.
 //
 // Deploy:  supabase functions deploy process-deletions --no-verify-jwt
-// Secrets: supabase secrets set CRON_SECRET=<long random string>   (same one as send-reminders is fine)
+// No secrets to set: the cron secret is checked with the database
+// (public.setup_background_jobs). A CRON_SECRET function secret still takes priority.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const env = (k: string) => Deno.env.get(k) ?? '';
 const BUCKET = 'documents';
 
 Deno.serve(async (req) => {
-  const secret = env('CRON_SECRET');
-  if (!secret || req.headers.get('x-niveda-cron') !== secret) return new Response('Forbidden', { status: 403 });
   const db = createClient(env('SUPABASE_URL'), env('SUPABASE_SERVICE_ROLE_KEY'), { auth: { persistSession: false } });
+  const given = req.headers.get('x-niveda-cron') ?? '';
+  const ok = env('CRON_SECRET') ? given === env('CRON_SECRET') : (await db.rpc('_cron_secret_ok', { p_secret: given })).data === true;
+  if (!ok) return new Response('Forbidden', { status: 403 });
 
   const { data: due, error } = await db.rpc('_due_deletions');
   if (error) return Response.json({ error: error.message }, { status: 500 });

@@ -41,7 +41,8 @@ jobs:
           # access rules protect the data); repository variables override them if set.
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL || 'https://tvtccamcxozjrqxyxtpt.supabase.co' }}
           VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY || 'sb_publishable_5-OBRYPrHO17szAj6QBFzw_G8_3BHh3' }}
-          VITE_VAPID_PUBLIC_KEY: ${{ vars.VITE_VAPID_PUBLIC_KEY }}
+          # Public half of the Web Push key pair the send-reminders function made (public by design).
+          VITE_VAPID_PUBLIC_KEY: ${{ vars.VITE_VAPID_PUBLIC_KEY || 'BEtCBIE1JBuSVZG0IstnQ0rLqbIEEN71VelzawtNEg3QEqxaRQJeJdk5xleIn5sgIAiNwGxtARV4pyXkc9z5vbQ' }}
       - run: mv "$RUNNER_TEMP/demo" dist/demo && touch dist/.nojekyll
       - uses: actions/upload-pages-artifact@v3
         with:
