@@ -12,6 +12,7 @@ import { ForgotPasswordPage, LoginPage, SignupPage, VerifyPage } from './pages/a
 import { OnboardingPage } from './pages/auth/Onboarding';
 import { ApplicationStatusPage, DoctorSignupPage } from './pages/auth/DoctorSignup';
 import { AdminPage } from './pages/admin/AdminPage';
+import { MfaGate } from './components/auth/MfaGate';
 import { homeFor } from './lib/home';
 import { PatientHome } from './pages/patient/Home';
 import { RecordsPage, TimelinePage } from './pages/patient/Records';
@@ -113,7 +114,9 @@ export default function App() {
                 <Route path="/doctor-application" element={<ApplicationStatusPage />} />
               </Route>
               <Route element={<RequireAdmin />}>
-                <Route path="/admin" element={<AdminPage />} />
+                <Route element={<MfaGate />}>
+                  <Route path="/admin" element={<AdminPage />} />
+                </Route>
               </Route>
               <Route element={<RequireRole role="patient" />}>
                 <Route path="/onboarding" element={<OnboardingPage />} />
@@ -136,6 +139,7 @@ export default function App() {
                 </Route>
               </Route>
               <Route element={<RequireRole role="doctor" />}>
+                <Route element={<MfaGate />}>
                 <Route path="/doctor" element={<DoctorShell />}>
                   <Route index element={<DoctorHome />} />
                   <Route path="patients" element={<DoctorPatients />} />
@@ -149,6 +153,7 @@ export default function App() {
                   <Route path="settings" element={<SettingsRoute role="doctor" />} />
                   <Route path="settings/:section" element={<SettingsRoute role="doctor" />} />
                   <Route path="*" element={<NotFound />} />
+                </Route>
                 </Route>
               </Route>
               <Route path="*" element={<Navigate to="/" replace />} />

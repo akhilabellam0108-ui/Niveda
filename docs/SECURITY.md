@@ -102,3 +102,26 @@ Prefer a **CERT-In empanelled** firm (expected by hospitals and government buyer
 
 **Deliverables**: report with CVSS scores and reproduction steps, retest letter, and a summary safe to
 share with hospital customers.
+
+
+## Two-step sign-in for doctors and the Niveda team
+
+Doctors (and the Niveda team, for admin actions) confirm each sign-in with an authenticator app (Supabase MFA, TOTP). The database enforces it: without a second-step (`aal2`) session, `has_grant()` is false — so no patient data is visible — and `_require_doctor()` / `_require_admin()` refuse every doctor and admin action. The app shows a set-up screen (QR code) the first time and a code screen at each sign-in.
+
+Switched on per project:
+
+```sql
+update public.security_settings set doctor_mfa_required = true, admin_mfa_required = true;
+```
+
+If someone loses their phone: Supabase → **Authentication → Users** → the person → remove their MFA factor. They set it up again at the next sign-in.
+
+## Uploaded files
+
+Every upload is checked (`supabase/functions/document-access/scan.ts`, also run in the browser before uploading) before it can be opened: the real file type is read from its bytes and must match what it claims; programs, archives and Office files, web pages and SVG images, and PDFs with JavaScript, launch actions, embedded files, Flash or XFA are blocked, as is the EICAR test file. A blocked file is deleted from storage, marked blocked, and the patient is told.
+
+This is not a full antivirus. To add one, call a scanning service (for example a self-hosted ClamAV) from the `document-access` function before marking a file clean — never send health documents to a public scanning website.
+
+## Document views can't skip the log
+
+Doctors can't read files from storage directly any more. Files are read only by the `document-access` Edge Function, after `open_document()` has checked access and written the view to the patient's access log in the same request.

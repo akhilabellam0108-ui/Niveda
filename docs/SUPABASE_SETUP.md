@@ -286,3 +286,29 @@ npm run test:live        # the live app code against Supabase Auth + PostgREST (
 ```
 
 All three run in CI on every push.
+
+## 11. Documents, background jobs, two-step sign-in and monitoring
+
+**Opening documents** needs the `document-access` function (files can only be read through it):
+
+```bash
+npx supabase functions deploy document-access          # JWT verification ON
+npx supabase functions deploy send-reminders --no-verify-jwt
+npx supabase functions deploy process-deletions --no-verify-jwt
+```
+
+**Background jobs** — one line in the SQL Editor makes the shared secret inside the database and schedules medicine-reminder pushes (every minute) and account erasures (hourly). Nothing to copy or paste:
+
+```sql
+select public.setup_background_jobs('https://<project-ref>.supabase.co');
+```
+
+The first reminder run makes the Web Push key pair; put its public half in the `VITE_VAPID_PUBLIC_KEY` variable: `select public.push_public_key();`
+
+**Two-step sign-in** for doctors and the Niveda team (see [SECURITY.md](SECURITY.md#two-step-sign-in-for-doctors-and-the-niveda-team)):
+
+```sql
+update public.security_settings set doctor_mfa_required = true, admin_mfa_required = true;
+```
+
+**Monitoring** runs from GitHub every 30 minutes — see [MONITORING.md](MONITORING.md).

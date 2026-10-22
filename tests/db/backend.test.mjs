@@ -251,7 +251,11 @@ test('B. a doctor sees nothing until the patient grants access with a fresh code
   assert.equal(c.p, 1);
   assert.equal(c.r, 3, 'sees allergy, medication and surgery — not the mental-health note');
   assert.equal(c.d, 1, 'sees the discharge summary attached to the surgery');
-  assert.equal(c.o, 1, 'and can download that file');
+  assert.equal(c.o, 0, 'but can’t read the file straight from storage…');
+  const [doc] = await as('kavya', (q) => q('select id from documents'));
+  const opened = (await as('kavya', (q) => q('select public.open_document($1) j', [doc.id])))[0].j;
+  assert.match(opened.path, /^pat_/, '…only through open_document(), which logs the view');
+  assert.equal((await db.query("select count(*)::int n from audit_log where action = 'viewed_document' and target ->> 'id' = $1", [doc.id])).rows[0].n, 1);
   assert.equal((await as('rohan', (q) => q('select count(*)::int n from records')))[0].n, 0, 'other doctors still see nothing');
   assert.equal((await as('vikram', (q) => q('select count(*)::int n from records')))[0].n, 0, 'other patients see nothing');
 
@@ -843,4 +847,49 @@ test('background jobs: the database makes the cron secret and keeps the push key
   await db.query('select public._save_push_vapid($1, $2)', ['B' + 'z'.repeat(86), 'z'.repeat(43)]);
   assert.equal((await as('nadia', (q) => q('select public.push_public_key() k')))[0].k, pub, 'first key pair is kept; only the public half is handed out');
   await rejects(as('nadia', (q) => q('select * from push_vapid')), /permission denied/);
+});
+
+test('two-step sign-in: when required, doctors and admins need an aal2 session', async () => {
+  // A fresh grant from Asha to Dr Kavya.
+  await rpc('asha', 'grant_access', [users.kavya.doctorId, ['allergies', 'medications'], 24, 'code'], freshCode());
+  const docCount = (claims) => as('kavya', (q) => q('select count(*)::int n from records'), claims).then((r) => r[0].n);
+  const before = await docCount();
+  assert.ok(before > 0, 'Dr Kavya has access to Asha’s record');
+  assert.equal((await as('kavya', (q) => q('select public.mfa_required() r')))[0].r, false, 'off by default');
+
+  await db.query('update security_settings set doctor_mfa_required = true, admin_mfa_required = true');
+  try {
+    assert.equal((await as('kavya', (q) => q('select public.mfa_required() r')))[0].r, true);
+    assert.equal(await docCount(), 0, 'no patient data without the second step');
+    await rejects(rpc('kavya', 'doctor_access_overview', []), /authenticator app/);
+    assert.equal(await docCount({ aal: 'aal2' }), before, 'everything back after the second step');
+    assert.equal((await as('asha', (q) => q('select count(*)::int n from records')))[0].n > 0, true, 'patients aren’t affected');
+    await rpc('asha', 'revoke_access', [(await db.query("select id from access_grants where doctor_id = $1 and status = 'active'", [users.kavya.doctorId])).rows[0].id]).catch(() => undefined);
+    assert.equal((await as('asha', (q) => q('select public.mfa_required() r')))[0].r, false);
+  } finally {
+    await db.query('update security_settings set doctor_mfa_required = false, admin_mfa_required = false');
+  }
+});
+
+test('uploaded files: a check result can only be set by the server, and a blocked file tells the patient', async () => {
+  const [doc] = (await db.query("select id, patient_id from documents where scan_status = 'pending' limit 1")).rows;
+  assert.ok(doc, 'new files wait for the check');
+  await rejects(as('asha', (q) => q("select public._set_document_scan($1, 'clean')", [doc.id])), /permission denied/);
+  await db.query("select public._set_document_scan($1, 'blocked', 'This PDF contains JavaScript.')", [doc.id]);
+  await db.query("select public._set_document_scan($1, 'clean')", [doc.id]);
+  const after = (await db.query('select scan_status, scan_note from documents where id = $1', [doc.id])).rows[0];
+  assert.deepEqual(after, { scan_status: 'blocked', scan_note: 'This PDF contains JavaScript.' }, 'a result is final');
+  const owner = (await db.query('select user_id from patients where id = $1', [doc.patient_id])).rows[0].user_id;
+  assert.equal((await db.query("select count(*)::int n from notifications where user_id = $1 and title = 'A file was blocked'", [owner])).rows[0].n, 1);
+});
+
+test('health check: counts only, callable by the monitor without signing in', async () => {
+  const c = await db.connect();
+  try {
+    await c.query('begin'); await c.query('set local role anon');
+    const h = (await c.query('select public.system_health() h')).rows[0].h;
+    await c.query('commit');
+    assert.equal(typeof h.ok, 'boolean');
+    assert.ok(Object.values(h).every((v) => typeof v !== 'object' || v === null), 'flat, no personal data');
+  } finally { c.release(); }
 });

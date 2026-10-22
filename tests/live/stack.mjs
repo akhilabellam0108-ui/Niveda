@@ -3,12 +3,23 @@
 //   - a small storage API that stores files in Postgres and applies the same
 //     row-level security as Supabase Storage (it runs every query as the caller)
 //   - an SMTP catcher, so tests can read the one-time codes Auth emails out
+//   - the document-access Edge Function's behaviour (same SQL calls and file check)
 // Everything sits behind one URL, like https://<project>.supabase.co.
 import http from 'node:http';
 import net from 'node:net';
 import { spawn } from 'node:child_process';
 import { createHmac } from 'node:crypto';
 import pg from 'pg';
+import { build } from 'esbuild';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+// The real file check from the Edge Function.
+const scanOut = join(mkdtempSync(join(tmpdir(), 'niveda-scan-')), 'scan.mjs');
+await build({ entryPoints: ['supabase/functions/document-access/scan.ts'], bundle: true, platform: 'node', format: 'esm', outfile: scanOut, logLevel: 'error' });
+const { scanFile, SAFE_CONTENT_TYPE } = await import(pathToFileURL(scanOut).href);
 
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
 export function signJwt(payload, secret) {
@@ -146,6 +157,35 @@ export async function startStack({ pgHost, pgPort, db, bin, port = 54321 }) {
     }
   }
 
+  /* ---- document-access function (supabase/functions/document-access/index.ts) ---- */
+  async function documentAccess(req, res) {
+    const claims = verifyJwt((req.headers.authorization ?? '').replace(/^Bearer /, ''), secret);
+    if (!claims || claims.role !== 'authenticated') return send(res, 401, { code: 'NOT_SIGNED_IN', message: 'Please sign in to continue.' });
+    const { action, id } = JSON.parse((await readBody(req)).toString() || '{}');
+    let info;
+    try {
+      info = await asCaller(claims, (c) => c.query(`select public.${action === 'open' ? 'open_document' : 'document_for_scan'}($1) j`, [id]).then((r) => r.rows[0].j));
+    } catch (e) {
+      const m = /^([A-Z_]+): ([\s\S]*)$/.exec(e.message);
+      return send(res, 403, { code: m?.[1] ?? 'ACCESS_DENIED', message: m?.[2] ?? 'This document isn’t available.' });
+    }
+    if (info.scanStatus === 'blocked') return send(res, 422, { code: 'BLOCKED', message: `This file was blocked by Niveda’s safety check. ${info.scanNote ?? ''}`.trim() });
+    const [blob] = (await pool.query('select data from storage.blobs where name = $1', [`documents/${info.path}`])).rows;
+    if (!blob) return send(res, 404, { code: 'NOT_FOUND', message: 'The file for this document couldn’t be found.' });
+    const result = scanFile(new Uint8Array(blob.data), info.mime);
+    if (info.scanStatus === 'pending') {
+      await pool.query('select public._set_document_scan($1, $2, $3)', [id, result.ok ? 'clean' : 'blocked', result.ok ? null : result.reason]);
+      if (!result.ok) {
+        await pool.query('delete from storage.blobs where name = $1', [`documents/${info.path}`]);
+        await pool.query("delete from storage.objects where bucket_id = 'documents' and name = $1", [info.path]);
+      }
+    }
+    if (!result.ok) return send(res, 422, { code: 'BLOCKED', message: `This file was blocked by Niveda’s safety check. ${result.reason}` });
+    if (action === 'scan') return send(res, 200, { status: 'clean' });
+    res.writeHead(200, { 'content-type': 'application/octet-stream', 'x-niveda-type': SAFE_CONTENT_TYPE[result.kind] });
+    return res.end(blob.data);
+  }
+
   /* ---- Auth and PostgREST ---- */
   const env = {
     ...process.env,
@@ -168,6 +208,7 @@ export async function startStack({ pgHost, pgPort, db, bin, port = 54321 }) {
     const url = req.url ?? '/';
     if (url.startsWith('/tmpl')) { res.writeHead(200, { 'content-type': 'text/html' }); return res.end(TEMPLATE); }
     if (url.startsWith('/storage/v1')) return storage(req, res, url.slice('/storage/v1'.length));
+    if (url.startsWith('/functions/v1/document-access') && req.method === 'POST') return documentAccess(req, res);
     const target = url.startsWith('/auth/v1') ? `http://localhost:9999${url.slice(8)}` : url.startsWith('/rest/v1') ? `http://localhost:3000${url.slice(8)}` : null;
     if (!target) return send(res, 404, { message: 'unknown route' });
     const body = ['GET', 'HEAD'].includes(req.method) ? undefined : await readBody(req);

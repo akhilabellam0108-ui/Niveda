@@ -212,6 +212,9 @@ export interface MedicalDocument {
   uploadedAt: ISODateTime;
   /** Demo documents are generated on first open instead of being stored up-front. */
   generated?: { title: string; lines: string[] };
+  /** Live mode: the server's safety check. 'pending' until the file is first checked. */
+  scanStatus?: 'pending' | 'clean' | 'blocked';
+  scanNote?: string;
 }
 
 /* ---------- Access ---------- */

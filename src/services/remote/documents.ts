@@ -3,7 +3,9 @@ import type { MedicalDocument } from '../../types';
 import { AppError } from '../core';
 import { RECORD_TYPES, recordTitle } from '../../lib/recordMeta';
 import { validateFile, type documentService as MockDocs, type DocumentView, type NewFile } from '../documentService';
-import { all, emit, q, read, requireAccount, sb, write } from './client';
+import { all, emit, q, read, sb, write } from './client';
+import { backend } from '../../config/backend';
+import { scanFile } from '../../lib/fileScan';
 import { toDocument } from './mappers';
 import { openSealed } from './sealed';
 import { patientIdFor } from './context';
@@ -17,8 +19,39 @@ function newDocId(): string {
 }
 
 /** Uploads the file, then records it (the database checks access for both steps). Returns the document id. */
+/** Calls the document-access function as the signed-in person. */
+async function documentAccess(action: 'open' | 'scan', id: string): Promise<Response> {
+  const { data } = await sb().auth.getSession();
+  if (!data.session) throw new AppError('SESSION_EXPIRED', 'Your session has expired. Please sign in again.');
+  let res: Response;
+  try {
+    res = await fetch(`${backend.supabaseUrl}/functions/v1/document-access`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${data.session.access_token}`, apikey: backend.supabaseAnonKey!, 'content-type': 'application/json' },
+      body: JSON.stringify({ action, id }),
+    });
+  } catch {
+    throw new AppError('UNKNOWN', 'Can’t reach Niveda right now. Check your internet connection and try again.');
+  }
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({})) as { code?: string; message?: string };
+    if (e.code === 'BLOCKED') throw new AppError('VALIDATION', e.message ?? 'This file was blocked by Niveda’s safety check.');
+    if (e.code === 'NOT_SIGNED_IN' || res.status === 401) throw new AppError('SESSION_EXPIRED', 'Your session has expired. Please sign in again.');
+    if (res.status === 404 && !e.code) throw new AppError('UNKNOWN', 'Opening documents isn’t switched on yet. Please try again later.');
+    throw new AppError(e.code === 'NOT_FOUND' ? 'NOT_FOUND' : 'ACCESS_DENIED', e.message ?? 'This document isn’t available.');
+  }
+  return res;
+}
+
+/** Same check the server runs, so a refused file is reported before it's sent. */
+async function checkBeforeUpload(f: NewFile) {
+  const r = scanFile(new Uint8Array(await f.blob.arrayBuffer()), f.type);
+  if (!r.ok) throw new AppError('VALIDATION', `${f.name} can’t be added: ${r.reason}`);
+}
+
 export async function uploadDocument(patientId: string, f: NewFile, date: string, recordId?: string): Promise<string> {
   validateFile({ name: f.name, type: f.type, size: f.blob.size });
+  await checkBeforeUpload(f);
   const id = newDocId();
   const path = `${patientId}/${id}`;
   const contentType = f.type || 'application/octet-stream';
@@ -38,6 +71,8 @@ export async function uploadDocument(patientId: string, f: NewFile, date: string
     await sb().storage.from(BUCKET).remove([path]).catch(() => undefined);
     throw e;
   }
+  // The server checks the file now rather than waiting until it's first opened.
+  void documentAccess('scan', id).catch(() => undefined);
   return id;
 }
 
@@ -65,14 +100,14 @@ export const remoteDocumentService: typeof MockDocs = {
   },
 
   async open(documentId: string): Promise<{ doc: MedicalDocument; blob: Blob }> {
-    const a = await requireAccount();
     const rows = await q(sb().from('documents').select('*').eq('id', documentId));
     if (!rows.length) throw new AppError('ACCESS_DENIED', 'This document isn’t available — it may have been removed, or it isn’t shared with you.');
     const doc = toDocument(rows[0]);
-    if (a.role === 'doctor') await read('log_document_view', { p_doc: documentId });
-    const { data, error } = await sb().storage.from(BUCKET).download(`${doc.patientId}/${doc.id}`);
-    if (error || !data) throw new AppError('NOT_FOUND', 'The file for this document couldn’t be downloaded. Please try again.');
-    return { doc, blob: data };
+    // Files are only readable through the server function, which checks access,
+    // writes doctors' views to the patient's log and runs the safety check.
+    const res = await documentAccess('open', documentId);
+    const blob = new Blob([await res.arrayBuffer()], { type: res.headers.get('x-niveda-type') || doc.mimeType });
+    return { doc: { ...doc, scanStatus: 'clean' }, blob };
   },
 
   async remove(documentId: string): Promise<void> {
