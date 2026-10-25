@@ -801,6 +801,149 @@ test('DPDP: deletion has a 7-day undo window, then erases everything', async () 
   await rejects(db.query('delete from audit_log where true'), /IMMUTABLE/, 'the guard is back on after erasure');
 });
 
+/* ---------- Children's records: kept by parents, handed over at 18 ---------- */
+
+test('children: parents keep a child’s record, every action names them, and it is handed over at 18', async () => {
+  const today = new Date();
+  const iso = (d) => d.toISOString().slice(0, 10);
+  const yearsAgo = (y, days = 0) => iso(new Date(today.getFullYear() - y, today.getMonth(), today.getDate() - days));
+  await addUser('lata', 'lata@example.com', { full_name: 'Lata Menon', date_of_birth: '1988-05-05', phone: '+91 95555 10001' });
+  await addUser('dev', 'dev@example.com', { full_name: 'Dev Menon', date_of_birth: '1986-02-02', phone: '+91 95555 10002' });
+  await addUser('outsider', 'outsider@example.com', { full_name: 'Out Sider', date_of_birth: '1980-01-01', phone: '+91 95555 10003' });
+  for (const u of ['lata', 'dev', 'outsider']) users[u].patientId = (await rpc(u, 'complete_signup')).profileId;
+
+  // Creating a profile: under 18, with the parent's declaration.
+  const kid = { fullName: 'Ira Menon', dateOfBirth: iso(new Date(today.getTime() - 50 * 864e5)), sex: 'female', relationship: 'mother', declared: true,
+    birthDetails: { weightKg: 3.2, place: 'City Hospital', notes: '  ' } };
+  await rejects(rpc('lata', 'create_child_profile', [{ ...kid, declared: false }]), /confirm you are the child’s parent/);
+  await rejects(rpc('lata', 'create_child_profile', [{ ...kid, dateOfBirth: yearsAgo(19) }]), /18 or older/);
+  const ira = await rpc('lata', 'create_child_profile', [kid]);
+  const row = (await db.query('select user_id, phone, birth_details, emergency_contact from patients where id = $1', [ira])).rows[0];
+  assert.equal(row.user_id, null, 'no sign-in for the child');
+  assert.deepEqual(row.birth_details, { weightKg: 3.2, place: 'City Hospital' });
+  assert.equal(row.emergency_contact.name, 'Lata Menon');
+
+  // Nobody else can see or switch to it.
+  assert.equal((await as('outsider', (q) => q('select id from patients where id = $1', [ira]))).length, 0);
+  await rejects(rpc('outsider', 'switch_profile', [ira]), /don’t manage this record/);
+
+  // Working on the child's record: records land in the child's profile, the log names the parent.
+  await rpc('lata', 'switch_profile', [ira]);
+  assert.equal((await rpc('lata', 'my_account')).profileId, ira);
+  assert.equal((await rpc('lata', 'my_account')).ownProfileId, users.lata.patientId);
+  await rpc('lata', 'create_record', [null, 'vaccination', iso(today), { vaccine: 'BCG', dose: 'Single dose', uipKey: 'bcg' }]);
+  await rpc('lata', 'create_record', [null, 'vaccination', iso(today), { vaccine: 'OPV', dose: 'Zero dose', uipKey: 'not-a-dose' }]);
+  const vax = (await db.query("select data from records where patient_id = $1 and type = 'vaccination' order by data->>'vaccine'", [ira])).rows;
+  assert.equal(vax[0].data.uipKey, 'bcg');
+  assert.equal(vax[1].data.uipKey, undefined, 'unknown schedule keys are dropped');
+  const [log] = (await db.query("select actor from audit_log where patient_id = $1 and action = 'record_added' limit 1", [ira])).rows;
+  assert.deepEqual(log.actor.guardian, { id: users.lata.patientId, name: 'Lata Menon' });
+  assert.equal((await as('lata', (q) => q('select count(*)::int n from records')))[0].n, 2, 'only the child’s records while switched');
+  await rejects(rpc('lata', 'set_nominee', [{ name: 'X', relationship: 'Y', phone: '9999999999' }]), /chosen by the record’s owner/);
+  await rejects(rpc('lata', 'update_patient_profile', [{ phone: '+91 95555 10009' }]), /no email or phone of its own/);
+  await rejects(rpc('lata', 'create_child_profile', [kid]), /Switch back to your own profile/);
+  await rpc('lata', 'log_session_event', ['signed_out', 'Test browser']);
+  assert.equal((await db.query("select count(*)::int n from audit_log where patient_id = $1 and action = 'signed_out'", [ira])).rows[0].n, 0, 'account events stay in the parent’s log');
+  await rpc('lata', 'switch_profile', [null]);
+  assert.equal((await rpc('lata', 'my_account')).profileId, users.lata.patientId);
+
+  // A second parent, invited by phone, must accept with the same declaration.
+  await rejects(rpc('lata', 'invite_guardian', [ira, 'nobody@nowhere.example', 'father']), /No Niveda account/);
+  await rpc('lata', 'invite_guardian', [ira, '95555 10002', 'father']);
+  await rejects(rpc('lata', 'invite_guardian', [ira, 'dev@example.com', 'father']), /already have an invitation/);
+  await rejects(rpc('dev', 'switch_profile', [ira]), /don’t manage/, 'not before accepting');
+  const fam = await rpc('dev', 'family_overview');
+  assert.equal(fam.invitations[0].childName, 'Ira Menon');
+  await rejects(rpc('dev', 'respond_guardian_invite', [fam.invitations[0].id, true, false]), /confirm you are/);
+  await rpc('dev', 'respond_guardian_invite', [fam.invitations[0].id, true, true]);
+  assert.equal((await rpc('lata', 'family_overview')).managed[0].guardians.length, 2);
+
+  // A doctor's request reaches both parents, marked with the child's name; either can approve.
+  const code = (await db.query('select patient_code from patients where id = $1', [ira])).rows[0].patient_code;
+  const req = await rpc('kavya', 'request_access', [(await rpc('kavya', 'lookup_patient', [code])).patientId, ['history', 'vaccinations'], 24, 'Fever']);
+  for (const u of ['lata', 'dev']) {
+    const [n] = await as(u, (q) => q("select profile_id, profile_name from notifications where kind = 'request'"));
+    assert.deepEqual(n, { profile_id: ira, profile_name: 'Ira Menon' }, u);
+  }
+  await rpc('dev', 'switch_profile', [ira]);
+  await rpc('dev', 'approve_request', [req, ['history', 'vaccinations'], 24], freshCode());
+  assert.equal((await as('kavya', (q) => q("select count(*)::int n from records where patient_id = $1", [ira])))[0].n, 2);
+  assert.deepEqual((await rpc('kavya', 'patient_guardians', [ira])).map((g) => g.relationship).sort(), ['father', 'mother']);
+  await rejects(rpc('rohan', 'patient_guardians', [ira]), /don’t have access/);
+  await rpc('dev', 'switch_profile', [null]);
+
+  // Pushed medicine reminders reach the parents' devices, saying whose medicine it is.
+  await rpc('lata', 'switch_profile', [ira]);
+  await rpc('lata', 'create_record', [null, 'medication', iso(today), { name: 'Paracetamol syrup', dosage: '2.5 ml', frequency: 'Twice daily' }, null, [], ['08:00', '20:00']]);
+  await rpc('lata', 'switch_profile', [null]);
+  const sub = ['https://push.example.com/send/lata-phone', 'B' + 'y'.repeat(86), 'b'.repeat(22)];
+  await rpc('lata', 'save_push_subscription', [...sub, 'Asia/Kolkata']);
+  const due = (await db.query("select public._due_push_reminders(($1::date + time '08:02') at time zone 'Asia/Kolkata') as r", [iso(today)])).rows[0].r.filter((m) => m.endpoint === sub[0]);
+  assert.equal(due.length, 1);
+  assert.match(due[0].body, /^Ira Menon: Paracetamol syrup 2\.5 ml · 8:00 AM$/);
+
+  // Vaccine reminders: once per dose, to both parents. Doses due before the profile existed are
+  // assumed given, so pretend it was made at birth. (BCG is recorded; 6-week doses fell due 8 days ago.)
+  await db.query("update patients set created_at = date_of_birth where id = $1", [ira]);
+  const sent = (await db.query('select public._vaccine_reminders(current_date) as n')).rows[0].n;
+  assert.ok(sent >= 1);
+  assert.equal((await db.query('select public._vaccine_reminders(current_date) as n')).rows[0].n, 0, 'not repeated');
+  const vn = await as('dev', (q) => q("select title, body from notifications where title like 'Vaccine%' and profile_id = $1", [ira]));
+  assert.ok(vn.some((n) => /Ira Menon’s Pentavalent \(Dose 1\) is due on \d{4}-\d{2}-\d{2}\./.test(n.body)), JSON.stringify(vn));
+  assert.ok(!vn.some((n) => /BCG/.test(n.body)), 'given doses are skipped');
+
+  // The only guardian can't erase their account and strand a child's record.
+  const solo = await rpc('outsider', 'create_child_profile', [{ ...kid, fullName: 'Solo Kid', relationship: 'parent' }]);
+  await rejects(rpc('outsider', 'request_deletion', [null], freshCode()), /only guardian of a child’s record/);
+  await rejects(rpc('outsider', 'leave_guardianship', [solo]), /only guardian/);
+
+  // Handover at 18: a one-time code plus the matching date of birth.
+  await rejects(rpc('lata', 'start_handover', [ira]), /once its owner turns 18/);
+  await db.query('update patients set date_of_birth = $2 where id = $1', [ira, yearsAgo(18, 3)]);
+  await rejects(rpc('outsider', 'start_handover', [ira]), /don’t manage/);
+  const ho = await rpc('lata', 'start_handover', [ira]);
+  assert.match(ho.code, /^HO-\d{4}-\d{4}-\d{4}$/);
+  assert.equal((await db.query('select count(*)::int n from handover_codes where code_hash = $1', [ho.code])).rows[0].n, 0, 'only a hash is kept');
+  await addUser('ira', 'ira@example.com', { full_name: 'Ira Menon', date_of_birth: yearsAgo(18, 4), phone: '+91 95555 10004', handover_code: ho.code });
+  await rejects(rpc('ira', 'complete_signup'), /handover code doesn’t match/, 'wrong date of birth');
+  await db.query("update auth.users set raw_user_meta_data = raw_user_meta_data || $2 where id = $1", [users.ira.id, { date_of_birth: yearsAgo(18, 3) }]);
+  await rejects(rpc('ira', 'retry_signup_handover', ['HO-0000-0000-0000']), /handover code doesn’t match/, 'wrong code');
+  const acct = await rpc('ira', 'retry_signup_handover', [ho.code]);
+  assert.equal(acct.profileId, ira, 'same record, same patient ID');
+  assert.equal(acct.onboarded, true);
+  assert.equal((await as('ira', (q) => q("select count(*)::int n from records where type = 'vaccination'")))[0].n, 2, 'the whole history came along');
+  await rejects(rpc('lata', 'switch_profile', [ira]), /don’t manage/, 'guardians’ access ended');
+  assert.equal((await as('dev', (q) => q('select id from patients where id = $1', [ira]))).length, 0);
+  assert.equal((await as('lata', (q) => q("select count(*)::int n from notifications where title = 'Record handed over'")))[0].n, 1);
+  assert.equal((await db.query('select count(*)::int n from handover_codes where child_id = $1', [ira])).rows[0].n, 0, 'code used up');
+
+  // The new adult can ask a former parent to keep helping, and stop it any time.
+  assert.deepEqual((await rpc('ira', 'family_overview')).formerGuardians.map((g) => g.name).sort(), ['Dev Menon', 'Lata Menon']);
+  await rejects(rpc('ira', 'keep_carer', [users.outsider.patientId]), /Only a former parent/);
+  await rpc('ira', 'keep_carer', [users.lata.patientId]);
+  await rpc('lata', 'switch_profile', [ira]);
+  assert.equal((await rpc('lata', 'my_account')).profileId, ira);
+  const carer = (await rpc('ira', 'family_overview')).carers[0];
+  await rpc('ira', 'remove_carer', [carer.guardianshipId]);
+  assert.equal((await rpc('lata', 'my_account')).profileId, users.lata.patientId, 'carer’s access ends at once');
+});
+
+/* ---------- the vaccine schedule matches the app's ---------- */
+
+test('vaccine schedule in the database matches src/lib/immunization.ts', async () => {
+  const out = join(mkdtempSync(join(tmpdir(), 'nv-')), 'imm.mjs');
+  await build({ entryPoints: [join(root, 'src/lib/immunization.ts')], bundle: true, platform: 'node', format: 'esm', outfile: out, logLevel: 'error' });
+  const { UIP_SCHEDULE } = await import(pathToFileURL(out).href);
+  const rows = (await db.query('select * from public.uip_schedule')).rows;
+  assert.equal(rows.length, UIP_SCHEDULE.length);
+  for (const d of UIP_SCHEDULE) {
+    const r = rows.find((x) => x.key === d.key);
+    assert.ok(r, d.key);
+    assert.deepEqual([r.vaccine, r.dose, r.at_days, r.at_months, r.at_years, r.grp, r.only_some, r.until_days],
+      [d.vaccine, d.dose, d.at.days ?? null, d.at.months ?? null, d.at.years ?? null, d.group, d.some ?? null, d.untilDays ?? null], d.key);
+  }
+});
+
 /* ---------- Security audit (runs on every test run) ---------- */
 
 test('security: every table has row-level security, and clients can’t call internal functions', async () => {

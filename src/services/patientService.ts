@@ -2,9 +2,10 @@ import type { EmergencyContact, MedicalRecord, Patient, RecordData } from '../ty
 import { delay, mutate, mutateQuiet } from '../mock/db';
 import { nowISO, todayISO } from '../lib/dates';
 import { isSevereAllergy, ALLERGY_SEVERITY_RANK, opt } from '../lib/recordMeta';
-import { AppError, audit, recentlyLogged, requireCtx, requireGrant } from './core';
+import { AppError, audit, recentlyLogged, requireCtx, requireGrant, requireOwnProfile } from './core';
 import { isMedicationActive, latestHandover, recordService } from './recordService';
 import { documentService, validateFile, type NewFile } from './documentService';
+import { cleanBirth } from './familyService';
 
 import { t } from '../i18n';
 export interface HealthSummary {
@@ -104,7 +105,7 @@ export const patientService = {
     };
   },
 
-  async updateProfile(patch: Partial<Pick<Patient, 'fullName' | 'phone' | 'email' | 'dateOfBirth' | 'bloodGroup' | 'photoDataUrl' | 'emergencyContact' | 'importantNotes' | 'sex' | 'emergencyCardEnabled'>>): Promise<Patient> {
+  async updateProfile(patch: Partial<Pick<Patient, 'fullName' | 'phone' | 'email' | 'dateOfBirth' | 'bloodGroup' | 'photoDataUrl' | 'emergencyContact' | 'importantNotes' | 'sex' | 'emergencyCardEnabled' | 'birthDetails'>>): Promise<Patient> {
     await delay();
     const ctx = await requireCtx('patient');
     if (patch.fullName !== undefined && !patch.fullName.trim()) throw new AppError('VALIDATION', t('Name can’t be empty.'));
@@ -113,12 +114,16 @@ export const patientService = {
       if (!c?.name?.trim() || !c.relationship?.trim() || !c.phone?.trim()) throw new AppError('VALIDATION', t('An emergency contact with name, relationship and phone is required.'));
       if (!PHONE_OK(c.phone)) throw new AppError('VALIDATION', t('Enter a valid phone number for your emergency contact.'));
     }
+    // A child's profile has no sign-in of its own: the account's email and phone stay the parent's.
+    if (ctx.managing && (patch.email !== undefined || patch.phone !== undefined)) throw new AppError('VALIDATION', t('A child’s profile has no email or phone of its own.'));
     return mutate((db) => {
       const p = db.patients.find((x) => x.id === ctx.patient!.id)!;
-      Object.assign(p, patch);
-      const u = db.users.find((x) => x.id === ctx.user.id)!;
-      if (patch.email) u.email = patch.email;
-      if (patch.phone) u.phone = patch.phone;
+      Object.assign(p, patch.birthDetails !== undefined ? { ...patch, birthDetails: cleanBirth(patch.birthDetails) } : patch);
+      if (!ctx.managing) {
+        const u = db.users.find((x) => x.id === ctx.user.id)!;
+        if (patch.email) u.email = patch.email;
+        if (patch.phone) u.phone = patch.phone;
+      }
       return p;
     });
   },
@@ -130,6 +135,7 @@ export const patientService = {
   async completeOnboarding(input: OnboardingInput): Promise<void> {
     await delay();
     const ctx = await requireCtx('patient');
+    requireOwnProfile(ctx);
     const problem = validateOnboarding(input);
     if (problem) throw new AppError('VALIDATION', problem);
     const today = todayISO();

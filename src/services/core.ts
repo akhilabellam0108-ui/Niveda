@@ -2,7 +2,7 @@
  * Shared helpers for the service layer. In production these rules run on the
  * server; the browser must never be the place that enforces access control.
  */
-import type { AccessGrant, Actor, AuditLog, Database, Doctor, Notification, Patient, PermissionKey, Session, User } from '../types';
+import type { AccessGrant, Actor, AuditLog, Database, Doctor, Guardianship, Notification, Patient, PermissionKey, Session, User } from '../types';
 import { getDb } from '../mock/db';
 import { perTab } from '../mock/storage';
 import { now, nowISO } from '../lib/dates';
@@ -25,15 +25,32 @@ export const friendlyError = (e: unknown, fallback = t('Something went wrong. Pl
   e instanceof AppError ? t(e.message) : fallback;
 
 export const SESSION_KEY = 'niveda.session';
+/** The profile this tab is managing (a child's), when it isn't the person's own. */
+export const PROFILE_KEY = 'niveda.profile';
 
 export interface Ctx {
   db: Database;
   user: User;
   session: Session;
   actor: Actor;
+  /** The record being worked on: the person's own, or a child's they manage. */
   patient?: Patient;
   doctor?: Doctor;
+  /** The signed-in person's own profile, when they are managing someone else's. */
+  self?: Patient;
+  managing?: Guardianship;
 }
+
+/** Active parents, guardians and carers of a profile. */
+export const guardiansOf = (db: Database, childId: string) =>
+  (db.guardianships ?? []).filter((g) => g.childId === childId && g.status === 'active');
+
+/** The profiles a person manages. */
+export const managedBy = (db: Database, guardianId: string) =>
+  (db.guardianships ?? []).filter((g) => g.guardianId === guardianId && g.status === 'active');
+
+export const canManage = (db: Database, guardianId: string, profileId: string) =>
+  managedBy(db, guardianId).find((g) => g.childId === profileId);
 
 export function actorFor(db: Database, user: User): Actor {
   if (user.role === 'doctor') {
@@ -58,11 +75,33 @@ export async function requireCtx(role?: User['role']): Promise<Ctx> {
   if (!user) throw new AppError('NOT_SIGNED_IN', t('Please sign in to continue.'));
   if (role && user.role !== role) throw new AppError('ACCESS_DENIED', t('This area isn’t available for your account.'));
   session.lastActiveAt = nowISO();
-  return {
+  const own = user.role === 'patient' ? db.patients.find((p) => p.id === user.profileId) : undefined;
+  const ctx: Ctx = {
     db, user, session, actor: actorFor(db, user),
-    patient: user.role === 'patient' ? db.patients.find((p) => p.id === user.profileId) : undefined,
+    patient: own,
     doctor: user.role === 'doctor' ? db.doctors.find((d) => d.id === user.profileId) : undefined,
   };
+  // Managing a child's record: every patient action applies to the child's profile, and the
+  // access log names the parent who did it.
+  const profileId = own ? perTab.get(PROFILE_KEY) : null;
+  if (own && profileId && profileId !== own.id) {
+    const g = canManage(db, own.id, profileId);
+    const child = g && db.patients.find((p) => p.id === profileId);
+    if (g && child) {
+      ctx.self = own;
+      ctx.managing = g;
+      ctx.patient = child;
+      ctx.actor = { id: child.id, role: 'patient', name: child.fullName, guardian: { id: own.id, name: own.fullName } };
+    } else {
+      perTab.remove(PROFILE_KEY);
+    }
+  }
+  return ctx;
+}
+
+/** Throws when someone managing another person's record tries something only the person can do. */
+export function requireOwnProfile(ctx: Ctx, message = t('Switch back to your own profile to do this.')) {
+  if (ctx.managing) throw new AppError('ACCESS_DENIED', message);
 }
 
 export function audit(db: Database, entry: Omit<AuditLog, 'id' | 'timestamp'> & { timestamp?: string }) {
@@ -86,6 +125,20 @@ export function notify(db: Database, n: Omit<Notification, 'id' | 'createdAt' | 
 }
 
 export const patientUserId = (db: Database, patientId: string) => db.patients.find((p) => p.id === patientId)?.userId;
+
+/**
+ * Tells a patient about something in their record. A child's profile has no account, so
+ * the message goes to each of their parents or guardians, marked with whose record it is.
+ */
+export function notifyPatient(db: Database, patientId: string, n: Omit<Notification, 'id' | 'createdAt' | 'read' | 'userId'> & { createdAt?: string }) {
+  const p = db.patients.find((x) => x.id === patientId);
+  if (!p) return;
+  if (p.userId) notify(db, { ...n, userId: p.userId });
+  for (const g of guardiansOf(db, patientId)) {
+    const gu = patientUserId(db, g.guardianId);
+    if (gu) notify(db, { ...n, userId: gu, profileId: p.id, profileName: p.fullName });
+  }
+}
 export const doctorUserId = (db: Database, doctorId: string) => db.doctors.find((d) => d.id === doctorId)?.userId;
 
 /**
@@ -105,8 +158,7 @@ export function sweepGrants(db: Database): boolean {
       if (!g.expiryLogged) {
         g.expiryLogged = true;
         audit(db, { patientId: g.patientId, actor: { id: 'system', role: 'system', name: 'Niveda' }, action: 'access_expired', target: { type: 'doctor', id: g.doctorId, label: doctor?.fullName ?? 'Doctor' }, timestamp: g.expiresAt });
-        const pu = patientUserId(db, g.patientId);
-        if (pu) notify(db, { userId: pu, kind: 'access', title: 'Access expired', body: `${doctor?.fullName} can no longer see your records.`, link: '/app/access?tab=history', createdAt: g.expiresAt });
+        notifyPatient(db, g.patientId, { kind: 'access', title: 'Access expired', body: `${doctor?.fullName} can no longer see your records.`, link: '/app/access?tab=history', createdAt: g.expiresAt });
         const du = doctorUserId(db, g.doctorId);
         const p = db.patients.find((x) => x.id === g.patientId);
         if (du) notify(db, { userId: du, kind: 'access', title: 'Access ended', body: `Your access to ${p?.fullName}’s records has expired.`, createdAt: g.expiresAt });
@@ -114,8 +166,7 @@ export function sweepGrants(db: Database): boolean {
     } else if (!g.reminderSent && exp - t < 24 * 3600000) {
       g.reminderSent = true;
       changed = true;
-      const pu = patientUserId(db, g.patientId);
-      if (pu) notify(db, { userId: pu, kind: 'reminder', title: 'Access ends soon', body: `${doctor?.fullName}’s access to your records ends within 24 hours.`, link: '/app/access' });
+      notifyPatient(db, g.patientId, { kind: 'reminder', title: 'Access ends soon', body: `${doctor?.fullName}’s access to your records ends within 24 hours.`, link: '/app/access' });
     }
   }
   return changed;

@@ -17,15 +17,18 @@ import { t } from '../../i18n';
 import { T } from '../../i18n/T';
 /** Rights under India's DPDP Act: consent, nominee, grievances and erasure. */
 export function YourRights() {
-  const { user } = useSession();
+  const { user, managing, patient } = useSession();
   return (
     <>
       <div className="section-title"><h2>{t('Your data rights')}</h2><p className="small muted"><T text="Under India’s Digital Personal Data Protection Act. Read the {notice}." notice={<Link to="/legal/privacy" target="_blank">{t('privacy notice')}</Link>} /></p></div>
+      {managing && patient && (
+        <div className="alert alert-info"><UserCheck aria-hidden /><div>{t('Consents and complaints here are for your own account. A nominee and account deletion can only be changed from your own record — switch back to it to change them. Guardians for {name} are managed in Family & guardians.', { name: patient.fullName })} <Link to="/app/family">{t('Family & guardians')}</Link></div></div>
+      )}
       <ConsentsCard />
-      {user?.role === 'patient' && <NomineeCard />}
+      {user?.role === 'patient' && !managing && <NomineeCard />}
       <GrievancesCard />
       <Card title={t('Your data, to keep')}><div className="list-item"><span className="type-icon sm"><Download aria-hidden /></span><div className="grow small">{t('Download everything we hold about you — your record, documents and access log.')}</div><Link className="btn btn-sm btn-secondary" to={user?.role === 'patient' ? '/app/settings/export' : '/doctor/settings/account'}>{t('Export')}</Link></div></Card>
-      <DeleteAccountCard />
+      {!managing && <DeleteAccountCard />}
     </>
   );
 }

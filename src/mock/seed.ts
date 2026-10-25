@@ -6,12 +6,13 @@
 import type {
   DoseLog, MedicationReminder,
   AccessGrant, AccessRequest, Actor, AuditLog, Database, Doctor, Hospital, MedicalDocument,
-  MedicalRecord, Notification, Patient, PermissionKey, RecordData, RecordType, Session, User,
+  Guardianship, MedicalRecord, Notification, Patient, PermissionKey, RecordData, RecordType, Session, User,
 } from '../types';
 import { DEFAULT_PERMISSIONS, cleanData, recordTitle } from '../lib/recordMeta';
 import { addHours, addDays, toISODate } from '../lib/dates';
 import { defaultTimes } from '../lib/reminders';
 import { hashPassword } from '../lib/ids';
+import { UIP_SCHEDULE, dueDate } from '../lib/immunization';
 
 export const DEMO_PASSWORD = 'demo1234';
 export const DEMO_ACCOUNTS = {
@@ -55,7 +56,20 @@ export async function buildSeed(): Promise<Database> {
     { id: 'p_rohan', userId: 'u_rohan', patientCode: 'NV-3107-5528', fullName: 'Rohan Desai', dateOfBirth: '1981-11-02', sex: 'male', email: 'rohan@example.com', phone: '+91 98480 33220', bloodGroup: 'O+', emergencyContact: { name: 'Nisha Desai', relationship: 'Spouse', phone: '+91 98480 33221' }, emergencyCardEnabled: true, createdAt: '2023-04-02T09:00:00.000Z' },
     { id: 'p_fatima', userId: 'u_fatima', patientCode: 'NV-9264-1183', fullName: 'Fatima Khan', dateOfBirth: '1968-07-21', sex: 'female', email: 'fatima@example.com', phone: '+91 98480 44330', bloodGroup: 'A-', emergencyContact: { name: 'Imran Khan', relationship: 'Son', phone: '+91 98480 44331' }, emergencyCardEnabled: false, createdAt: '2024-09-15T09:00:00.000Z' },
   ];
-  for (const p of patients) users.push(await mkUser(p.userId, 'patient', p.email, p.phone, p.id));
+  for (const p of patients) users.push(await mkUser(p.userId!, 'patient', p.email, p.phone, p.id));
+
+  // Meera's daughter Anaya, about nine months old: her record is kept by Meera until she turns 18.
+  const anayaDob = toISODate(addDays(new Date(), -282));
+  const anaya: Patient = {
+    id: 'p_anaya', patientCode: 'NV-5390-2264', fullName: 'Anaya Iyer', dateOfBirth: anayaDob, sex: 'female', email: '', phone: '',
+    bloodGroup: 'B+', emergencyContact: { name: 'Meera Iyer', relationship: 'Mother', phone: '+91 98480 22110' }, emergencyCardEnabled: true,
+    birthDetails: { place: 'Lakeview Hospital', weightKg: 3.1, lengthCm: 49, headCm: 34, gestationWeeks: 39, delivery: 'Normal' },
+    createdAt: `${anayaDob}T10:00:00.000Z`,
+  };
+  patients.push(anaya);
+  const guardianships: Guardianship[] = [
+    { id: 'gd_meera_anaya', childId: anaya.id, guardianId: 'p_meera', relationship: 'mother', kind: 'guardian', status: 'active', declaredAt: anaya.createdAt, createdAt: anaya.createdAt, acceptedAt: anaya.createdAt },
+  ];
 
   const doctors: Doctor[] = doctorSeeds.map((d) => ({ ...d, userId: `u_${d.id.slice(2)}` }));
   for (const d of doctors) users.push(await mkUser(d.userId, 'doctor', d.email, d.phone, d.id));
@@ -159,6 +173,14 @@ export async function buildSeed(): Promise<Database> {
     '# Rx', '1. Paracetamol 650 mg - as needed, max 3/day, until 08 Oct 2026', '', '# Advice', 'Screen breaks every 45 minutes. 2.5 L water daily. Regular sleep.', '', 'Review: 08 Oct 2026',
   ]);
 
+  /* ---- Anaya: vaccines so far, given by the hospital ---- */
+  const byMeera: Actor = { id: anaya.id, role: 'patient', name: anaya.fullName, guardian: { id: meera.id, name: meera.fullName } };
+  const today = toISODate(new Date());
+  for (const d of UIP_SCHEDULE.filter((x) => x.group <= 3 && dueDate(anayaDob, x) <= today)) {
+    const on = dueDate(anayaDob, d);
+    rec(`r_an_${d.key}`, anaya, 'vaccination', on, { vaccine: d.vaccine, dose: d.dose, facility: 'Lakeview Hospital', uipKey: d.key }, byMeera, { enteredAt: `${on}T09:30:00.000Z` });
+  }
+
   /* ---- Rohan: smaller history ---- */
   const rohan = patients[1];
   rec('r_ro_htn', rohan, 'diagnosis', '2023-04-10', { condition: 'Essential hypertension', status: 'Managed', doctor: 'Dr. Priya Sharma', facility: 'Lakeview Hospital' }, priya, { org: 'h_lakeview' });
@@ -199,6 +221,7 @@ export async function buildSeed(): Promise<Database> {
   push({ patientId: meera.id, actor: priya, action: 'viewed_history', target: { type: 'record', label: 'Medical history' }, timestamp: ago(51.5) });
   push({ patientId: meera.id, actor: priya, action: 'viewed_document', target: { type: 'document', id: 'doc_cbc', label: 'CBC & HbA1c — Sunrise Diagnostics.pdf' }, timestamp: ago(51.3) });
   push({ patientId: meera.id, actor: { id: 'd_arvind', role: 'doctor', name: 'Dr. Arvind Rao', organization: 'Lakeview Hospital' }, action: 'access_requested', target: { type: 'request', id: 'req_arvind', label: 'Medical history, Medications, Lab reports · 24 hours' }, timestamp: ago(3) });
+  push({ patientId: anaya.id, actor: byMeera, action: 'profile_created', target: { type: 'profile', id: anaya.id, label: anaya.fullName }, timestamp: anaya.createdAt });
   push({ patientId: rohan.id, actor: self(rohan), action: 'access_granted', target: { type: 'doctor', id: 'd_priya', label: 'Dr. Priya Sharma' }, timestamp: ago(5), metadata: { permissions: DEFAULT_PERMISSIONS, duration: '7 days', method: 'Doctor access code' } });
   audit.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
 
@@ -238,8 +261,8 @@ export async function buildSeed(): Promise<Database> {
     schemaVersion: SCHEMA_VERSION,
     reminders, doseLogs,
     users, patients, doctors, hospitals, records, documents, grants, requests, invites: [],
-    audit, notifications, sessions, preferences: {},
+    audit, notifications, sessions, preferences: {}, guardianships, handovers: [],
   };
 }
 
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;

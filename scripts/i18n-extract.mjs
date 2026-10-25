@@ -34,11 +34,21 @@ function walk(dir, out = []) {
 // Data whose English text is kept for saving and translated where shown.
 const DATA_PROPS = new Set(['label', 'plural', 'options']);
 const DATA_FILES = [/lib\/recordMeta\.ts$/, /services\/exportService\.ts$/, /services\/accessService\.ts$/];
+// The vaccination schedule and child-profile choices: dose names, age groups and notes, and named
+// constants (ALL_CAPS) holding English text.
+const SCHEDULE_FILES = [/lib\/immunization\.ts$/, /services\/familyService\.ts$/];
+const SCHEDULE_PROPS = new Set(['dose']);
+const SCHEDULE_CONSTS = new Set(['AGE_GROUPS', 'JE', 'DELIVERY_TYPES']);
 
 for (const file of walk(path.join(root, 'src'))) {
   const src = fs.readFileSync(file, 'utf8');
   const sf = ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true, file.endsWith('x') ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
   const isData = DATA_FILES.some((r) => r.test(file));
+  const isSchedule = SCHEDULE_FILES.some((r) => r.test(file));
+  const addText = (v) => {
+    if (ts.isStringLiteral(v) && /[A-Za-z]/.test(v.text)) keys.add(v.text);
+    if (ts.isArrayLiteralExpression(v)) for (const el of v.elements) if (ts.isStringLiteral(el) && /[A-Za-z]/.test(el.text)) keys.add(el.text);
+  };
   const visit = (node) => {
     if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && /^(t|tr)$/.test(node.expression.text)) {
       const a = node.arguments[0];
@@ -53,11 +63,9 @@ for (const file of walk(path.join(root, 'src'))) {
         else if (ts.isJsxExpression(init) && init.expression && (ts.isStringLiteral(init.expression) || ts.isNoSubstitutionTemplateLiteral(init.expression))) keys.add(init.expression.text);
       }
     }
-    if (isData && ts.isPropertyAssignment(node) && DATA_PROPS.has(node.name.getText(sf))) {
-      const v = node.initializer;
-      if (ts.isStringLiteral(v) && /[A-Za-z]/.test(v.text)) keys.add(v.text);
-      if (ts.isArrayLiteralExpression(v)) for (const el of v.elements) if (ts.isStringLiteral(el) && /[A-Za-z]/.test(el.text)) keys.add(el.text);
-    }
+    if (isData && ts.isPropertyAssignment(node) && DATA_PROPS.has(node.name.getText(sf))) addText(node.initializer);
+    if (isSchedule && ts.isPropertyAssignment(node) && SCHEDULE_PROPS.has(node.name.getText(sf))) addText(node.initializer);
+    if (isSchedule && ts.isVariableDeclaration(node) && node.initializer && SCHEDULE_CONSTS.has(node.name.getText(sf))) addText(node.initializer);
     ts.forEachChild(node, visit);
   };
   visit(sf);

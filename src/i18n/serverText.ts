@@ -9,12 +9,16 @@
  */
 import { t } from './index';
 import { PERMISSIONS, RECORD_TYPES } from '../lib/recordMeta';
+import { doseLabel } from '../lib/immunization';
+import { fmtDate } from '../lib/dates';
 
 /* templates:start */
 const TITLES = [
   'Access expired', 'Access ended', 'Access ends soon', 'New entry in your record', 'Record corrected', 'Medication stopped',
   'Access granted', 'Permissions changed', 'Access revoked', 'Request declined', 'Access request', 'Emergency access to your record',
   'A file was blocked', 'Welcome to Niveda', 'Access expires tomorrow', 'New consultation added', 'New lab report',
+  'Invitation to manage a child’s record', 'Guardian added', 'Invitation declined', 'Carer stopped helping', 'Record handed over',
+  'You can help manage a record', 'Vaccine due soon', 'Vaccine overdue',
 ];
 
 const TEMPLATES = [
@@ -35,6 +39,16 @@ const TEMPLATES = [
   '{name}’s access to your records ends tomorrow. You can extend or revoke it anytime.',
   '{name} added a consultation, a diagnosis and a prescription to your medical record.',
   'Your {test} results from {lab} were added.',
+  '{name} asked you to help manage {child}’s health record as their {relationship}.',
+  '{name} now helps manage {child}’s record.',
+  '{name} declined to help manage {child}’s record.',
+  '{name} no longer helps manage your record.',
+  '{name} now has their own account and has taken over their health record. Your access has ended.',
+  '{name} asked you to keep helping manage their health record.',
+  '{name}’s {vaccine} ({dose}) is due on {date}.',
+  '{name}’s {vaccine} ({dose}) was due on {date}. Ask your doctor or health centre about it.',
+  'Your record is private by default. Only doctors you grant access to can see it, and every view is logged.',
+  'The health record your parents kept for you is now yours. Only doctors you grant access to can see it, and every view is logged.',
 ];
 
 /** Durations written by the server, e.g. "24 hours", "3 days". */
@@ -74,12 +88,18 @@ function permissionList(v: string): string {
   }).join(', ');
 }
 
+/** Relationships are saved in English ("legal guardian"). */
+const RELATIONSHIP_EN: Record<string, string> = { mother: 'Mother', father: 'Father', parent: 'Parent', 'legal guardian': 'Legal guardian', grandparent: 'Grandparent', relative: 'Other relative' };
+
 const CONVERT: Record<string, (v: string) => string> = {
   duration: tDuration,
   what: recordKind,
   parts: permissionList,
   reason: (v) => t(v),
   note: (v) => t(v),
+  relationship: (v) => (RELATIONSHIP_EN[v] ? t(RELATIONSHIP_EN[v]).toLowerCase() : v),
+  dose: doseLabel,
+  date: (v) => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? fmtDate(v) : v),
 };
 
 /** A notification title, body or access-log label saved in English, in the interface language. */

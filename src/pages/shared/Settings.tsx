@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { NavLink, useNavigate, useParams, Link } from 'react-router-dom';
 import { BellRing, Camera, Copy, UserRound, LockKeyhole, ShieldCheck, Bell, Palette, Languages, Download, LifeBuoy, LogOut, FlaskConical, FileJson, FileText, CheckCircle2, RotateCcw } from 'lucide-react';
 import type { Preferences } from '../../types';
-import { exportService, patientService, resetDemoData, settingsService, EXPORT_SCOPES, friendlyError } from '../../services';
+import { exportService, patientService, resetDemoData, settingsService, EXPORT_SCOPES, DELIVERY_TYPES, friendlyError } from '../../services';
 import { useSession, applyTheme } from '../../state/SessionContext';
 import { useToast } from '../../state/ToastContext';
 import { useDocumentTitle } from '../../state/hooks';
@@ -23,14 +23,20 @@ import { LanguagePicker } from '../../components/ui/LanguagePicker';
 
 export function ProfilePage() {
   useDocumentTitle(`${t('Profile')} · ${brand.name}`);
-  const { patient } = useSession();
+  const { patient, managing } = useSession();
   const toast = useToast();
   const [f, setF] = useState({ fullName: '', dateOfBirth: '', sex: '', phone: '', email: '', bloodGroup: '', ecName: '', ecRel: '', ecPhone: '' });
+  const [birth, setBirth] = useState({ place: '', weightKg: '', lengthCm: '', headCm: '', gestationWeeks: '', delivery: '', notes: '' });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string>();
   useEffect(() => {
     if (patient) setF({ fullName: patient.fullName, dateOfBirth: patient.dateOfBirth, sex: patient.sex ?? '', phone: patient.phone, email: patient.email, bloodGroup: patient.bloodGroup ?? '', ecName: patient.emergencyContact?.name ?? '', ecRel: patient.emergencyContact?.relationship ?? '', ecPhone: patient.emergencyContact?.phone ?? '' });
+    const b = patient?.birthDetails ?? {};
+    if (patient) setBirth({ place: b.place ?? '', weightKg: b.weightKg?.toString() ?? '', lengthCm: b.lengthCm?.toString() ?? '', headCm: b.headCm?.toString() ?? '', gestationWeeks: b.gestationWeeks?.toString() ?? '', delivery: b.delivery ?? '', notes: b.notes ?? '' });
   }, [patient]);
+  // A child's profile kept by a parent: no email or phone of its own; birth details instead.
+  const childProfile = !!patient && managing && !patient.userId;
+  const num = (v: string) => (v.trim() === '' ? undefined : Number(v.replace(',', '.')));
   if (!patient) return <Skeleton h={400} />;
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
 
@@ -40,7 +46,10 @@ export function ProfilePage() {
     setErr(undefined);
     try {
       await patientService.updateProfile({
-        fullName: f.fullName, dateOfBirth: f.dateOfBirth, sex: f.sex as 'female' | 'male' | 'other' | '', phone: f.phone, email: f.email, bloodGroup: f.bloodGroup || undefined,
+        fullName: f.fullName, dateOfBirth: f.dateOfBirth, sex: f.sex as 'female' | 'male' | 'other' | '', bloodGroup: f.bloodGroup || undefined,
+        ...(childProfile
+          ? { birthDetails: { place: birth.place.trim() || undefined, delivery: birth.delivery || undefined, notes: birth.notes.trim() || undefined, weightKg: num(birth.weightKg), lengthCm: num(birth.lengthCm), headCm: num(birth.headCm), gestationWeeks: num(birth.gestationWeeks) } }
+          : { phone: f.phone, email: f.email }),
         emergencyContact: { name: f.ecName, relationship: f.ecRel, phone: f.ecPhone },
       });
       toast(t('Profile saved'));
@@ -49,7 +58,7 @@ export function ProfilePage() {
 
   return (
     <>
-      <div className="page-head"><div><h1>{t('Profile')}</h1><p>{t('Your personal details. Doctors with access see your name, age and blood group.')}</p></div></div>
+      <div className="page-head"><div><h1>{t('Profile')}</h1><p>{childProfile ? t('{name}’s details. Doctors with access see their name, age and blood group.', { name: patient.fullName }) : t('Your personal details. Doctors with access see your name, age and blood group.')}</p></div></div>
       <section className="card card-pad row" style={{ '--gap': '18px', flexWrap: 'wrap' } as React.CSSProperties}>
         <Avatar name={patient.fullName} src={patient.photoDataUrl} size="xl" />
         <div className="grow">
@@ -71,9 +80,22 @@ export function ProfilePage() {
           <Field label={t('Date of birth')} required>{(p) => <Input {...p} type="date" value={f.dateOfBirth} onChange={set('dateOfBirth')} />}</Field>
           <Field label={t('Sex')}>{(p) => <Select {...p} value={f.sex} onChange={set('sex')} placeholder={t('Prefer not to say')} options={[{ value: 'female', label: t('Female') }, { value: 'male', label: t('Male') }, { value: 'other', label: t('Other') }]} />}</Field>
           <Field label={t('Blood group')}>{(p) => <Select {...p} value={f.bloodGroup} onChange={set('bloodGroup')} placeholder={t('Unknown')} options={BLOOD_GROUPS} />}</Field>
-          <Field label={t('Mobile number')} help={t('Used for one-time codes.')}>{(p) => <Input {...p} type="tel" value={f.phone} onChange={set('phone')} />}</Field>
-          <Field label={t('Email')}>{(p) => <Input {...p} type="email" value={f.email} onChange={set('email')} />}</Field>
+          {!childProfile && <>
+            <Field label={t('Mobile number')} help={t('Used for one-time codes.')}>{(p) => <Input {...p} type="tel" value={f.phone} onChange={set('phone')} />}</Field>
+            <Field label={t('Email')}>{(p) => <Input {...p} type="email" value={f.email} onChange={set('email')} />}</Field>
+          </>}
         </div>
+        {childProfile && <>
+          <h2 style={{ fontSize: 'var(--t-md)', marginTop: 8 }}>{t('Birth details')}</h2>
+          <div className="form-grid">
+            <Field label={t('Place of birth')} className="wide">{(p) => <Input {...p} value={birth.place} onChange={(e) => setBirth({ ...birth, place: e.target.value })} />}</Field>
+            <Field label={t('Birth weight (kg)')}>{(p) => <Input {...p} inputMode="decimal" value={birth.weightKg} onChange={(e) => setBirth({ ...birth, weightKg: e.target.value })} />}</Field>
+            <Field label={t('Length (cm)')}>{(p) => <Input {...p} inputMode="decimal" value={birth.lengthCm} onChange={(e) => setBirth({ ...birth, lengthCm: e.target.value })} />}</Field>
+            <Field label={t('Head circumference (cm)')}>{(p) => <Input {...p} inputMode="decimal" value={birth.headCm} onChange={(e) => setBirth({ ...birth, headCm: e.target.value })} />}</Field>
+            <Field label={t('Weeks of pregnancy at birth')}>{(p) => <Input {...p} inputMode="numeric" value={birth.gestationWeeks} onChange={(e) => setBirth({ ...birth, gestationWeeks: e.target.value })} />}</Field>
+            <Field label={t('Delivery')}>{(p) => <Select {...p} value={birth.delivery} onChange={(e) => setBirth({ ...birth, delivery: e.target.value })} placeholder={t('Select…')} options={DELIVERY_TYPES} />}</Field>
+          </div>
+        </>}
         <h2 style={{ fontSize: 'var(--t-md)', marginTop: 8 }}>{t('Emergency contact')}</h2>
         <div className="form-grid">
           <Field label={t('Name')} required className="wide">{(p) => <Input {...p} value={f.ecName} onChange={set('ecName')} />}</Field>
@@ -87,6 +109,7 @@ export function ProfilePage() {
     </>
   );
 }
+
 
 /* ---------------- Settings ---------------- */
 

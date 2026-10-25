@@ -6,13 +6,14 @@ import { useLive, useDocumentTitle } from '../../state/hooks';
 import { useSession } from '../../state/SessionContext';
 import { useToast } from '../../state/ToastContext';
 import { brand } from '../../config/brand';
-import { ageFrom, fmtDate } from '../../lib/dates';
+import { ageFrom, fmtDate, todayISO } from '../../lib/dates';
 import { isSevereAllergy, opt } from '../../lib/recordMeta';
 import { Button, ErrorState, Field, InlineError, Input, Modal, Select, Skeleton, Textarea } from '../../components/ui';
 import { QrCode } from '../../components/access/Qr';
 import { BLOOD_GROUPS } from '../auth/Onboarding';
 
 import { t } from '../../i18n';
+import { ageLabel, isAdult } from '../../lib/immunization';
 import { T } from '../../i18n/T';
 export function EmergencyPage() {
   useDocumentTitle(`${t('Emergency')} · ${brand.name}`);
@@ -50,7 +51,7 @@ export function EmergencyPage() {
               <div>
                 <div style={{ fontSize: 12, opacity: .85, letterSpacing: '.08em' }}>{t('EMERGENCY MEDICAL INFORMATION')}</div>
                 <div style={{ fontSize: 22, fontWeight: 650 }}>{patient.fullName}</div>
-                <div style={{ fontSize: 13, opacity: .9 }}>{t('{n} yrs', { n: ageFrom(patient.dateOfBirth) })} · {t('born {date}', { date: fmtDate(patient.dateOfBirth) })}{patient.sex ? ` · ${t(patient.sex)}` : ''}</div>
+                <div style={{ fontSize: 13, opacity: .9 }}>{isAdult(patient.dateOfBirth) ? t('{n} yrs', { n: ageFrom(patient.dateOfBirth) }) : ageLabel(patient.dateOfBirth, todayISO())} · {t('born {date}', { date: fmtDate(patient.dateOfBirth) })}{patient.sex ? ` · ${t(patient.sex)}` : ''}</div>
               </div>
               <div className="blood"><span>{t('Blood')}</span><b>{patient.bloodGroup ?? '?'}</b></div>
             </div>

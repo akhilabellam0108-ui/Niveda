@@ -361,6 +361,9 @@ await step('grievances get a reference and a 90-day deadline; deletion needs a c
   assert(new Date(g.respondBy).getTime() - new Date(g.createdAt).getTime() >= 89 * 864e5, '90 days');
   await privacyService.setNominee({ name: 'Ravi Rao', relationship: 'Brother', phone: '+91 90000 11111' });
   assert((await privacyService.nominee())?.name === 'Ravi Rao', 'nominee saved');
+  // Meera is the only guardian of her daughter's record, so deletion is tried by someone who isn't.
+  await authService.logout();
+  await login('rohan@example.com');
   const c = await privacyService.requestDeletionCode();
   const d = await privacyService.requestDeletion(c.prototypeCode, 'Testing');
   assert(Math.round((new Date(d.eraseAfter).getTime() - new Date(d.requestedAt).getTime()) / 864e5) === 7, '7-day window');
@@ -398,6 +401,131 @@ await step('plans an exact alarm for each future dose, skipping taken doses and 
   const ios = planAlarms({ schedules: many, logged: new Set(), now, enabled: true, max: MAX_ALARMS_IOS });
   assert(ios.length === MAX_ALARMS_IOS && ios.every((p, i) => i === 0 || p.at >= ios[i - 1].at), 'iPhone: only the soonest 60, under its limit of 64');
 });
+
+console.log('\nFlow F — a child’s record, kept by parents, handed over at 18');
+{
+  const { familyService } = await import('../src/services');
+  const { scheduleFor, dueDate, UIP_SCHEDULE, ageLabel } = await import('../src/lib/immunization');
+  await authService.logout().catch(() => undefined);
+  await login('meera@example.com');
+  let anayaId = '';
+  await step('a parent sees their child and works on the child’s record', async () => {
+    const o = await familyService.overview();
+    const anaya = o.managed.find((m) => m.patient.fullName === 'Anaya Iyer');
+    assert(anaya && anaya.relationship === 'mother' && !anaya.patient.userId, 'Anaya is managed by Meera, no sign-in of her own');
+    anayaId = anaya!.patient.id;
+    await familyService.switchTo(anayaId);
+    assert((await patientService.me()).id === anayaId, 'the patient screens now show Anaya');
+    const recs = await recordService.list();
+    assert(recs.length > 0 && recs.every((r) => r.patientId === anayaId), 'only Anaya’s entries');
+    const sched = scheduleFor(anaya!.patient.dateOfBirth, recs, todayISO());
+    assert(sched.filter((d) => d.group <= 3).every((d) => d.status === 'given'), 'birth to 14-week doses are recorded');
+    assert(sched.some((d) => d.key === 'mr1' && (d.status === 'due' || d.status === 'overdue')), 'the 9-month doses are due');
+    const mr = UIP_SCHEDULE.find((d) => d.key === 'mr1')!;
+    await recordService.create({ type: 'vaccination', date: todayISO(), data: { vaccine: mr.vaccine, dose: mr.dose, facility: 'Lakeview Hospital', uipKey: mr.key } });
+    const after = scheduleFor(anaya!.patient.dateOfBirth, await recordService.list(), todayISO());
+    assert(after.find((d) => d.key === 'mr1')!.status === 'given', 'marking a dose given');
+    const log = (await auditService.forPatient()).find((a) => a.action === 'record_added');
+    assert(log?.actor.id === anayaId && log.actor.guardian?.name === 'Meera Iyer', 'the access log names the parent');
+    assert(/month/.test(ageLabel(anaya!.patient.dateOfBirth, todayISO())), 'age in months for a baby');
+    assert(dueDate('2026-01-31', mr) === '2026-10-31', 'months are counted from the birthday');
+  });
+  await step('some things only the person themselves can do', async () => {
+    await expectDenied(() => familyService.createChild({ fullName: 'X', dateOfBirth: todayISO(), relationship: 'mother', declared: true }), 'add a child from a child’s profile');
+    await expectDenied(() => privacyService.setNominee({ name: 'A', relationship: 'B', phone: '9999999999' }), 'name a nominee for a child');
+    await expectRejectsValidation(() => patientService.updateProfile({ phone: '+91 90000 00000' }), 'a child has no phone of their own');
+    await familyService.switchTo(null);
+    assert((await patientService.me()).fullName === 'Meera Iyer', 'back to her own record');
+  });
+  let kabirId = '';
+  await step('adding a child needs the parent’s declaration and an under-18 date of birth', async () => {
+    const base = { fullName: 'Kabir Iyer', dateOfBirth: '2020-06-01', relationship: 'mother' as const, declared: true, birthDetails: { weightKg: 2.9, place: ' ' } };
+    await expectRejectsValidation(() => familyService.createChild({ ...base, declared: false }), 'no declaration');
+    await expectRejectsValidation(() => familyService.createChild({ ...base, dateOfBirth: '2000-01-01' }), 'an adult');
+    const kabir = await familyService.createChild(base);
+    kabirId = kabir.id;
+    assert(kabir.emergencyContact?.name === 'Meera Iyer' && kabir.birthDetails?.weightKg === 2.9 && !kabir.birthDetails?.place, 'parent as emergency contact; birth details cleaned');
+    assert((await auditService.forPatient()).every((a) => a.patientId !== kabirId), 'the child’s log is separate from the parent’s');
+  });
+  await step('a second parent is invited, accepts, and both hear about the child’s record', async () => {
+    await familyService.inviteGuardian(kabirId, 'rohan@example.com', 'father');
+    await authService.logout();
+    await login('rohan@example.com');
+    const inv = (await familyService.overview()).invitations.find((i) => i.childName === 'Kabir Iyer')!;
+    await expectRejectsValidation(() => familyService.respondToInvitation(inv.id, true, false), 'accepting needs the declaration');
+    await familyService.respondToInvitation(inv.id, true, true);
+    await familyService.switchTo(kabirId);
+    assert((await patientService.me()).fullName === 'Kabir Iyer', 'the second parent can open it');
+    await authService.logout();
+    await login('arvind.rao@lakeview.example');
+    const kabirCode = (await (await import('../src/mock/db')).getDb()).patients.find((p) => p.id === kabirId)!.patientCode;
+    const found = await accessService.lookupPatient(kabirCode);
+    assert(found.patientId === kabirId, 'doctors find a child by patient ID');
+    await accessService.requestAccess(kabirId, ['history', 'vaccinations'], 24, 'School health check');
+    for (const who of ['meera@example.com', 'rohan@example.com']) {
+      await authService.logout();
+      await login(who);
+      const n = (await notificationService.list()).find((x) => x.title === 'Access request' && x.profileId === kabirId);
+      assert(n?.profileName === 'Kabir Iyer', `${who} is told, with the child’s name`);
+    }
+  });
+  await step('vaccine reminders reach the parents once, and only for doses not yet given', async () => {
+    const db = await (await import('../src/mock/db')).getDb();
+    const kabir = db.patients.find((p) => p.id === kabirId)!;
+    kabir.createdAt = `${kabir.dateOfBirth}T00:00:00.000Z`; // as if the profile was made at birth
+    const list = await notificationService.list();
+    const vacc = list.filter((n) => n.profileId === kabirId && n.title.startsWith('Vaccine'));
+    assert(vacc.length > 0 && vacc.every((n) => n.title === 'Vaccine overdue'), 'Kabir (6 years) has overdue doses');
+    const again = (await notificationService.list()).filter((n) => n.profileId === kabirId && n.title.startsWith('Vaccine'));
+    assert(again.length === vacc.length, 'not repeated');
+  });
+  await step('the only guardian can’t leave or delete their account and strand the record', async () => {
+    await authService.logout();
+    await login('meera@example.com');
+    await expectRejectsValidation(() => familyService.leave(anayaId), 'last guardian leaving');
+    const c = await privacyService.requestDeletionCode();
+    try { await privacyService.requestDeletion(c.prototypeCode); throw new Error('allowed'); } catch (e) { assert(e instanceof AppError && e.code === 'CONFLICT', `wrong error ${(e as Error).message}`); }
+  });
+  await step('at 18 the record is handed over and the parents’ access ends', async () => {
+    const db = await (await import('../src/mock/db')).getDb();
+    const kabir = db.patients.find((p) => p.id === kabirId)!;
+    try { await familyService.startHandover(kabirId); throw new Error('allowed'); } catch (e) { assert(e instanceof AppError && e.code === 'VALIDATION', 'not before 18'); }
+    const dob18 = `${new Date().getFullYear() - 18}-01-01`;
+    kabir.dateOfBirth = dob18;
+    const { code } = await familyService.startHandover(kabirId);
+    assert(/^HO-\d{4}-\d{4}-\d{4}$/.test(code), 'a one-time code');
+    await authService.logout();
+    const signup = { fullName: 'Kabir Iyer', dateOfBirth: dob18, email: 'kabir@example.com', phone: '+91 97000 11223', password: 'Grown-up1', handoverCode: code };
+    await expectRejectsValidation(() => authService.startSignUp({ ...signup, dateOfBirth: `${new Date().getFullYear() - 19}-01-01` }), 'date of birth must match');
+    const ch = await authService.startSignUp(signup);
+    const user = await authService.completeSignUp(ch.id, ch.prototypeCode);
+    assert(user.profileId === kabirId && user.onboarded, 'the same record, ready to use');
+    assert((await auditService.forPatient()).some((a) => a.action === 'handover_completed'), 'the handover is in his log');
+    const o = await familyService.overview();
+    assert(o.formerGuardians.map((g) => g.name).sort().join() === 'Meera Iyer,Rohan Desai', 'his parents are former guardians');
+    await authService.logout();
+    await login('meera@example.com');
+    await expectDenied(() => familyService.switchTo(kabirId), 'a parent after the handover');
+    assert((await notificationService.list()).some((n) => n.title === 'Record handed over'), 'the parent is told');
+  });
+  await step('the new adult can let a parent keep helping, and stop it', async () => {
+    await authService.logout();
+    await authService.startLogin('kabir@example.com', 'Grown-up1').then((c) => authService.completeLogin(c.id, c.prototypeCode));
+    const meera = (await familyService.overview()).formerGuardians.find((g) => g.name === 'Meera Iyer')!;
+    await familyService.keepHelping(meera.id);
+    await authService.logout();
+    await login('meera@example.com');
+    await familyService.switchTo(kabirId);
+    assert((await patientService.me()).fullName === 'Kabir Iyer', 'carer can open it');
+    await authService.logout();
+    await authService.startLogin('kabir@example.com', 'Grown-up1').then((c) => authService.completeLogin(c.id, c.prototypeCode));
+    const carer = (await familyService.overview()).carers[0];
+    await familyService.removeCarer(carer.guardianshipId);
+    await authService.logout();
+    await login('meera@example.com');
+    await expectDenied(() => familyService.switchTo(kabirId), 'after the carer is removed');
+  });
+}
 
 console.log(`\n${passed} passed, ${failures.length} failed`);
 if (failures.length) process.exit(1);

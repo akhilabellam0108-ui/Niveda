@@ -1,6 +1,7 @@
 import { Building2, Lock, Paperclip, UserRound, History } from 'lucide-react';
 import type { MedicalRecord } from '../../types';
-import { RECORD_TYPES, opt, recordSummary, recordTitle, isSevereAllergy } from '../../lib/recordMeta';
+import { RECORD_TYPES, addedByLabel, opt, recordSummary, recordTitle, isSevereAllergy } from '../../lib/recordMeta';
+import { useSession } from '../../state/SessionContext';
 import { RECORD_ICON, RECORD_TONE } from '../../lib/icons';
 import { fmtDate } from '../../lib/dates';
 import { isMedicationActive } from '../../services';
@@ -43,6 +44,7 @@ interface CardProps {
 }
 
 export function RecordCard({ record, onOpen, children, highlight, showDate, viewerIsPatient = true }: CardProps) {
+  const selfId = useSession().family?.self.id;
   const meta = RECORD_TYPES[record.type];
   const summary = recordSummary(record);
   const by = record.createdBy;
@@ -61,7 +63,7 @@ export function RecordCard({ record, onOpen, children, highlight, showDate, view
       {summary && <div className="rec-summary truncate">{summary}</div>}
       {children}
       <div className="rec-meta">
-        <span><UserRound aria-hidden />{by.role === 'patient' ? (viewerIsPatient ? t('Added by you') : t('Added by patient')) : by.name}</span>
+        <span><UserRound aria-hidden />{by.role === 'doctor' ? by.name : addedByLabel(by, viewerIsPatient ? 'patient' : 'doctor', selfId)}</span>
         {(record.organization?.name ?? by.organization) && <span><Building2 aria-hidden />{record.organization?.name ?? by.organization}</span>}
         {record.attachments.length > 0 && <span><Paperclip aria-hidden />{record.attachments.length > 1 ? t('{n} attachments', { n: record.attachments.length }) : t('1 attachment')}</span>}
       </div>

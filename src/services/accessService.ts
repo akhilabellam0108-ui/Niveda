@@ -3,7 +3,7 @@ import { delay, mutate, mutateQuiet } from '../mock/db';
 import { addHours, now, nowISO } from '../lib/dates';
 import { uid } from '../lib/ids';
 import { permissionLabelEn } from '../lib/recordMeta';
-import { AppError, activeGrant, audit, doctorUserId, notify, patientUserId, requireCtx, sweepGrants } from './core';
+import { AppError, activeGrant, audit, doctorUserId, notify, notifyPatient, requireCtx, sweepGrants } from './core';
 import { otpService } from './otpService';
 
 import { t as tr } from '../i18n';
@@ -178,7 +178,7 @@ export const accessService = {
       g.revokedAt = nowISO();
       const doctor = db.doctors.find((d) => d.id === g.doctorId)!;
       audit(db, { patientId: g.patientId, actor: ctx.actor, action: 'access_revoked', target: { type: 'doctor', id: doctor.id, label: doctor.fullName } });
-      notify(db, { userId: ctx.user.id, kind: 'access', title: 'Access revoked', body: `${doctor.fullName} can no longer see your records.`, link: '/app/access?tab=history' });
+      notifyPatient(db, g.patientId, { kind: 'access', title: 'Access revoked', body: `${doctor.fullName} can no longer see your records.`, link: '/app/access?tab=history' });
       const du = doctorUserId(db, doctor.id);
       if (du) notify(db, { userId: du, kind: 'access', title: 'Access revoked', body: `${ctx.patient!.fullName} ended your access to their records.` });
     });
@@ -295,8 +295,8 @@ export const accessService = {
       const r: AccessRequest = { id: uid('req'), patientId, doctorId: ctx.doctor!.id, permissions, durationHours: hours, reason: reason.trim(), createdAt: nowISO(), status: 'pending' };
       db.requests.push(r);
       audit(db, { patientId, actor: ctx.actor, action: 'access_requested', target: { type: 'request', id: r.id, label: `${permissions.map(permissionLabelEn).join(', ')} · ${durationLabelEn(hours)}` } });
-      const pu = patientUserId(db, patientId);
-      if (pu) notify(db, { userId: pu, kind: 'request', title: 'Access request', body: `${ctx.doctor!.fullName} (${ctx.actor.organization}) requested access to your ${permissions.map((k) => permissionLabelEn(k).toLowerCase()).join(', ')} for ${durationLabelEn(hours)}.`, link: '/app/access?tab=requests' });
+      const pu = patientId;
+      notifyPatient(db, pu, { kind: 'request', title: 'Access request', body: `${ctx.doctor!.fullName} (${ctx.actor.organization}) requested access to your ${permissions.map((k) => permissionLabelEn(k).toLowerCase()).join(', ')} for ${durationLabelEn(hours)}.`, link: '/app/access?tab=requests' });
       return r;
     });
   },
@@ -341,8 +341,8 @@ export const accessService = {
         action: 'emergency_access', target: { type: 'doctor', id: d.id, label: d.fullName },
         metadata: { reason: reason.label, justification, duration: '4 hours', permissions: EMERGENCY_PERMISSIONS.map(permissionLabelEn), method: 'Emergency access' },
       });
-      const pu = patientUserId(db, p.id);
-      if (pu) notify(db, { userId: pu, kind: 'access', title: 'Emergency access to your record', link: '/app/access',
+      const pu = p.id;
+      notifyPatient(db, pu, { kind: 'access', title: 'Emergency access to your record', link: '/app/access',
         body: `${d.fullName}${hospital ? ` (${hospital})` : ''} opened your allergies, medicines, conditions and surgeries in an emergency: ${reason.label}. It ends by itself in 4 hours. If you didn’t expect this, end it now.` });
       return { patientId: p.id, expiresAt: grant.expiresAt };
     });

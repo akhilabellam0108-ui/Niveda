@@ -7,13 +7,15 @@ import { useLive, useDocumentTitle } from '../../state/hooks';
 import { useToast } from '../../state/ToastContext';
 import { brand } from '../../config/brand';
 import { fmtDate } from '../../lib/dates';
-import { RECORD_TYPES, recordTitle } from '../../lib/recordMeta';
+import { RECORD_TYPES, addedByLabel, recordTitle } from '../../lib/recordMeta';
+import { useSession } from '../../state/SessionContext';
 import { Badge, Button, ConfirmDialog, EmptyState, ErrorState, Field, Input, Select, SkeletonList } from '../../components/ui';
 import { DocumentViewer, DOC_ICON, formatBytes, downloadBlob } from '../../components/documents/DocumentViewer';
 import { usePatientUI } from '../../components/layout/PatientShell';
 
 import { t } from '../../i18n';
 export function ReportsPage() {
+  const selfId = useSession().family?.self.id;
   useDocumentTitle(`${t('Reports')} · ${brand.name}`);
   const ui = usePatientUI();
   const toast = useToast();
@@ -69,7 +71,7 @@ export function ReportsPage() {
                       <button className="rec-open truncate" onClick={(e) => { e.stopPropagation(); setViewing(d.id); }}>{d.name}</button>
                       <div className="row-wrap">{d.scanStatus === 'blocked' && <Badge tone="danger" icon={ShieldAlert}>{t('Blocked')}</Badge>}<Badge>{DOC_CATEGORY_LABEL[d.category]}</Badge><span className="xs subtle">{fmtDate(d.date)} · {formatBytes(d.size)}</span></div>
                       <div className="xs muted truncate">{d.recordLabel ? <><Link2 size={11} aria-hidden /> {d.recordLabel}</> : t('Not linked to an entry')}</div>
-                      <div className="xs subtle truncate">{d.uploadedBy.role === 'patient' ? t('Added by you') : t('Added by {name}', { name: d.uploadedBy.name })}</div>
+                      <div className="xs subtle truncate">{addedByLabel(d.uploadedBy, 'patient', selfId)}</div>
                     </div>
                     <div className="row" style={{ '--gap': '4px', marginTop: 'auto' } as React.CSSProperties} onClick={(e) => e.stopPropagation()}>
                       <Button size="sm" variant="ghost" icon={Download} onClick={() => download(d)}>{t('Download')}</Button>

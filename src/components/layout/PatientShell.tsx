@@ -3,7 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate, useSearchParams, Link } from
 import type { LucideIcon } from 'lucide-react';
 import {
   House, Clock3, FolderHeart, Pill, TriangleAlert, FileText, ShieldCheck, Siren, Bell, ScrollText, LockKeyhole,
-  UserRound, Settings, Search, LogOut, Ellipsis, ChevronDown, ShieldPlus,
+  UserRound, Settings, Search, LogOut, Ellipsis, ChevronDown, ShieldPlus, UsersRound, Syringe,
 } from 'lucide-react';
 import type { RecordType } from '../../types';
 import { brand, PROTOTYPE_NOTICE } from '../../config/brand';
@@ -21,6 +21,9 @@ import { UploadDialog } from '../documents/UploadDialog';
 import { GrantAccessDialog } from '../access/GrantAccessDialog';
 import { SearchPalette } from '../search/SearchPalette';
 import { MedicationAlarms, NativeAlarmSync, WebPushSync } from '../medications/Doses';
+import { ManagingBar, ProfileSwitcher } from '../family/ProfileSwitcher';
+import { onSchedule } from '../../lib/immunization';
+import { todayISO } from '../../lib/dates';
 
 import { t } from '../../i18n';
 /* ---------------- Shared nav pieces ---------------- */
@@ -115,7 +118,7 @@ const PRIMARY: NavItem[] = [
 export const isHome = (pathname: string, home: string) => pathname.replace(/\/+$/, '') === home;
 
 export function PatientShell() {
-  const { patient, signOut, user } = useSession();
+  const { patient, signOut, user, family, managing } = useSession();
   const navigate = useNavigate();
   const location = useLocation();
   const toast = useToast();
@@ -146,8 +149,12 @@ export function PatientShell() {
     search: () => setSearchOpen(true),
   };
 
+  // Children (under 17) get their vaccination schedule in the main menu.
+  const primary: NavItem[] = patient && onSchedule(patient.dateOfBirth, todayISO())
+    ? [...PRIMARY.slice(0, 4), { to: '/app/vaccines', label: t('Vaccinations'), icon: Syringe }, ...PRIMARY.slice(4)]
+    : PRIMARY;
   const sections = [
-    { items: PRIMARY },
+    { items: primary },
     { title: t('Sharing & safety'), items: [
       { to: '/app/access', label: t('Doctors & access'), icon: ShieldCheck, badge: pending },
       { to: '/app/emergency', label: t('Emergency'), icon: Siren },
@@ -156,20 +163,24 @@ export function PatientShell() {
     ] },
     { title: t('Account'), items: [
       { to: '/app/notifications', label: t('Notifications'), icon: Bell, badge: unread.data },
+      { to: '/app/family', label: t('Family'), icon: UsersRound, badge: family?.invitations.length },
       { to: '/app/profile', label: t('Profile'), icon: UserRound },
       { to: '/app/settings', label: t('Settings'), icon: Settings },
     ] },
   ];
 
   if (!patient) return null;
-  const moreItems = [...PRIMARY.slice(3), ...sections[1].items, ...sections[2].items];
+  const moreItems = [...primary.slice(3), ...sections[1].items, ...sections[2].items];
+  const me = family?.self ?? patient;
 
   return (
     <UICtx.Provider value={ui}>
       <ProtoBar />
       <div className="shell">
         <SideNav sections={sections} footer={
-          <div className="privacy-pill"><ShieldCheck aria-hidden /><span>{t('Your record is private. Only doctors you approve can see it, and every view is logged.')}</span></div>
+          <div className="privacy-pill"><ShieldCheck aria-hidden /><span>{managing
+            ? t('{name}’s record is private. Only doctors you approve can see it, and every view is logged.', { name: patient.fullName })
+            : t('Your record is private. Only doctors you approve can see it, and every view is logged.')}</span></div>
         } />
         <div className="main">
           <header className="topbar">
@@ -177,11 +188,12 @@ export function PatientShell() {
             <span className="mobile-only"><Brand to="/app" size={28} /></span>
             <button className="search-trigger desktop-only" onClick={() => setSearchOpen(true)}><Search aria-hidden />{t('Search your record')}<kbd>{t('Ctrl K')}</kbd></button>
             <div className="topbar-actions">
+              <ProfileSwitcher />
               <button className="icon-btn mobile-only" aria-label={t('Search')} onClick={() => setSearchOpen(true)}><Search /></button>
               <button className="icon-btn" aria-label={unread.data ? t('Notifications, {n} unread', { n: unread.data }) : t('Notifications')} onClick={() => navigate('/app/notifications')}>
                 <Bell />{!!unread.data && <span className="dot">{unread.data}</span>}
               </button>
-              <UserMenu name={patient.fullName} sub={t('Patient ID {patientCode}', { patientCode: patient.patientCode })} photo={patient.photoDataUrl} items={[
+              <UserMenu name={me.fullName} sub={t('Patient ID {patientCode}', { patientCode: me.patientCode })} photo={me.photoDataUrl} items={[
                 { label: t('Profile'), icon: UserRound, to: '/app/profile' },
                 { label: t('Privacy & security'), icon: LockKeyhole, to: '/app/privacy' },
                 { label: t('Settings'), icon: Settings, to: '/app/settings' },
@@ -190,6 +202,7 @@ export function PatientShell() {
               ]} />
             </div>
           </header>
+          <ManagingBar />
           <main className="content" id="main">
             <Outlet />
           </main>

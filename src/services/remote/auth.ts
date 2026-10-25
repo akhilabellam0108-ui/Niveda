@@ -53,7 +53,7 @@ export function describeDevice(ua?: string | null): string {
 }
 
 function toUser(a: Account): User {
-  return { id: a.id, role: a.role, email: a.email, phone: a.phone, passwordHash: '', passwordSalt: '', createdAt: a.createdAt, profileId: a.profileId, onboarded: a.onboarded, isAdmin: !!a.isAdmin };
+  return { id: a.id, role: a.role, email: a.email, phone: a.phone, passwordHash: '', passwordSalt: '', createdAt: a.createdAt, profileId: a.ownProfileId ?? a.profileId, onboarded: a.onboarded, isAdmin: !!a.isAdmin };
 }
 
 async function verifyEmailCode(email: string, code: string, type: 'email' | 'recovery') {
@@ -143,6 +143,8 @@ export const remoteAuthService: typeof MockAuth = {
         // Only choices the person actually made; an unanswered one stays undecided.
         ...(input.consents?.reminders !== undefined ? { consent_reminders: input.consents.reminders } : {}),
         ...(input.consents?.productUpdates !== undefined ? { consent_product_updates: input.consents.productUpdates } : {}),
+        // Taking over a record a parent kept: checked with the date of birth when sign-up completes.
+        ...(input.handoverCode?.trim() ? { handover_code: input.handoverCode.trim().toUpperCase() } : {}),
       } },
     });
     if (error) throw authError(error);
@@ -185,6 +187,14 @@ export const remoteAuthService: typeof MockAuth = {
     await verifyCode(pending.target ?? { kind: 'email', to: pending.email }, code);
     pending = null;
     return afterSignIn();
+  },
+
+  /** Sign-up stopped on a handover code that didn't match: try another code, or (null) start a new record. */
+  async retrySignUpHandover(code: string | null): Promise<User> {
+    const account = await write<Account>('retry_signup_handover', { p_code: code });
+    pending = null;
+    await read('log_session_event', { p_action: 'signed_in', p_device: describeDevice() }).catch(() => undefined);
+    return toUser(account);
   },
 
   resendCode(purpose: 'signup' | 'login'): OtpChallenge {

@@ -3,7 +3,7 @@ import { delay, getDb, mutate, mutateQuiet } from '../mock/db';
 import { now, nowISO, todayISO, toISODate, addDays, fmtDate } from '../lib/dates';
 import { uid } from '../lib/ids';
 import { RECORD_TYPES, cleanData, recordTitle, validateData } from '../lib/recordMeta';
-import { AppError, audit, notify, patientUserId, recentlyLogged, requireCtx, requireGrant, type Ctx } from './core';
+import { AppError, audit, notifyPatient, recentlyLogged, requireCtx, requireGrant, type Ctx } from './core';
 import { storeFile, type NewFile } from './documentService';
 import { ensureReminder } from './medicationService';
 
@@ -114,10 +114,10 @@ function logAndNotifyAdd(db: Database, ctx: Ctx, records: MedicalRecord[], headl
     });
   }
   if (ctx.user.role === 'doctor') {
-    const pu = patientUserId(db, records[0].patientId);
+    const pu = records[0].patientId;
     const main = records[0];
-    if (pu) notify(db, {
-      userId: pu, kind: 'record', title: 'New entry in your record',
+    notifyPatient(db, pu, {
+      kind: 'record', title: 'New entry in your record',
       body: headline ?? `${ctx.actor.name} added ${aOrAn(RECORD_TYPES[main.type].label.toLowerCase())} to your medical record.`,
       link: `/app/timeline?record=${main.id}`,
     });
@@ -313,8 +313,8 @@ export const recordService = {
         metadata: { reason: change.reason.trim(), fields: changed.concat(change.date !== r.date ? ['date'] : []), version: rec.version },
       });
       if (ctx.user.role === 'doctor') {
-        const pu = patientUserId(db, rec.patientId);
-        if (pu) notify(db, { userId: pu, kind: 'record', title: 'Record corrected', body: `${ctx.actor.name} amended “${recordTitle(rec)}”. The original is kept in its history.`, link: `/app/timeline?record=${rec.id}` });
+        const pu = rec.patientId;
+        notifyPatient(db, pu, { kind: 'record', title: 'Record corrected', body: `${ctx.actor.name} amended “${recordTitle(rec)}”. The original is kept in its history.`, link: `/app/timeline?record=${rec.id}` });
       }
       return rec;
     });
@@ -333,8 +333,8 @@ export const recordService = {
       pushVersion(rec, ctx.actor, 'discontinued', { ...rec.data, medStatus: 'discontinued', discontinuedOn: date, discontinueReason: reason.trim() || undefined }, rec.date, reason.trim() || 'Stopped');
       audit(db, { patientId: rec.patientId, actor: ctx.actor, action: 'medication_discontinued', target: { type: 'medication', id: rec.id, label: recordTitle(rec) }, metadata: { reason: reason.trim() || '—', date: fmtDate(date) } });
       if (ctx.doctor) {
-        const pu = patientUserId(db, rec.patientId);
-        if (pu) notify(db, { userId: pu, kind: 'record', title: 'Medication stopped', body: `${ctx.actor.name} stopped ${recordTitle(rec)}.`, link: `/app/medications` });
+        const pu = rec.patientId;
+        notifyPatient(db, pu, { kind: 'record', title: 'Medication stopped', body: `${ctx.actor.name} stopped ${recordTitle(rec)}.`, link: `/app/medications` });
       }
     });
   },

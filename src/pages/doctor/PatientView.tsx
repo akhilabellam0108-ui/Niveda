@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { FilePlus2, ShieldOff, TriangleAlert, Activity, Pill, Clock3, ShieldCheck, Send, Siren, ArrowLeft, FileText, Lock } from 'lucide-react';
-import { doctorService, documentService, recordService, emergencyReasonLabel } from '../../services';
+import { doctorService, documentService, recordService, emergencyReasonLabel, familyService, relationshipLabel } from '../../services';
+import { ageLabel, isAdult } from '../../lib/immunization';
+import { BirthCard } from '../patient/Home';
 import { AppError } from '../../services/core';
 import { useLive, useDocumentTitle } from '../../state/hooks';
 import { brand } from '../../config/brand';
@@ -40,6 +42,7 @@ export function PatientView() {
   const overview = useLive(() => doctorService.patientOverview(patientId), [patientId]);
   const records = useLive(() => recordService.list(patientId), [patientId]);
   const docs = useLive(() => documentService.list(patientId), [patientId]);
+  const guardians = useLive(() => familyService.guardiansFor(patientId), [patientId]);
   const { recordId, open, close } = useRecordParam();
   const [tab, setTab] = useState<Tab>('brief');
   const [filters, setFilters] = useState<FilterState>(emptyFilters());
@@ -60,6 +63,7 @@ export function PatientView() {
   const low = new Date(g.expiresAt).getTime() - Date.now() < 24 * 3600000;
   const hidden = PERMISSIONS.filter((p) => !g.permissions.includes(p.key));
   const severe = o.allergies.filter(isSevereAllergy);
+  const minor = !isAdult(o.patient.dateOfBirth);
 
   return (
     <>
@@ -74,11 +78,19 @@ export function PatientView() {
         <div className="grow" style={{ minWidth: 220 }}>
           <h1 style={{ fontSize: 'var(--t-xl)' }}>{o.patient.fullName}</h1>
           <div className="facts">
-            <span><T text="{n} yrs" n={<b>{ageFrom(o.patient.dateOfBirth)}</b>} />{o.patient.sex ? `, ${t(o.patient.sex)}` : ''}</span>
+            {minor
+              ? <span><b>{ageLabel(o.patient.dateOfBirth, todayISO())}</b>{o.patient.sex ? `, ${t(o.patient.sex)}` : ''}</span>
+              : <span><T text="{n} yrs" n={<b>{ageFrom(o.patient.dateOfBirth)}</b>} />{o.patient.sex ? `, ${t(o.patient.sex)}` : ''}</span>}
             <span>{t('Blood')}{' '}<b>{o.patient.bloodGroup ?? '—'}</b></span>
             <span>{t('ID')} <b className="num">{o.patient.patientCode}</b></span>
             <span>{t('DOB {date}', { date: fmtDate(o.patient.dateOfBirth) })}</span>
           </div>
+          {!!guardians.data?.length && (
+            <div className="small muted" style={{ marginTop: 4 }}>
+              {minor ? t('Record kept by {names}', { names: guardians.data.map((x) => `${x.name} (${relationshipLabel(x.relationship)})`).join(', ') })
+                : t('Helped by {names}', { names: guardians.data.map((x) => x.name).join(', ') })}
+            </div>
+          )}
         </div>
         <div className="stack" style={{ '--gap': '8px', alignItems: 'flex-end' } as React.CSSProperties}>
           <span className={`access-chip ${low ? 'low' : ''}`}><ShieldCheck aria-hidden />{t('Access ·')}{' '}{timeLeft(g.expiresAt)}</span>
@@ -97,6 +109,7 @@ export function PatientView() {
       )}
 
       {o.handover && <HandoverNote record={o.handover} onOpen={open} />}
+      {minor && o.patient.birthDetails && <BirthCard birth={o.patient.birthDetails} />}
 
       <Tabs label={t('Patient record')} value={tab} onChange={setTab} tabs={[
         { value: 'brief', label: t('Brief') }, { value: 'overview', label: t('Summary') }, { value: 'timeline', label: t('Timeline') }, { value: 'records', label: t('Records'), count: records.data?.length },

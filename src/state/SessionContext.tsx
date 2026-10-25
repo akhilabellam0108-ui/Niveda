@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { Doctor, Hospital, Patient, Preferences, User } from '../types';
-import { authService, doctorService, patientService, settingsService, subscribe, DEFAULT_PREFS } from '../services';
+import { authService, doctorService, familyService, patientService, settingsService, subscribe, DEFAULT_PREFS, type FamilyOverview } from '../services';
 import { AppError } from '../services/core';
 import { clearNativeAlarms } from '../lib/nativeAlarms';
 import { disableWebPush } from '../lib/webPush';
@@ -22,7 +22,12 @@ function followAccountLanguage(lang: LangCode | undefined) {
 interface SessionState {
   status: 'loading' | 'signed-out' | 'signed-in';
   user?: User;
+  /** The record on screen: the person's own, or a child's they manage. */
   patient?: Patient;
+  /** The signed-in person's own profile, and the records they manage. */
+  family?: FamilyOverview;
+  /** True while working on someone else's record (a child's). */
+  managing?: boolean;
   doctor?: Doctor & { hospital?: Hospital };
   prefs: Preferences;
   /** Message shown on the sign-in page, e.g. after a session expires. */
@@ -56,8 +61,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       applyTheme(prefs.theme);
       followAccountLanguage(prefs.language);
       if (user.role === 'patient') {
-        const patient = await patientService.me();
-        setState((s) => ({ status: 'signed-in', user, patient, prefs, notice: s.notice }));
+        const [patient, family] = await Promise.all([patientService.me(), familyService.overview().catch(() => undefined)]);
+        const managing = !!family && patient.id !== family.self.id;
+        setState((s) => ({ status: 'signed-in', user, patient, family, managing, prefs, notice: s.notice }));
       } else if (user.role === 'applicant') {
         setState((s) => ({ status: 'signed-in', user, prefs, notice: s.notice }));
       } else {
