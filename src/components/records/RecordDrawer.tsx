@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Lock, PencilLine, Ban, FlaskConical, History, Building2, CornerDownRight } from 'lucide-react';
 import type { MedicalRecord, RecordData, RecordVersion } from '../../types';
-import { RECORD_TYPES, fieldLabel, recordTitle, validateData, INTERNAL_KEYS } from '../../lib/recordMeta';
+import { RECORD_TYPES, fieldLabel, recordTitle, typeLabel, validateData, INTERNAL_KEYS } from '../../lib/recordMeta';
 import { fmtDate, fmtDateTime, fmtLongDate, todayISO } from '../../lib/dates';
 import { documentService, isMedicationActive, recordService, friendlyError, type DocumentView, type NewFile } from '../../services';
 import { useLive } from '../../state/hooks';
@@ -11,6 +11,7 @@ import { DocumentViewer, DOC_ICON } from '../documents/DocumentViewer';
 import { FilePicker, RecordFields, DATE_LABEL } from './RecordForm';
 import { StatusBadge, TypeIcon } from './RecordCard';
 
+import { t } from '../../i18n';
 interface Props {
   recordId?: string;
   onClose: () => void;
@@ -37,64 +38,64 @@ export function RecordDrawer({ recordId, onClose, onOpenRecord, viewer }: Props)
   return (
     <>
       <Drawer
-        open={!!recordId} onClose={onClose} label="Record details"
+        open={!!recordId} onClose={onClose} label={t('Record details')}
         header={rec ? (
           <div className="row" style={{ alignItems: 'flex-start' }}>
             <TypeIcon type={rec.type} />
             <div className="grow">
-              <div className="rec-top"><span className="rec-type">{RECORD_TYPES[rec.type].label}</span><StatusBadge record={rec} /></div>
+              <div className="rec-top"><span className="rec-type">{typeLabel(rec.type)}</span><StatusBadge record={rec} /></div>
               <h2 style={{ fontSize: 'var(--t-lg)', marginTop: 2 }}>{recordTitle(rec)}</h2>
-              <div className="small muted">{DATE_LABEL[rec.type] ?? 'Date'}: {fmtLongDate(rec.date)}</div>
+              <div className="small muted">{DATE_LABEL[rec.type] ?? t('Date')}: {fmtLongDate(rec.date)}</div>
             </div>
           </div>
         ) : <Skeleton w="60%" h={22} />}
         footer={rec && (canAmend || canStop || canAddResult) ? (
           <>
-            {canAddResult && <Button variant="primary" icon={FlaskConical} onClick={() => setDialog('result')}>Add result</Button>}
-            {canStop && <Button icon={Ban} onClick={() => { setStopReason(''); setDialog('stop'); }}>Stop medication</Button>}
-            {canAmend && <Button icon={PencilLine} onClick={() => setDialog('amend')}>Correct this entry</Button>}
+            {canAddResult && <Button variant="primary" icon={FlaskConical} onClick={() => setDialog('result')}>{t('Add result')}</Button>}
+            {canStop && <Button icon={Ban} onClick={() => { setStopReason(''); setDialog('stop'); }}>{t('Stop medication')}</Button>}
+            {canAmend && <Button icon={PencilLine} onClick={() => setDialog('amend')}>{t('Correct this entry')}</Button>}
           </>
         ) : undefined}
       >
-        {live.error ? <ErrorState error={live.error} title="Unable to open this record" onRetry={live.reload} /> : !rec ? (
+        {live.error ? <ErrorState error={live.error} title={t('Unable to open this record')} onRetry={live.reload} /> : !rec ? (
           <div className="stack"><Skeleton h={56} /><Skeleton h={160} /><Skeleton h={80} /></div>
         ) : (
           <>
             <div className="attribution">
               <Avatar name={rec.createdBy.name} size="sm" doctor={rec.createdBy.role === 'doctor'} />
               <div className="grow">
-                <div className="strong">Added by {rec.createdBy.role === 'patient' && viewer === 'patient' ? 'you' : rec.createdBy.name}</div>
+                <div className="strong">{rec.createdBy.role === 'patient' && viewer === 'patient' ? t('Added by you') : t('Added by {name}', { name: rec.createdBy.name })}</div>
                 <div className="xs muted">
                   {rec.organization?.name && <><Building2 size={12} aria-hidden style={{ verticalAlign: -2 }} /> {rec.organization.name} · </>}
                   {fmtDateTime(rec.createdAt)}
                 </div>
               </div>
-              <span className="lock" title="Who added an entry can’t be edited or removed"><Lock aria-hidden />Permanent</span>
+              <span className="lock" title={t('Who added an entry can’t be edited or removed')}><Lock aria-hidden />{t('Permanent')}</span>
             </div>
 
             {rec.version > 1 && <LatestChange v={rec.versions[rec.versions.length - 1]} />}
 
             <section className="stack" style={{ '--gap': '10px' } as React.CSSProperties}>
-              <h3 className="small subtle strong" style={{ textTransform: 'uppercase', letterSpacing: '.06em', fontSize: 11 }}>Details</h3>
+              <h3 className="small subtle strong" style={{ textTransform: 'uppercase', letterSpacing: '.06em', fontSize: 11 }}>{t('Details')}</h3>
               <Details record={rec} />
             </section>
 
             {live.data?.parent && (
               <section className="stack" style={{ '--gap': '8px' } as React.CSSProperties}>
-                <h3 className="small subtle strong" style={{ textTransform: 'uppercase', letterSpacing: '.06em', fontSize: 11 }}>Part of</h3>
+                <h3 className="small subtle strong" style={{ textTransform: 'uppercase', letterSpacing: '.06em', fontSize: 11 }}>{t('Part of')}</h3>
                 <LinkedRow r={live.data.parent} onOpen={onOpenRecord} />
               </section>
             )}
             {!!live.data?.children.length && (
               <section className="stack" style={{ '--gap': '8px' } as React.CSSProperties}>
-                <h3 className="small subtle strong" style={{ textTransform: 'uppercase', letterSpacing: '.06em', fontSize: 11 }}>Linked entries</h3>
+                <h3 className="small subtle strong" style={{ textTransform: 'uppercase', letterSpacing: '.06em', fontSize: 11 }}>{t('Linked entries')}</h3>
                 {live.data.children.map((c) => <LinkedRow key={c.id} r={c} onOpen={onOpenRecord} />)}
               </section>
             )}
 
             <section className="stack" style={{ '--gap': '8px' } as React.CSSProperties}>
-              <h3 className="small subtle strong" style={{ textTransform: 'uppercase', letterSpacing: '.06em', fontSize: 11 }}>Attachments</h3>
-              {rec.attachments.length === 0 ? <p className="small subtle">No attachments.</p> : attachments.length === 0 && docs.loading ? <Skeleton h={40} /> : attachments.map((d) => {
+              <h3 className="small subtle strong" style={{ textTransform: 'uppercase', letterSpacing: '.06em', fontSize: 11 }}>{t('Attachments')}</h3>
+              {rec.attachments.length === 0 ? <p className="small subtle">{t('No attachments.')}</p> : attachments.length === 0 && docs.loading ? <Skeleton h={40} /> : attachments.map((d) => {
                 const Icon = DOC_ICON[d.category];
                 return (
                   <button key={d.id} className="file-row clickable" style={{ background: 'var(--surface)', cursor: 'pointer', textAlign: 'left' }} onClick={() => setViewDoc(d.id)}>
@@ -102,11 +103,11 @@ export function RecordDrawer({ recordId, onClose, onOpenRecord, viewer }: Props)
                   </button>
                 );
               })}
-              {rec.attachments.length > attachments.length && !docs.loading && <p className="xs subtle">{rec.attachments.length - attachments.length} attachment(s) not shared with you.</p>}
+              {rec.attachments.length > attachments.length && !docs.loading && <p className="xs subtle">{t('{n} attachment(s) not shared with you.', { n: rec.attachments.length - attachments.length })}</p>}
             </section>
 
             <section className="stack" style={{ '--gap': '8px' } as React.CSSProperties}>
-              <h3 className="small subtle strong" style={{ textTransform: 'uppercase', letterSpacing: '.06em', fontSize: 11 }}>History</h3>
+              <h3 className="small subtle strong" style={{ textTransform: 'uppercase', letterSpacing: '.06em', fontSize: 11 }}>{t('History')}</h3>
               <VersionHistory record={rec} />
             </section>
           </>
@@ -117,15 +118,15 @@ export function RecordDrawer({ recordId, onClose, onOpenRecord, viewer }: Props)
 
       {rec && (
         <>
-          <AmendDialog open={dialog === 'amend'} record={rec} onClose={() => setDialog(undefined)} onDone={() => { setDialog(undefined); toast('Correction saved. The original is kept in the history.'); }} />
+          <AmendDialog open={dialog === 'amend'} record={rec} onClose={() => setDialog(undefined)} onDone={() => { setDialog(undefined); toast(t('Correction saved. The original is kept in the history.')); }} />
           <ConfirmDialog
-            open={dialog === 'stop'} onClose={() => setDialog(undefined)} title={`Stop ${recordTitle(rec)}?`} confirmLabel="Stop medication" danger
-            body="It will move to your past medications. Its full history stays in your record."
-            onConfirm={async () => { await recordService.discontinueMedication(rec.id, stopReason); toast('Medication stopped'); }}
+            open={dialog === 'stop'} onClose={() => setDialog(undefined)} title={t('Stop {value}?', { value: recordTitle(rec) })} confirmLabel={t('Stop medication')} danger
+            body={t('It will move to your past medications. Its full history stays in your record.')}
+            onConfirm={async () => { await recordService.discontinueMedication(rec.id, stopReason); toast(t('Medication stopped')); }}
           >
-            <Field label="Reason (optional)">{(p) => <Input {...p} value={stopReason} onChange={(e) => setStopReason(e.target.value)} placeholder="e.g. Course finished, side effects" />}</Field>
+            <Field label={t('Reason (optional)')}>{(p) => <Input {...p} value={stopReason} onChange={(e) => setStopReason(e.target.value)} placeholder={t('e.g. Course finished, side effects')} />}</Field>
           </ConfirmDialog>
-          <LabResultDialog open={dialog === 'result'} order={rec} onClose={() => setDialog(undefined)} onDone={(id) => { setDialog(undefined); toast('Result added'); onOpenRecord(id); }} />
+          <LabResultDialog open={dialog === 'result'} order={rec} onClose={() => setDialog(undefined)} onDone={(id) => { setDialog(undefined); toast(t('Result added')); onOpenRecord(id); }} />
         </>
       )}
     </>
@@ -136,7 +137,7 @@ function LinkedRow({ r, onOpen }: { r: MedicalRecord; onOpen: (id: string) => vo
   return (
     <button className="file-row" style={{ background: 'var(--surface)', cursor: 'pointer', textAlign: 'left', width: '100%' }} onClick={() => onOpen(r.id)}>
       <CornerDownRight aria-hidden />
-      <span className="xs subtle" style={{ width: 90, flex: 'none' }}>{RECORD_TYPES[r.type].label}</span>
+      <span className="xs subtle" style={{ width: 90, flex: 'none' }}>{typeLabel(r.type)}</span>
       <span className="grow truncate strong">{recordTitle(r)}</span>
       <StatusBadge record={r} />
     </button>
@@ -149,16 +150,16 @@ function visibleEntries(r: MedicalRecord, data: RecordData) {
   for (const f of meta.fields) {
     const v = data[f.key];
     if (v === undefined || v === '') continue;
-    out.push([f.label, f.kind === 'date' ? fmtDate(String(v)) : String(v)]);
+    out.push([f.label, f.kind === 'date' ? fmtDate(String(v)) : f.kind === 'select' ? t(String(v)) : String(v)]);
   }
   return out;
 }
 
 function Details({ record }: { record: MedicalRecord }) {
   const rows = visibleEntries(record, record.data);
-  if (record.data.discontinuedOn) rows.push(['Stopped on', fmtDate(String(record.data.discontinuedOn))]);
-  if (record.data.discontinueReason) rows.push(['Reason stopped', String(record.data.discontinueReason)]);
-  if (!rows.length) return <p className="small subtle">No further details.</p>;
+  if (record.data.discontinuedOn) rows.push([t('Stopped on'), fmtDate(String(record.data.discontinuedOn))]);
+  if (record.data.discontinueReason) rows.push([t('Reason stopped'), String(record.data.discontinueReason)]);
+  if (!rows.length) return <p className="small subtle">{t('No further details.')}</p>;
   return (
     <dl className="kv">
       {rows.map(([k, v]) => <div key={k} style={{ display: 'contents' }}><dt>{k}</dt><dd>{v}</dd></div>)}
@@ -167,13 +168,13 @@ function Details({ record }: { record: MedicalRecord }) {
 }
 
 function LatestChange({ v }: { v: RecordVersion }) {
-  const label = v.changeType === 'amended' ? 'Corrected' : v.changeType === 'discontinued' ? 'Stopped' : v.changeType === 'result_added' ? 'Result added' : 'Updated';
+  const label = v.changeType === 'amended' ? t('Corrected') : v.changeType === 'discontinued' ? t('Stopped') : v.changeType === 'result_added' ? t('Result added') : t('Updated');
   return (
     <div className="alert alert-info">
       <History aria-hidden />
       <div>
-        <div className="alert-title">{label} by {v.changedBy.name} · {fmtDateTime(v.changedAt)}</div>
-        {v.reason && <div>Reason: {v.reason}</div>}
+        <div className="alert-title">{t('{change} by {name}', { change: label, name: v.changedBy.name })} · {fmtDateTime(v.changedAt)}</div>
+        {v.reason && <div>{t('Reason:')}{' '}{v.reason}</div>}
       </div>
     </div>
   );
@@ -190,13 +191,13 @@ function VersionHistory({ record }: { record: MedicalRecord }) {
           <li key={v.version} className={`version ${i === 0 ? 'current' : ''}`}>
             <div className="spread">
               <div className="small">
-                <span className="strong">v{v.version} · {v.changeType === 'created' ? 'Created' : v.changeType === 'amended' ? 'Correction' : v.changeType === 'discontinued' ? 'Stopped' : v.changeType === 'result_added' ? 'Result added' : 'Updated'}</span>
-                <span className="muted"> by {v.changedBy.name}{v.changedBy.organization ? `, ${v.changedBy.organization}` : ''}</span>
+                <span className="strong">v{v.version} · {v.changeType === 'created' ? t('Created') : v.changeType === 'amended' ? t('Correction') : v.changeType === 'discontinued' ? t('Stopped') : v.changeType === 'result_added' ? t('Result added') : t('Updated')}</span>
+                <span className="muted"> {t('by {name}', { name: v.changedBy.organization ? `${v.changedBy.name}, ${v.changedBy.organization}` : v.changedBy.name })}</span>
               </div>
-              {i === 0 && <Badge tone="accent">Current</Badge>}
+              {i === 0 && <Badge tone="accent">{t('Current')}</Badge>}
             </div>
             <div className="xs subtle num">{fmtDateTime(v.changedAt)}</div>
-            {v.reason && v.changeType !== 'created' && <div className="small" style={{ marginTop: 6 }}>Reason: {v.reason}</div>}
+            {v.reason && v.changeType !== 'created' && <div className="small" style={{ marginTop: 6 }}>{t('Reason:')}{' '}{v.reason}</div>}
             {changes.length > 0 && (
               <div className="diff">
                 {changes.map(([k, a, b]) => (
@@ -216,7 +217,7 @@ function VersionHistory({ record }: { record: MedicalRecord }) {
 
 function diffData(r: MedicalRecord, a: RecordVersion, b: RecordVersion): [string, string, string][] {
   const out: [string, string, string][] = [];
-  if (a.date !== b.date) out.push(['Date', fmtDate(a.date), fmtDate(b.date)]);
+  if (a.date !== b.date) out.push([t('Date'), fmtDate(a.date), fmtDate(b.date)]);
   const keys = new Set([...Object.keys(a.data), ...Object.keys(b.data)]);
   for (const k of keys) {
     if (INTERNAL_KEYS.has(k)) continue;
@@ -242,27 +243,27 @@ function AmendDialog({ open, record, onClose, onDone }: { open: boolean; record:
 
   const review = () => {
     const v = validateData(record.type, data);
-    if (!reason.trim()) v.reason = 'Say why this needs correcting';
+    if (!reason.trim()) v.reason = t('Say why this needs correcting');
     setErrors(v);
     if (!Object.keys(v).length) setConfirm(true);
   };
 
   return (
     <>
-      <Modal open={open && !confirm} onClose={onClose} size="lg" title="Correct this entry"
-        description="Corrections never overwrite the original. Both versions stay in the record with your name, the time and your reason."
-        footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" onClick={review}>Review correction</Button></>}>
+      <Modal open={open && !confirm} onClose={onClose} size="lg" title={t('Correct this entry')}
+        description={t('Corrections never overwrite the original. Both versions stay in the record with your name, the time and your reason.')}
+        footer={<><Button onClick={onClose}>{t('Cancel')}</Button><Button variant="primary" onClick={review}>{t('Review correction')}</Button></>}>
         <div className="stack" style={{ '--gap': '20px' } as React.CSSProperties}>
           <RecordFields type={record.type} date={date} onDate={setDate} data={data} onChange={setData} errors={errors} />
-          <Field label="Reason for correction" required error={errors.reason}>
-            {(p) => <Textarea {...p} rows={2} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Dosage was entered incorrectly" />}
+          <Field label={t('Reason for correction')} required error={errors.reason}>
+            {(p) => <Textarea {...p} rows={2} value={reason} onChange={(e) => setReason(e.target.value)} placeholder={t('e.g. Dosage was entered incorrectly')} />}
           </Field>
           <InlineError message={err} />
         </div>
       </Modal>
       <ConfirmDialog
-        open={open && confirm} onClose={() => setConfirm(false)} title="Save this correction?" confirmLabel="Save correction"
-        body={<>A new version (v{record.version + 1}) will be added. The current version stays visible in the history, and the change is recorded in the access log.</>}
+        open={open && confirm} onClose={() => setConfirm(false)} title={t('Save this correction?')} confirmLabel={t('Save correction')}
+        body={t('A new version (v{n}) will be added. The current version stays visible in the history, and the change is recorded in the access log.', { n: record.version + 1 })}
         onConfirm={async () => {
           try {
             await recordService.amend(record.id, { date, data, reason });
@@ -305,12 +306,12 @@ function LabResultDialog({ open, order, onClose, onDone }: { open: boolean; orde
     }
   };
   return (
-    <Modal open={open} onClose={() => !busy && onClose()} size="lg" title={`Add result: ${recordTitle(order)}`}
-      description="The result is linked to this order and to the visit it came from."
-      footer={<><Button onClick={onClose} disabled={busy}>Cancel</Button><Button variant="primary" loading={busy} onClick={save}>Save result</Button></>}>
+    <Modal open={open} onClose={() => !busy && onClose()} size="lg" title={t('Add result: {value}', { value: recordTitle(order) })}
+      description={t('The result is linked to this order and to the visit it came from.')}
+      footer={<><Button onClick={onClose} disabled={busy}>{t('Cancel')}</Button><Button variant="primary" loading={busy} onClick={save}>{t('Save result')}</Button></>}>
       <div className="stack" style={{ '--gap': '20px' } as React.CSSProperties}>
         <RecordFields type="lab_result" date={date} onDate={setDate} data={data} onChange={setData} errors={errors} />
-        <FilePicker files={files} onChange={setFiles} label="Attach the lab report" compact />
+        <FilePicker files={files} onChange={setFiles} label={t('Attach the lab report')} compact />
         <InlineError message={err} />
       </div>
     </Modal>

@@ -4,6 +4,7 @@ import { AppError } from '../core';
 import { q, requireAccount, sb } from './client';
 import { toGrant } from './mappers';
 
+import { t } from '../../i18n';
 /**
  * The patient a call is about. Patients default to themselves; doctors must name
  * a patient and (for reads) hold an active grant — the database enforces this
@@ -12,16 +13,16 @@ import { toGrant } from './mappers';
 export async function patientIdFor(patientId?: string, checkGrant = true): Promise<string> {
   const a = await requireAccount();
   if (a.role === 'patient') {
-    if (patientId && patientId !== a.profileId) throw new AppError('ACCESS_DENIED', 'You can only view your own record.');
+    if (patientId && patientId !== a.profileId) throw new AppError('ACCESS_DENIED', t('You can only view your own record.'));
     return a.profileId;
   }
-  if (!patientId) throw new AppError('VALIDATION', 'Choose a patient.');
+  if (!patientId) throw new AppError('VALIDATION', t('Choose a patient.'));
   if (checkGrant) await activeGrant(patientId);
   return patientId;
 }
 
 export async function activeGrant(patientId: string): Promise<AccessGrant> {
   const rows = await q(sb().from('access_grants').select('*').eq('patient_id', patientId).eq('status', 'active').gt('expires_at', new Date().toISOString()).limit(1));
-  if (!rows.length) throw new AppError('ACCESS_DENIED', 'You no longer have access to this patient’s records. Ask the patient to grant access again.');
+  if (!rows.length) throw new AppError('ACCESS_DENIED', t('You no longer have access to this patient’s records. Ask the patient to grant access again.'));
   return toGrant(rows[0]);
 }

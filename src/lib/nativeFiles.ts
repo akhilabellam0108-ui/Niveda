@@ -2,6 +2,7 @@
 import { Capacitor } from '@capacitor/core';
 import { Directory, Filesystem } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
+import { t } from '../i18n';
 
 export const isNativeApp = () => Capacitor.isNativePlatform();
 
@@ -17,5 +18,5 @@ function toBase64(blob: Blob): Promise<string> {
 export async function shareFile(blob: Blob, filename: string): Promise<void> {
   const safe = filename.replace(/[^\w.\- ]+/g, '_');
   const { uri } = await Filesystem.writeFile({ path: safe, data: await toBase64(blob), directory: Directory.Cache });
-  await Share.share({ title: safe, files: [uri], dialogTitle: 'Save or send' });
+  await Share.share({ title: safe, files: [uri], dialogTitle: t('Save or send') });
 }

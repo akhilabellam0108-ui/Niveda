@@ -14,6 +14,7 @@ import { MAX_ALARMS, MAX_ALARMS_IOS, planAlarms, type PlannedAlarm } from './ala
 
 import { isNativeApp } from './nativeFiles';
 
+import { t } from '../i18n';
 export { isNativeApp };
 
 const CHANNEL = 'medicines';
@@ -31,16 +32,16 @@ export function initNativeAlarms(): Promise<void> {
     ready = (async () => {
       // Channels exist only on Android; iPhone uses the notification settings for the app.
       if (Capacitor.getPlatform() === 'android') await LocalNotifications.createChannel({
-        id: CHANNEL, name: 'Medicine reminders', description: 'Rings when it’s time to take a medicine',
+        id: CHANNEL, name: t('Medicine reminders'), description: t('Rings when it’s time to take a medicine'),
         importance: 5, visibility: 0, vibration: true, lights: true, lightColor: '#1d6b5f',
       });
       await LocalNotifications.registerActionTypes({
         types: [{
           id: ACTIONS,
           actions: [
-            { id: 'taken', title: 'Taken' },
-            { id: 'snooze', title: `Snooze ${SNOOZE_MINUTES} min` },
-            { id: 'skip', title: 'Skip', destructive: true },
+            { id: 'taken', title: t('Taken') },
+            { id: 'snooze', title: t('Snooze {SNOOZE_MINUTES} min', { SNOOZE_MINUTES }) },
+            { id: 'skip', title: t('Skip'), destructive: true },
           ],
         }],
       });

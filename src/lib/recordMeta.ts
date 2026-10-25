@@ -1,5 +1,6 @@
 import type { PermissionKey, RecordData, RecordType, MedicalRecord } from '../types';
 
+import { t } from '../i18n';
 export type FieldKind = 'text' | 'textarea' | 'date' | 'select' | 'number';
 
 export interface FieldDef {
@@ -30,32 +31,32 @@ export interface RecordTypeMeta {
   doctorCanAdd: boolean;
 }
 
-const doctorField: FieldDef = { key: 'doctor', label: 'Doctor', kind: 'text', placeholder: 'e.g. Dr. Kavya Menon' };
-const facilityField: FieldDef = { key: 'facility', label: 'Hospital / clinic', kind: 'text', placeholder: 'e.g. Northbridge Hospital' };
-const notesField: FieldDef = { key: 'notes', label: 'Notes', kind: 'textarea', wide: true };
+const doctorField: FieldDef = { key: 'doctor', label: t('Doctor'), kind: 'text', placeholder: t('e.g. Dr. Kavya Menon') };
+const facilityField: FieldDef = { key: 'facility', label: t('Hospital / clinic'), kind: 'text', placeholder: t('e.g. Northbridge Hospital') };
+const notesField: FieldDef = { key: 'notes', label: t('Notes'), kind: 'textarea', wide: true };
 
 export const RECORD_TYPES: Record<RecordType, RecordTypeMeta> = {
   consultation: {
     type: 'consultation', label: 'Consultation', plural: 'Consultations', permission: 'history',
     titleKey: 'reason', summaryKeys: ['diagnosis'], patientCanAdd: true, doctorCanAdd: true,
     fields: [
-      { key: 'reason', label: 'Reason for visit', kind: 'text', required: true, placeholder: 'e.g. Persistent cough', wide: true },
+      { key: 'reason', label: t('Reason for visit'), kind: 'text', required: true, placeholder: t('e.g. Persistent cough'), wide: true },
       doctorField, facilityField,
-      { key: 'symptoms', label: 'Symptoms', kind: 'textarea', wide: true },
-      { key: 'diagnosis', label: 'Diagnosis', kind: 'text', wide: true },
-      { key: 'medications', label: 'Medications discussed', kind: 'textarea', wide: true, help: 'For prescriptions that should appear in your medication list, add a Medication record.' },
-      { key: 'followUp', label: 'Follow-up date', kind: 'date' },
+      { key: 'symptoms', label: t('Symptoms'), kind: 'textarea', wide: true },
+      { key: 'diagnosis', label: t('Diagnosis'), kind: 'text', wide: true },
+      { key: 'medications', label: t('Medications discussed'), kind: 'textarea', wide: true, help: t('For prescriptions that should appear in your medication list, add a Medication record.') },
+      { key: 'followUp', label: t('Follow-up date'), kind: 'date' },
       notesField,
-      { key: 'handoverNote', label: 'Note for the next visit', kind: 'textarea', wide: true, help: 'What the next doctor — or the same one next time — should know or check.' },
+      { key: 'handoverNote', label: t('Note for the next visit'), kind: 'textarea', wide: true, help: t('What the next doctor — or the same one next time — should know or check.') },
     ],
   },
   diagnosis: {
     type: 'diagnosis', label: 'Diagnosis', plural: 'Diagnoses', permission: 'history',
     titleKey: 'condition', summaryKeys: ['severity'], patientCanAdd: true, doctorCanAdd: true,
     fields: [
-      { key: 'condition', label: 'Condition', kind: 'text', required: true, wide: true },
-      { key: 'status', label: 'Status', kind: 'select', options: ['Active', 'Managed', 'Resolved', 'Suspected'], required: true },
-      { key: 'severity', label: 'Severity', kind: 'select', options: ['', 'Mild', 'Moderate', 'Severe', 'Critical'] },
+      { key: 'condition', label: t('Condition'), kind: 'text', required: true, wide: true },
+      { key: 'status', label: t('Status'), kind: 'select', options: ['Active', 'Managed', 'Resolved', 'Suspected'], required: true },
+      { key: 'severity', label: t('Severity'), kind: 'select', options: ['', 'Mild', 'Moderate', 'Severe', 'Critical'] },
       doctorField, facilityField, notesField,
     ],
   },
@@ -63,22 +64,22 @@ export const RECORD_TYPES: Record<RecordType, RecordTypeMeta> = {
     type: 'medication', label: 'Medication', plural: 'Medications', permission: 'medications',
     titleKey: 'name', summaryKeys: ['dosage', 'frequency'], patientCanAdd: true, doctorCanAdd: true,
     fields: [
-      { key: 'name', label: 'Medicine name', kind: 'text', required: true, placeholder: 'e.g. Amoxicillin' },
-      { key: 'dosage', label: 'Dosage', kind: 'text', required: true, placeholder: 'e.g. 500 mg' },
-      { key: 'frequency', label: 'Frequency', kind: 'select', required: true, options: ['Once daily', 'Twice daily', 'Three times daily', 'Four times daily', 'Every night', 'Weekly', 'As needed'] },
-      { key: 'endDate', label: 'End date', kind: 'date', help: 'Leave empty for ongoing medicines.' },
-      { key: 'prescriber', label: 'Prescribing doctor', kind: 'text' },
-      { key: 'reason', label: 'Reason / condition', kind: 'text' },
-      { key: 'instructions', label: 'Instructions', kind: 'textarea', wide: true, placeholder: 'e.g. After food' },
+      { key: 'name', label: t('Medicine name'), kind: 'text', required: true, placeholder: t('e.g. Amoxicillin') },
+      { key: 'dosage', label: t('Dosage'), kind: 'text', required: true, placeholder: t('e.g. 500 mg') },
+      { key: 'frequency', label: t('Frequency'), kind: 'select', required: true, options: ['Once daily', 'Twice daily', 'Three times daily', 'Four times daily', 'Every night', 'Weekly', 'As needed'] },
+      { key: 'endDate', label: t('End date'), kind: 'date', help: t('Leave empty for ongoing medicines.') },
+      { key: 'prescriber', label: t('Prescribing doctor'), kind: 'text' },
+      { key: 'reason', label: t('Reason / condition'), kind: 'text' },
+      { key: 'instructions', label: t('Instructions'), kind: 'textarea', wide: true, placeholder: t('e.g. After food') },
     ],
   },
   allergy: {
     type: 'allergy', label: 'Allergy', plural: 'Allergies', permission: 'allergies',
     titleKey: 'allergen', summaryKeys: ['reaction', 'severity'], patientCanAdd: true, doctorCanAdd: true,
     fields: [
-      { key: 'allergen', label: 'Allergen', kind: 'text', required: true, placeholder: 'e.g. Penicillin' },
-      { key: 'severity', label: 'Severity', kind: 'select', required: true, options: ['Mild', 'Moderate', 'Severe', 'Life-threatening'] },
-      { key: 'reaction', label: 'Reaction', kind: 'text', required: true, wide: true, placeholder: 'e.g. Hives, swelling' },
+      { key: 'allergen', label: t('Allergen'), kind: 'text', required: true, placeholder: t('e.g. Penicillin') },
+      { key: 'severity', label: t('Severity'), kind: 'select', required: true, options: ['Mild', 'Moderate', 'Severe', 'Life-threatening'] },
+      { key: 'reaction', label: t('Reaction'), kind: 'text', required: true, wide: true, placeholder: t('e.g. Hives, swelling') },
       notesField,
     ],
   },
@@ -86,10 +87,10 @@ export const RECORD_TYPES: Record<RecordType, RecordTypeMeta> = {
     type: 'surgery', label: 'Surgery', plural: 'Surgeries', permission: 'surgeries',
     titleKey: 'procedure', summaryKeys: ['facility', 'outcome'], patientCanAdd: true, doctorCanAdd: true,
     fields: [
-      { key: 'procedure', label: 'Procedure', kind: 'text', required: true, wide: true },
-      { key: 'surgeon', label: 'Surgeon', kind: 'text' }, facilityField,
-      { key: 'reason', label: 'Reason', kind: 'text', wide: true },
-      { key: 'outcome', label: 'Outcome', kind: 'select', options: ['', 'Successful', 'Successful with complications', 'Ongoing recovery', 'Unsuccessful'] },
+      { key: 'procedure', label: t('Procedure'), kind: 'text', required: true, wide: true },
+      { key: 'surgeon', label: t('Surgeon'), kind: 'text' }, facilityField,
+      { key: 'reason', label: t('Reason'), kind: 'text', wide: true },
+      { key: 'outcome', label: t('Outcome'), kind: 'select', options: ['', 'Successful', 'Successful with complications', 'Ongoing recovery', 'Unsuccessful'] },
       notesField,
     ],
   },
@@ -97,32 +98,32 @@ export const RECORD_TYPES: Record<RecordType, RecordTypeMeta> = {
     type: 'procedure', label: 'Procedure', plural: 'Procedures', permission: 'surgeries',
     titleKey: 'procedure', summaryKeys: ['facility', 'doctor'], patientCanAdd: true, doctorCanAdd: true,
     fields: [
-      { key: 'procedure', label: 'Procedure', kind: 'text', required: true, wide: true },
+      { key: 'procedure', label: t('Procedure'), kind: 'text', required: true, wide: true },
       doctorField, facilityField,
-      { key: 'reason', label: 'Reason', kind: 'text', wide: true },
-      { key: 'outcome', label: 'Outcome', kind: 'text' }, notesField,
+      { key: 'reason', label: t('Reason'), kind: 'text', wide: true },
+      { key: 'outcome', label: t('Outcome'), kind: 'text' }, notesField,
     ],
   },
   lab_test: {
     type: 'lab_test', label: 'Lab test', plural: 'Lab tests', permission: 'labs',
     titleKey: 'test', summaryKeys: ['status', 'laboratory'], patientCanAdd: true, doctorCanAdd: true,
     fields: [
-      { key: 'test', label: 'Test', kind: 'text', required: true, placeholder: 'e.g. HbA1c' },
-      { key: 'status', label: 'Status', kind: 'select', options: ['Ordered', 'Sample collected', 'Completed', 'Cancelled'], required: true },
-      { key: 'laboratory', label: 'Laboratory', kind: 'text' },
-      { key: 'orderedBy', label: 'Ordered by', kind: 'text' },
-      { key: 'reason', label: 'Reason', kind: 'text', wide: true },
+      { key: 'test', label: t('Test'), kind: 'text', required: true, placeholder: t('e.g. HbA1c') },
+      { key: 'status', label: t('Status'), kind: 'select', options: ['Ordered', 'Sample collected', 'Completed', 'Cancelled'], required: true },
+      { key: 'laboratory', label: t('Laboratory'), kind: 'text' },
+      { key: 'orderedBy', label: t('Ordered by'), kind: 'text' },
+      { key: 'reason', label: t('Reason'), kind: 'text', wide: true },
     ],
   },
   lab_result: {
     type: 'lab_result', label: 'Lab result', plural: 'Lab results', permission: 'labs',
     titleKey: 'test', summaryKeys: ['result', 'status'], patientCanAdd: true, doctorCanAdd: true,
     fields: [
-      { key: 'test', label: 'Test name', kind: 'text', required: true },
-      { key: 'laboratory', label: 'Laboratory', kind: 'text' },
-      { key: 'result', label: 'Result', kind: 'text', required: true, placeholder: 'e.g. 13.1 g/dL' },
-      { key: 'referenceRange', label: 'Reference range', kind: 'text', placeholder: 'e.g. 12.0 – 15.5 g/dL' },
-      { key: 'status', label: 'Status', kind: 'select', options: ['Normal', 'Borderline', 'Abnormal', 'Critical'], required: true },
+      { key: 'test', label: t('Test name'), kind: 'text', required: true },
+      { key: 'laboratory', label: t('Laboratory'), kind: 'text' },
+      { key: 'result', label: t('Result'), kind: 'text', required: true, placeholder: t('e.g. 13.1 g/dL') },
+      { key: 'referenceRange', label: t('Reference range'), kind: 'text', placeholder: t('e.g. 12.0 – 15.5 g/dL') },
+      { key: 'status', label: t('Status'), kind: 'select', options: ['Normal', 'Borderline', 'Abnormal', 'Critical'], required: true },
       notesField,
     ],
   },
@@ -130,41 +131,41 @@ export const RECORD_TYPES: Record<RecordType, RecordTypeMeta> = {
     type: 'imaging', label: 'Imaging', plural: 'Imaging & scans', permission: 'imaging',
     titleKey: 'study', summaryKeys: ['findings', 'facility'], patientCanAdd: true, doctorCanAdd: true,
     fields: [
-      { key: 'study', label: 'Study', kind: 'text', required: true, placeholder: 'e.g. Chest X-ray' },
-      { key: 'modality', label: 'Type', kind: 'select', options: ['X-ray', 'Ultrasound', 'CT', 'MRI', 'PET', 'Mammogram', 'Other'] },
+      { key: 'study', label: t('Study'), kind: 'text', required: true, placeholder: t('e.g. Chest X-ray') },
+      { key: 'modality', label: t('Type'), kind: 'select', options: ['X-ray', 'Ultrasound', 'CT', 'MRI', 'PET', 'Mammogram', 'Other'] },
       facilityField,
-      { key: 'findings', label: 'Findings', kind: 'textarea', wide: true },
-      { key: 'impression', label: 'Impression', kind: 'text', wide: true },
+      { key: 'findings', label: t('Findings'), kind: 'textarea', wide: true },
+      { key: 'impression', label: t('Impression'), kind: 'text', wide: true },
     ],
   },
   vaccination: {
     type: 'vaccination', label: 'Vaccination', plural: 'Vaccinations', permission: 'vaccinations',
     titleKey: 'vaccine', summaryKeys: ['dose', 'facility'], patientCanAdd: true, doctorCanAdd: true,
     fields: [
-      { key: 'vaccine', label: 'Vaccine', kind: 'text', required: true },
-      { key: 'dose', label: 'Dose', kind: 'text', placeholder: 'e.g. Booster' },
+      { key: 'vaccine', label: t('Vaccine'), kind: 'text', required: true },
+      { key: 'dose', label: t('Dose'), kind: 'text', placeholder: t('e.g. Booster') },
       facilityField,
-      { key: 'batch', label: 'Batch number', kind: 'text' },
-      { key: 'nextDue', label: 'Next dose due', kind: 'date' },
+      { key: 'batch', label: t('Batch number'), kind: 'text' },
+      { key: 'nextDue', label: t('Next dose due'), kind: 'date' },
     ],
   },
   hospitalization: {
     type: 'hospitalization', label: 'Hospitalisation', plural: 'Hospitalisations', permission: 'history',
     titleKey: 'reason', summaryKeys: ['facility', 'dischargeDate'], patientCanAdd: true, doctorCanAdd: true,
     fields: [
-      { key: 'reason', label: 'Reason for admission', kind: 'text', required: true, wide: true },
+      { key: 'reason', label: t('Reason for admission'), kind: 'text', required: true, wide: true },
       facilityField,
-      { key: 'dischargeDate', label: 'Discharge date', kind: 'date' },
-      { key: 'attendingDoctor', label: 'Attending doctor', kind: 'text' },
-      { key: 'summary', label: 'Discharge summary', kind: 'textarea', wide: true },
+      { key: 'dischargeDate', label: t('Discharge date'), kind: 'date' },
+      { key: 'attendingDoctor', label: t('Attending doctor'), kind: 'text' },
+      { key: 'summary', label: t('Discharge summary'), kind: 'textarea', wide: true },
     ],
   },
   mental_health: {
     type: 'mental_health', label: 'Mental health', plural: 'Mental health', permission: 'mental_health',
     titleKey: 'topic', summaryKeys: ['provider'], patientCanAdd: true, doctorCanAdd: true,
     fields: [
-      { key: 'topic', label: 'Topic', kind: 'text', required: true, placeholder: 'e.g. Counselling session' },
-      { key: 'provider', label: 'Provider', kind: 'text' },
+      { key: 'topic', label: t('Topic'), kind: 'text', required: true, placeholder: t('e.g. Counselling session') },
+      { key: 'provider', label: t('Provider'), kind: 'text' },
       notesField,
     ],
   },
@@ -172,8 +173,8 @@ export const RECORD_TYPES: Record<RecordType, RecordTypeMeta> = {
     type: 'family_history', label: 'Family history', plural: 'Family history', permission: 'history',
     titleKey: 'condition', summaryKeys: ['relative'], patientCanAdd: true, doctorCanAdd: true,
     fields: [
-      { key: 'condition', label: 'Condition', kind: 'text', required: true },
-      { key: 'relative', label: 'Relative', kind: 'select', options: ['Mother', 'Father', 'Sibling', 'Grandparent', 'Child', 'Other'], required: true },
+      { key: 'condition', label: t('Condition'), kind: 'text', required: true },
+      { key: 'relative', label: t('Relative'), kind: 'select', options: ['Mother', 'Father', 'Sibling', 'Grandparent', 'Child', 'Other'], required: true },
       notesField,
     ],
   },
@@ -181,7 +182,7 @@ export const RECORD_TYPES: Record<RecordType, RecordTypeMeta> = {
     type: 'follow_up', label: 'Follow-up', plural: 'Follow-ups', permission: 'history',
     titleKey: 'purpose', summaryKeys: ['doctor'], patientCanAdd: false, doctorCanAdd: true,
     fields: [
-      { key: 'purpose', label: 'Purpose', kind: 'text', required: true, wide: true },
+      { key: 'purpose', label: t('Purpose'), kind: 'text', required: true, wide: true },
       doctorField, facilityField, notesField,
     ],
   },
@@ -189,15 +190,15 @@ export const RECORD_TYPES: Record<RecordType, RecordTypeMeta> = {
     type: 'clinical_note', label: 'Clinical note', plural: 'Clinical notes', permission: 'history',
     titleKey: 'subject', summaryKeys: ['doctor'], patientCanAdd: false, doctorCanAdd: true,
     fields: [
-      { key: 'subject', label: 'Subject', kind: 'text', required: true, wide: true },
-      { key: 'note', label: 'Note', kind: 'textarea', required: true, wide: true },
+      { key: 'subject', label: t('Subject'), kind: 'text', required: true, wide: true },
+      { key: 'note', label: t('Note'), kind: 'textarea', required: true, wide: true },
     ],
   },
   other: {
     type: 'other', label: 'Other', plural: 'Other records', permission: 'sensitive',
     titleKey: 'title', summaryKeys: ['facility'], patientCanAdd: true, doctorCanAdd: false,
     fields: [
-      { key: 'title', label: 'Title', kind: 'text', required: true, wide: true },
+      { key: 'title', label: t('Title'), kind: 'text', required: true, wide: true },
       facilityField, notesField,
     ],
   },
@@ -213,18 +214,18 @@ export interface RecordCategory {
 }
 
 export const RECORD_CATEGORIES: RecordCategory[] = [
-  { key: 'consultations', label: 'Consultations', types: ['consultation', 'follow_up', 'clinical_note'] },
-  { key: 'diagnoses', label: 'Diagnoses', types: ['diagnosis'] },
-  { key: 'medications', label: 'Medications', types: ['medication'] },
-  { key: 'allergies', label: 'Allergies', types: ['allergy'] },
-  { key: 'surgeries', label: 'Surgeries & procedures', types: ['surgery', 'procedure'] },
-  { key: 'labs', label: 'Lab results', types: ['lab_test', 'lab_result'] },
-  { key: 'imaging', label: 'Imaging & scans', types: ['imaging'] },
-  { key: 'vaccinations', label: 'Vaccinations', types: ['vaccination'] },
-  { key: 'mental_health', label: 'Mental health', types: ['mental_health'] },
-  { key: 'hospitalizations', label: 'Hospitalisations', types: ['hospitalization'] },
-  { key: 'family', label: 'Family history', types: ['family_history'] },
-  { key: 'other', label: 'Other records', types: ['other'] },
+  { key: 'consultations', label: t('Consultations'), types: ['consultation', 'follow_up', 'clinical_note'] },
+  { key: 'diagnoses', label: t('Diagnoses'), types: ['diagnosis'] },
+  { key: 'medications', label: t('Medications'), types: ['medication'] },
+  { key: 'allergies', label: t('Allergies'), types: ['allergy'] },
+  { key: 'surgeries', label: t('Surgeries & procedures'), types: ['surgery', 'procedure'] },
+  { key: 'labs', label: t('Lab results'), types: ['lab_test', 'lab_result'] },
+  { key: 'imaging', label: t('Imaging & scans'), types: ['imaging'] },
+  { key: 'vaccinations', label: t('Vaccinations'), types: ['vaccination'] },
+  { key: 'mental_health', label: t('Mental health'), types: ['mental_health'] },
+  { key: 'hospitalizations', label: t('Hospitalisations'), types: ['hospitalization'] },
+  { key: 'family', label: t('Family history'), types: ['family_history'] },
+  { key: 'other', label: t('Other records'), types: ['other'] },
 ];
 
 export const categoryOf = (type: RecordType) => RECORD_CATEGORIES.find((c) => c.types.includes(type))!;
@@ -238,19 +239,26 @@ export interface PermissionMeta {
 }
 
 export const PERMISSIONS: PermissionMeta[] = [
-  { key: 'history', label: 'Medical history', description: 'Consultations, diagnoses, hospital stays, family history', defaultOn: true },
-  { key: 'medications', label: 'Medications', description: 'Current and past medicines', defaultOn: true },
-  { key: 'allergies', label: 'Allergies', description: 'Allergies and reactions', defaultOn: true },
-  { key: 'labs', label: 'Lab reports', description: 'Lab tests and results', defaultOn: true },
-  { key: 'imaging', label: 'Imaging', description: 'X-rays, scans and their reports', defaultOn: true },
-  { key: 'surgeries', label: 'Surgeries & procedures', description: 'Operations and procedures', defaultOn: true },
-  { key: 'vaccinations', label: 'Vaccinations', description: 'Vaccines and due dates', defaultOn: true },
-  { key: 'mental_health', label: 'Mental-health records', description: 'Counselling and mental-health notes', sensitive: true, defaultOn: false },
-  { key: 'sensitive', label: 'Other sensitive records', description: 'Anything you filed under "Other"', sensitive: true, defaultOn: false },
+  { key: 'history', label: 'Medical history', description: t('Consultations, diagnoses, hospital stays, family history'), defaultOn: true },
+  { key: 'medications', label: 'Medications', description: t('Current and past medicines'), defaultOn: true },
+  { key: 'allergies', label: 'Allergies', description: t('Allergies and reactions'), defaultOn: true },
+  { key: 'labs', label: 'Lab reports', description: t('Lab tests and results'), defaultOn: true },
+  { key: 'imaging', label: 'Imaging', description: t('X-rays, scans and their reports'), defaultOn: true },
+  { key: 'surgeries', label: 'Surgeries & procedures', description: t('Operations and procedures'), defaultOn: true },
+  { key: 'vaccinations', label: 'Vaccinations', description: t('Vaccines and due dates'), defaultOn: true },
+  { key: 'mental_health', label: 'Mental-health records', description: t('Counselling and mental-health notes'), sensitive: true, defaultOn: false },
+  { key: 'sensitive', label: 'Other sensitive records', description: t('Anything you filed under "Other"'), sensitive: true, defaultOn: false },
 ];
 
-export const permissionLabel = (k: PermissionKey) => PERMISSIONS.find((p) => p.key === k)?.label ?? k;
+/** Permission name in English — for saved text (notifications, access log). */
+export const permissionLabelEn = (k: PermissionKey) => PERMISSIONS.find((p) => p.key === k)?.label ?? k;
+/** Permission name in the interface language. */
+export const permissionLabel = (k: PermissionKey) => t(permissionLabelEn(k));
 export const DEFAULT_PERMISSIONS = PERMISSIONS.filter((p) => p.defaultOn).map((p) => p.key);
+
+/** Record type name in the interface language (RECORD_TYPES keeps English for saved text). */
+export const typeLabel = (type: RecordType) => t(RECORD_TYPES[type].label);
+export const typePlural = (type: RecordType) => t(RECORD_TYPES[type].plural);
 
 export function recordTitle(r: Pick<MedicalRecord, 'type' | 'data'>): string {
   const meta = RECORD_TYPES[r.type];
@@ -258,16 +266,24 @@ export function recordTitle(r: Pick<MedicalRecord, 'type' | 'data'>): string {
   return (v !== undefined && String(v).trim()) || meta.label;
 }
 
+/** Every choice a select field offers. Saved in English; shown translated (free text is never translated). */
+const OPTION_VALUES = new Set(Object.values(RECORD_TYPES).flatMap((m) => m.fields.flatMap((f) => f.options ?? [])).filter(Boolean));
+/** A saved record value for display: a known choice ("Twice daily", "Severe") in the interface language, anything else as entered. */
+export const opt = (v: unknown): string => {
+  const s = v === undefined || v === null ? '' : String(v);
+  return OPTION_VALUES.has(s) ? t(s) : s;
+};
+
 export function recordSummary(r: Pick<MedicalRecord, 'type' | 'data'>): string {
   const meta = RECORD_TYPES[r.type];
   return meta.summaryKeys
-    .map((k) => r.data[k])
+    .map((k) => opt(r.data[k]))
     .filter((v) => v !== undefined && String(v).trim() !== '')
     .join(' · ');
 }
 
 export function fieldLabel(type: RecordType, key: string): string {
-  if (key === 'startDate') return 'Start date';
+  if (key === 'startDate') return t('Start date');
   return RECORD_TYPES[type].fields.find((f) => f.key === key)?.label ?? key;
 }
 
@@ -292,7 +308,7 @@ export function validateData(type: RecordType, data: RecordData): Record<string,
   const errors: Record<string, string> = {};
   for (const f of RECORD_TYPES[type].fields) {
     const v = data[f.key];
-    if (f.required && (v === undefined || String(v).trim() === '')) errors[f.key] = `${f.label} is required`;
+    if (f.required && (v === undefined || String(v).trim() === '')) errors[f.key] = t('{label} is required', { label: f.label });
   }
   return errors;
 }

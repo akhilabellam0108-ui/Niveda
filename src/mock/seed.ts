@@ -198,7 +198,7 @@ export async function buildSeed(): Promise<Database> {
   push({ patientId: meera.id, actor: me, action: 'access_granted', target: { type: 'doctor', id: 'd_priya', label: 'Dr. Priya Sharma' }, timestamp: ago(52), metadata: { permissions: DEFAULT_PERMISSIONS, duration: '3 days', method: 'Doctor access code' } });
   push({ patientId: meera.id, actor: priya, action: 'viewed_history', target: { type: 'record', label: 'Medical history' }, timestamp: ago(51.5) });
   push({ patientId: meera.id, actor: priya, action: 'viewed_document', target: { type: 'document', id: 'doc_cbc', label: 'CBC & HbA1c — Sunrise Diagnostics.pdf' }, timestamp: ago(51.3) });
-  push({ patientId: meera.id, actor: { id: 'd_arvind', role: 'doctor', name: 'Dr. Arvind Rao', organization: 'Lakeview Hospital' }, action: 'access_requested', target: { type: 'request', id: 'req_arvind', label: 'History, medications, lab reports · 24 hours' }, timestamp: ago(3) });
+  push({ patientId: meera.id, actor: { id: 'd_arvind', role: 'doctor', name: 'Dr. Arvind Rao', organization: 'Lakeview Hospital' }, action: 'access_requested', target: { type: 'request', id: 'req_arvind', label: 'Medical history, Medications, Lab reports · 24 hours' }, timestamp: ago(3) });
   push({ patientId: rohan.id, actor: self(rohan), action: 'access_granted', target: { type: 'doctor', id: 'd_priya', label: 'Dr. Priya Sharma' }, timestamp: ago(5), metadata: { permissions: DEFAULT_PERMISSIONS, duration: '7 days', method: 'Doctor access code' } });
   audit.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
 

@@ -11,6 +11,7 @@ import type { MedicalRecord, MedicationReminder } from '../types';
 import { fmtClock, takenOn } from './reminders';
 import { toISODate } from './dates';
 
+import { t } from '../i18n';
 export const ALARM_DAYS = 14;
 /** Android keeps at most ~500 pending alarms per app; stay well below. */
 export const MAX_ALARMS = 400;
@@ -65,7 +66,7 @@ export function planAlarms({ schedules, logged, now, enabled, days = ALARM_DAYS,
         const instructions = record.data.instructions ? String(record.data.instructions) : '';
         out.push({
           id: alarmId(record.id, date, time), at, recordId: record.id, date, time,
-          title: `Time for ${name}`,
+          title: t('Time for {name}', { name }),
           body: [dosage, fmtClock(time), instructions].filter(Boolean).join(' · '),
         });
       }

@@ -11,6 +11,7 @@ import { AppError, audit, requireCtx } from './core';
 import { otpService, type OtpChallenge } from './otpService';
 import { DEFAULT_PREFS } from './settingsService';
 
+import { t } from '../i18n';
 export type Nominee = EmergencyContact & { email?: string };
 export const DELETION_DAYS = 7;
 export const GRIEVANCE_DAYS = 90;
@@ -22,19 +23,19 @@ export const GRIEVANCE_DAYS = 90;
 export const CONSENT_DEFAULTS: Record<ConsentPurpose, boolean> = { core_record: true, reminders: true, abdm_sharing: false, product_updates: false };
 
 export const CONSENT_PURPOSES: { purpose: ConsentPurpose; title: string; body: string; required?: boolean }[] = [
-  { purpose: 'core_record', title: 'Keep my health record', body: 'Store my record and share it only with doctors I approve. Needed to use the app.', required: true },
-  { purpose: 'reminders', title: 'Medicine reminders', body: 'Send reminders to my phone, computer or watch.' },
-  { purpose: 'abdm_sharing', title: 'Share through ABDM', body: 'Use my ABHA to exchange records with other ABDM apps when I approve each request.' },
-  { purpose: 'product_updates', title: 'Product updates', body: 'Occasional news about new features. Never advertising.' },
+  { purpose: 'core_record', title: t('Keep my health record'), body: t('Store my record and share it only with doctors I approve. Needed to use the app.'), required: true },
+  { purpose: 'reminders', title: t('Medicine reminders'), body: t('Send reminders to my phone, computer or watch.') },
+  { purpose: 'abdm_sharing', title: t('Share through ABDM'), body: t('Use my ABHA to exchange records with other ABDM apps when I approve each request.') },
+  { purpose: 'product_updates', title: t('Product updates'), body: t('Occasional news about new features. Never advertising.') },
 ];
 
 export const GRIEVANCE_CATEGORIES: { value: Grievance['category']; label: string }[] = [
-  { value: 'access', label: 'Someone saw or used my data wrongly' },
-  { value: 'correction', label: 'Something in my record is wrong' },
-  { value: 'erasure', label: 'Deleting my data' },
-  { value: 'consent', label: 'Consent or communications' },
-  { value: 'security', label: 'Security concern' },
-  { value: 'other', label: 'Something else' },
+  { value: 'access', label: t('Someone saw or used my data wrongly') },
+  { value: 'correction', label: t('Something in my record is wrong') },
+  { value: 'erasure', label: t('Deleting my data') },
+  { value: 'consent', label: t('Consent or communications') },
+  { value: 'security', label: t('Security concern') },
+  { value: 'other', label: t('Something else') },
 ];
 
 let pendingDeletion: { challengeId: string } | null = null;
@@ -52,7 +53,7 @@ export const privacyService = {
 
   async setConsent(purpose: ConsentPurpose, granted: boolean): Promise<void> {
     const ctx = await requireCtx();
-    if (purpose === 'core_record' && !granted) throw new AppError('VALIDATION', `${brand.name} can’t keep your record without this. To stop entirely, delete your account instead.`);
+    if (purpose === 'core_record' && !granted) throw new AppError('VALIDATION', t('{name} can’t keep your record without this. To stop entirely, delete your account instead.', { name: brand.name }));
     await mutate((db) => {
       const c: ConsentRecord = { id: uid('cns'), userId: ctx.user.id, purpose, granted, noticeVersion: brand.privacyNoticeVersion, at: nowISO() };
       db.consents = [...(db.consents ?? []), c];
@@ -68,7 +69,7 @@ export const privacyService = {
 
   async setNominee(n: Nominee | null): Promise<void> {
     const ctx = await requireCtx('patient');
-    if (n && (!n.name.trim() || !n.relationship.trim() || n.phone.replace(/\D/g, '').length < 10)) throw new AppError('VALIDATION', 'Give your nominee’s name, relationship and phone number.');
+    if (n && (!n.name.trim() || !n.relationship.trim() || n.phone.replace(/\D/g, '').length < 10)) throw new AppError('VALIDATION', t('Give your nominee’s name, relationship and phone number.'));
     await mutate((db) => {
       const p = db.patients.find((x) => x.id === ctx.patient!.id) as unknown as { nominee?: Nominee | null };
       p.nominee = n ? { name: n.name.trim(), relationship: n.relationship.trim(), phone: n.phone.trim(), email: n.email?.trim() } : null;
@@ -90,10 +91,10 @@ export const privacyService = {
 
   async requestDeletion(code: string, reason?: string): Promise<DeletionRequest> {
     const ctx = await requireCtx();
-    if (!pendingDeletion) throw new AppError('OTP_EXPIRED', 'Please request a new code.');
+    if (!pendingDeletion) throw new AppError('OTP_EXPIRED', t('Please request a new code.'));
     otpService.verify(pendingDeletion.challengeId, code, 'delete_account');
     pendingDeletion = null;
-    if ((ctx.db.deletionRequests ?? []).some((d) => d.userId === ctx.user.id && d.status === 'pending')) throw new AppError('CONFLICT', 'Your account is already scheduled for deletion.');
+    if ((ctx.db.deletionRequests ?? []).some((d) => d.userId === ctx.user.id && d.status === 'pending')) throw new AppError('CONFLICT', t('Your account is already scheduled for deletion.'));
     await delay();
     return mutate((db) => {
       const t = nowISO();
@@ -109,7 +110,7 @@ export const privacyService = {
     const ctx = await requireCtx();
     await mutate((db) => {
       const d = (db.deletionRequests ?? []).find((x) => x.userId === ctx.user.id && x.status === 'pending');
-      if (!d) throw new AppError('NOT_FOUND', 'There’s no deletion to cancel.');
+      if (!d) throw new AppError('NOT_FOUND', t('There’s no deletion to cancel.'));
       d.status = 'cancelled';
       audit(db, { patientId: ctx.patient?.id, actor: ctx.actor, action: 'deletion_cancelled', target: { type: 'account', label: 'Deletion cancelled' } });
     });
@@ -122,7 +123,7 @@ export const privacyService = {
 
   async fileGrievance(category: Grievance['category'], description: string): Promise<Grievance> {
     const ctx = await requireCtx();
-    if (description.trim().length < 10) throw new AppError('VALIDATION', 'Tell us a little more (at least 10 characters).');
+    if (description.trim().length < 10) throw new AppError('VALIDATION', t('Tell us a little more (at least 10 characters).'));
     await delay();
     return mutate((db) => {
       const t = nowISO();
@@ -147,7 +148,7 @@ export const privacyService = {
     await requireCtx();
     await mutate((db) => {
       const g = (db.grievances ?? []).find((x) => x.id === id);
-      if (!g) throw new AppError('NOT_FOUND', 'Grievance not found.');
+      if (!g) throw new AppError('NOT_FOUND', t('Grievance not found.'));
       g.status = status; g.response = response.trim() || undefined; g.resolvedAt = status === 'resolved' ? nowISO() : undefined;
     });
   },

@@ -22,13 +22,14 @@ import { GrantAccessDialog } from '../access/GrantAccessDialog';
 import { SearchPalette } from '../search/SearchPalette';
 import { MedicationAlarms, NativeAlarmSync, WebPushSync } from '../medications/Doses';
 
+import { t } from '../../i18n';
 /* ---------------- Shared nav pieces ---------------- */
 
 export interface NavItem { to: string; label: string; icon: LucideIcon; badge?: number; end?: boolean }
 
 export function SideNav({ sections, footer }: { sections: { title?: string; items: NavItem[] }[]; footer?: ReactNode }) {
   return (
-    <nav className="sidebar" aria-label="Main">
+    <nav className="sidebar" aria-label={t('Main')}>
       <div className="brand-row"><Brand to={sections[0].items[0].to} /></div>
       {sections.map((s, i) => (
         <div key={i} className="stack" style={{ '--gap': '2px' } as React.CSSProperties}>
@@ -57,7 +58,7 @@ export function UserMenu({ name, sub, photo, doctor, items }: { name: string; su
   }, [open]);
   return (
     <div className="user-menu" style={{ position: 'relative' }}>
-      <button className="user-btn" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)} aria-label="Account menu">
+      <button className="user-btn" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)} aria-label={t('Account menu')}>
         <Avatar name={name} src={photo} size="sm" doctor={doctor} />
         <ChevronDown size={14} className="subtle desktop-only" aria-hidden />
       </button>
@@ -77,7 +78,7 @@ export function UserMenu({ name, sub, photo, doctor, items }: { name: string; su
 
 export function ProtoBar() {
   if (isLive) return null;
-  return <div className="proto-bar" role="note"><b>Prototype</b> · {PROTOTYPE_NOTICE.replace('Prototype: ', '')}</div>;
+  return <div className="proto-bar" role="note"><b>{t('Prototype')}</b> · {PROTOTYPE_NOTICE}</div>;
 }
 
 /** Opens the record drawer via ?record=… so records are linkable from anywhere. */
@@ -102,12 +103,12 @@ const UICtx = createContext<PatientUI | null>(null);
 export const usePatientUI = () => useContext(UICtx)!;
 
 const PRIMARY: NavItem[] = [
-  { to: '/app', label: 'Home', icon: House, end: true },
-  { to: '/app/timeline', label: 'Timeline', icon: Clock3 },
-  { to: '/app/records', label: 'Medical records', icon: FolderHeart },
-  { to: '/app/medications', label: 'Medications', icon: Pill },
-  { to: '/app/allergies', label: 'Allergies', icon: TriangleAlert },
-  { to: '/app/reports', label: 'Reports', icon: FileText },
+  { to: '/app', label: t('Home'), icon: House, end: true },
+  { to: '/app/timeline', label: t('Timeline'), icon: Clock3 },
+  { to: '/app/records', label: t('Medical records'), icon: FolderHeart },
+  { to: '/app/medications', label: t('Medications'), icon: Pill },
+  { to: '/app/allergies', label: t('Allergies'), icon: TriangleAlert },
+  { to: '/app/reports', label: t('Reports'), icon: FileText },
 ];
 
 /** The shell's home screen, where there is nowhere to go back to. */
@@ -147,16 +148,16 @@ export function PatientShell() {
 
   const sections = [
     { items: PRIMARY },
-    { title: 'Sharing & safety', items: [
-      { to: '/app/access', label: 'Doctors & access', icon: ShieldCheck, badge: pending },
-      { to: '/app/emergency', label: 'Emergency', icon: Siren },
-      { to: '/app/activity', label: 'Access log', icon: ScrollText },
-      { to: '/app/privacy', label: 'Privacy & security', icon: LockKeyhole },
+    { title: t('Sharing & safety'), items: [
+      { to: '/app/access', label: t('Doctors & access'), icon: ShieldCheck, badge: pending },
+      { to: '/app/emergency', label: t('Emergency'), icon: Siren },
+      { to: '/app/activity', label: t('Access log'), icon: ScrollText },
+      { to: '/app/privacy', label: t('Privacy & security'), icon: LockKeyhole },
     ] },
-    { title: 'Account', items: [
-      { to: '/app/notifications', label: 'Notifications', icon: Bell, badge: unread.data },
-      { to: '/app/profile', label: 'Profile', icon: UserRound },
-      { to: '/app/settings', label: 'Settings', icon: Settings },
+    { title: t('Account'), items: [
+      { to: '/app/notifications', label: t('Notifications'), icon: Bell, badge: unread.data },
+      { to: '/app/profile', label: t('Profile'), icon: UserRound },
+      { to: '/app/settings', label: t('Settings'), icon: Settings },
     ] },
   ];
 
@@ -168,24 +169,24 @@ export function PatientShell() {
       <ProtoBar />
       <div className="shell">
         <SideNav sections={sections} footer={
-          <div className="privacy-pill"><ShieldCheck aria-hidden /><span>Your record is private. Only doctors you approve can see it, and every view is logged.</span></div>
+          <div className="privacy-pill"><ShieldCheck aria-hidden /><span>{t('Your record is private. Only doctors you approve can see it, and every view is logged.')}</span></div>
         } />
         <div className="main">
           <header className="topbar">
             {!isHome(location.pathname, '/app') && <BackButton fallback="/app" />}
             <span className="mobile-only"><Brand to="/app" size={28} /></span>
-            <button className="search-trigger desktop-only" onClick={() => setSearchOpen(true)}><Search aria-hidden />Search your record<kbd>Ctrl K</kbd></button>
+            <button className="search-trigger desktop-only" onClick={() => setSearchOpen(true)}><Search aria-hidden />{t('Search your record')}<kbd>{t('Ctrl K')}</kbd></button>
             <div className="topbar-actions">
-              <button className="icon-btn mobile-only" aria-label="Search" onClick={() => setSearchOpen(true)}><Search /></button>
-              <button className="icon-btn" aria-label={`Notifications${unread.data ? `, ${unread.data} unread` : ''}`} onClick={() => navigate('/app/notifications')}>
+              <button className="icon-btn mobile-only" aria-label={t('Search')} onClick={() => setSearchOpen(true)}><Search /></button>
+              <button className="icon-btn" aria-label={unread.data ? t('Notifications, {n} unread', { n: unread.data }) : t('Notifications')} onClick={() => navigate('/app/notifications')}>
                 <Bell />{!!unread.data && <span className="dot">{unread.data}</span>}
               </button>
-              <UserMenu name={patient.fullName} sub={`Patient ID ${patient.patientCode}`} photo={patient.photoDataUrl} items={[
-                { label: 'Profile', icon: UserRound, to: '/app/profile' },
-                { label: 'Privacy & security', icon: LockKeyhole, to: '/app/privacy' },
-                { label: 'Settings', icon: Settings, to: '/app/settings' },
-                ...(user?.isAdmin ? [{ label: 'Niveda team', icon: ShieldPlus, to: '/admin' }] : []),
-                { label: 'Log out', icon: LogOut, onClick: async () => { await signOut(); navigate('/login?as=patient'); } },
+              <UserMenu name={patient.fullName} sub={t('Patient ID {patientCode}', { patientCode: patient.patientCode })} photo={patient.photoDataUrl} items={[
+                { label: t('Profile'), icon: UserRound, to: '/app/profile' },
+                { label: t('Privacy & security'), icon: LockKeyhole, to: '/app/privacy' },
+                { label: t('Settings'), icon: Settings, to: '/app/settings' },
+                ...(user?.isAdmin ? [{ label: t('Niveda team'), icon: ShieldPlus, to: '/admin' }] : []),
+                { label: t('Log out'), icon: LogOut, onClick: async () => { await signOut(); navigate('/login?as=patient'); } },
               ]} />
             </div>
           </header>
@@ -195,22 +196,22 @@ export function PatientShell() {
         </div>
       </div>
 
-      <nav className="bottom-nav" aria-label="Main">
-        <NavLink to="/app" end className={({ isActive }) => (isActive ? 'active' : '')}><House aria-hidden />Home</NavLink>
-        <NavLink to="/app/timeline" className={({ isActive }) => (isActive ? 'active' : '')}><Clock3 aria-hidden />Timeline</NavLink>
-        <NavLink to="/app/records" className={({ isActive }) => (isActive ? 'active' : '')}><FolderHeart aria-hidden />Records</NavLink>
-        <NavLink to="/app/access" className={({ isActive }) => (isActive ? 'active' : '')}><ShieldCheck aria-hidden />Access{pending > 0 && <span className="dot" />}</NavLink>
-        <button onClick={() => setMoreOpen(true)} aria-haspopup="dialog"><Ellipsis aria-hidden />More{!!unread.data && <span className="dot" />}</button>
+      <nav className="bottom-nav" aria-label={t('Main')}>
+        <NavLink to="/app" end className={({ isActive }) => (isActive ? 'active' : '')}><House aria-hidden />{t('Home')}</NavLink>
+        <NavLink to="/app/timeline" className={({ isActive }) => (isActive ? 'active' : '')}><Clock3 aria-hidden />{t('Timeline')}</NavLink>
+        <NavLink to="/app/records" className={({ isActive }) => (isActive ? 'active' : '')}><FolderHeart aria-hidden />{t('Records')}</NavLink>
+        <NavLink to="/app/access" className={({ isActive }) => (isActive ? 'active' : '')}><ShieldCheck aria-hidden />{t('Access')}{pending > 0 && <span className="dot" />}</NavLink>
+        <button onClick={() => setMoreOpen(true)} aria-haspopup="dialog"><Ellipsis aria-hidden />{t('More')}{!!unread.data && <span className="dot" />}</button>
       </nav>
 
       <Modal open={moreOpen} onClose={() => setMoreOpen(false)} title={brand.name} className="more-sheet">
-        <nav className="stack" style={{ '--gap': '2px' } as React.CSSProperties} aria-label="More">
+        <nav className="stack" style={{ '--gap': '2px' } as React.CSSProperties} aria-label={t('More')}>
           {moreItems.map((it) => (
             <NavLink key={it.to} to={it.to} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
               <it.icon aria-hidden />{it.label}{!!it.badge && <Badge tone="danger">{it.badge}</Badge>}
             </NavLink>
           ))}
-          <button className="nav-link" style={{ border: 0, background: 'none', cursor: 'pointer' }} onClick={async () => { await signOut(); navigate('/login?as=patient'); }}><LogOut aria-hidden />Log out</button>
+          <button className="nav-link" style={{ border: 0, background: 'none', cursor: 'pointer' }} onClick={async () => { await signOut(); navigate('/login?as=patient'); }}><LogOut aria-hidden />{t('Log out')}</button>
         </nav>
       </Modal>
 
@@ -219,9 +220,9 @@ export function PatientShell() {
       <WebPushSync />
       <RecordDrawer recordId={recordId} onClose={closeRecord} onOpenRecord={openRecord} viewer="patient" />
       <AddRecordDialog open={addType !== null} initialType={addType ?? undefined} onClose={() => setAddType(null)}
-        onSaved={(id) => { setAddType(null); toast('Added to your record'); navigate(`/app/timeline?record=${id}`); }} />
+        onSaved={(id) => { setAddType(null); toast(t('Added to your record')); navigate(`/app/timeline?record=${id}`); }} />
       <UploadDialog open={uploadFor !== null} recordId={uploadFor ?? undefined} onClose={() => setUploadFor(null)}
-        onDone={(n) => { setUploadFor(null); toast(`${n} document${n > 1 ? 's' : ''} uploaded`); if (!location.pathname.startsWith('/app/reports')) navigate('/app/reports'); }} />
+        onDone={(n) => { setUploadFor(null); toast(n > 1 ? t('{n} documents uploaded', { n }) : t('1 document uploaded')); if (!location.pathname.startsWith('/app/reports')) navigate('/app/reports'); }} />
       <GrantAccessDialog open={grantOpen} onClose={() => setGrantOpen(false)} onGranted={() => { if (!location.pathname.startsWith('/app/access')) navigate('/app/access'); }} />
       <SearchPalette open={searchOpen} onClose={() => setSearchOpen(false)} onOpenRecord={(id) => { navigate(`/app/timeline?record=${id}`); }} />
     </UICtx.Provider>

@@ -6,11 +6,12 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { backend } from '../../config/backend';
 import { AppError, type ErrorCode } from '../core';
 
+import { t } from '../../i18n';
 let client: SupabaseClient | null = null;
 
 export function sb(): SupabaseClient {
   if (!client) {
-    if (!backend.supabaseUrl || !backend.supabaseAnonKey) throw new AppError('UNKNOWN', 'The app isn’t connected to a backend.');
+    if (!backend.supabaseUrl || !backend.supabaseAnonKey) throw new AppError('UNKNOWN', t('The app isn’t connected to a backend.'));
     client = createClient(backend.supabaseUrl, backend.supabaseAnonKey, {
       auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storageKey: 'niveda.auth' },
     });
@@ -29,32 +30,32 @@ export function toAppError(e: { message?: string; code?: string; status?: number
   if (m && APP_CODES.has(m[1] as ErrorCode)) return new AppError(m[1] as ErrorCode, m[2]);
   if (m && m[1] === 'IMMUTABLE') return new AppError('ACCESS_DENIED', m[2]);
   if (/jwt expired|invalid jwt|refresh token|not authenticated/i.test(msg) || e?.status === 401) {
-    return new AppError('SESSION_EXPIRED', 'Your session has expired. Please sign in again.');
+    return new AppError('SESSION_EXPIRED', t('Your session has expired. Please sign in again.'));
   }
-  if (/row-level security|permission denied/i.test(msg)) return new AppError('ACCESS_DENIED', 'You don’t have access to this.');
+  if (/row-level security|permission denied/i.test(msg)) return new AppError('ACCESS_DENIED', t('You don’t have access to this.'));
   if (/failed to fetch|networkerror|network request failed|load failed/i.test(msg)) {
-    return new AppError('UNKNOWN', 'Can’t reach Niveda right now. Check your internet connection and try again.');
+    return new AppError('UNKNOWN', t('Can’t reach Niveda right now. Check your internet connection and try again.'));
   }
   if (typeof console !== 'undefined') console.error('[niveda]', e);
-  if (e?.status && e.status >= 500) return new AppError('UNKNOWN', 'Niveda’s server had a problem. Please try again in a minute.');
-  return new AppError('UNKNOWN', 'Something went wrong. Please try again.');
+  if (e?.status && e.status >= 500) return new AppError('UNKNOWN', t('Niveda’s server had a problem. Please try again in a minute.'));
+  return new AppError('UNKNOWN', t('Something went wrong. Please try again.'));
 }
 
 /** Maps Supabase Auth errors to messages people can act on. */
 export function authError(e: { message?: string; status?: number; code?: string }): AppError {
   const msg = e.message ?? '';
-  if (/invalid login credentials/i.test(msg)) return new AppError('AUTH_FAILED', 'That email and password don’t match our records.');
-  if (/email not confirmed/i.test(msg)) return new AppError('AUTH_FAILED', 'Please confirm your email first — enter the code from the sign-up email, or sign up again to get a new one.');
-  if (/token has expired|invalid.*(otp|token)|otp.*(expired|invalid)/i.test(msg)) return new AppError('OTP_INVALID', 'That code doesn’t match or has expired. Check it, or request a new one.');
-  if (/already registered|already been registered|user already exists/i.test(msg)) return new AppError('CONFLICT', 'An account with this email already exists. Try signing in instead.');
-  if (/rate limit|too many|security purposes/i.test(msg) || e.status === 429) return new AppError('VALIDATION', 'Too many attempts. Please wait a minute and try again.');
-  if (/password/i.test(msg) && /(weak|short|at least|characters)/i.test(msg)) return new AppError('VALIDATION', 'Choose a stronger password: at least 8 characters with letters and numbers.');
-  if (/signups not allowed|signup is disabled/i.test(msg)) return new AppError('VALIDATION', 'New sign-ups are closed right now.');
-  if (/invalid.*email|email.*invalid/i.test(msg)) return new AppError('VALIDATION', 'That email address doesn’t look right. Check it and try again.');
+  if (/invalid login credentials/i.test(msg)) return new AppError('AUTH_FAILED', t('That email and password don’t match our records.'));
+  if (/email not confirmed/i.test(msg)) return new AppError('AUTH_FAILED', t('Please confirm your email first — enter the code from the sign-up email, or sign up again to get a new one.'));
+  if (/token has expired|invalid.*(otp|token)|otp.*(expired|invalid)/i.test(msg)) return new AppError('OTP_INVALID', t('That code doesn’t match or has expired. Check it, or request a new one.'));
+  if (/already registered|already been registered|user already exists/i.test(msg)) return new AppError('CONFLICT', t('An account with this email already exists. Try signing in instead.'));
+  if (/rate limit|too many|security purposes/i.test(msg) || e.status === 429) return new AppError('VALIDATION', t('Too many attempts. Please wait a minute and try again.'));
+  if (/password/i.test(msg) && /(weak|short|at least|characters)/i.test(msg)) return new AppError('VALIDATION', t('Choose a stronger password: at least 8 characters with letters and numbers.'));
+  if (/signups not allowed|signup is disabled/i.test(msg)) return new AppError('VALIDATION', t('New sign-ups are closed right now.'));
+  if (/invalid.*email|email.*invalid/i.test(msg)) return new AppError('VALIDATION', t('That email address doesn’t look right. Check it and try again.'));
   // The code email couldn't be sent (mail server refused, or the address doesn't exist).
   if (/error sending|sending .*email|smtp/i.test(msg) || (e.status === 500 && /unexpected_failure/i.test(e.code ?? '')))
-    return new AppError('UNKNOWN', 'We couldn’t send the code email. Check the email address is right and try again in a minute. If it keeps happening, contact support.');
-  if (/phone/i.test(msg) && /invalid|unsupported/i.test(msg)) return new AppError('VALIDATION', 'That mobile number doesn’t look right. Check it and try again.');
+    return new AppError('UNKNOWN', t('We couldn’t send the code email. Check the email address is right and try again in a minute. If it keeps happening, contact support.'));
+  if (/phone/i.test(msg) && /invalid|unsupported/i.test(msg)) return new AppError('VALIDATION', t('That mobile number doesn’t look right. Check it and try again.'));
   return toAppError(e);
 }
 
@@ -168,8 +169,8 @@ export function account(): Promise<Account | null> {
 
 export async function requireAccount(role?: Account['role']): Promise<Account> {
   const a = await account();
-  if (!a) throw new AppError('NOT_SIGNED_IN', 'Please sign in to continue.');
-  if (role && a.role !== role) throw new AppError('ACCESS_DENIED', 'This area isn’t available for your account.');
+  if (!a) throw new AppError('NOT_SIGNED_IN', t('Please sign in to continue.'));
+  if (role && a.role !== role) throw new AppError('ACCESS_DENIED', t('This area isn’t available for your account.'));
   return a;
 }
 

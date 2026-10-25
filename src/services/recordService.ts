@@ -7,6 +7,7 @@ import { AppError, audit, notify, patientUserId, recentlyLogged, requireCtx, req
 import { storeFile, type NewFile } from './documentService';
 import { ensureReminder } from './medicationService';
 
+import { t as tr } from '../i18n';
 export interface NewRecordInput {
   patientId?: string; // doctors must pass it; patients default to themselves
   type: RecordType;
@@ -56,7 +57,7 @@ export interface ConsultationBundleResult {
 function visibleRecords(ctx: Ctx, patientId: string): MedicalRecord[] {
   const all = ctx.db.records.filter((r) => r.patientId === patientId);
   if (ctx.user.role === 'patient') {
-    if (ctx.patient!.id !== patientId) throw new AppError('ACCESS_DENIED', 'You can only view your own record.');
+    if (ctx.patient!.id !== patientId) throw new AppError('ACCESS_DENIED', tr('You can only view your own record.'));
     return all;
   }
   const grant = requireGrant(ctx.db, ctx.doctor!.id, patientId);
@@ -66,11 +67,11 @@ function visibleRecords(ctx: Ctx, patientId: string): MedicalRecord[] {
 function assertCanWrite(ctx: Ctx, patientId: string, type: RecordType) {
   const meta = RECORD_TYPES[type];
   if (ctx.user.role === 'patient') {
-    if (ctx.patient!.id !== patientId) throw new AppError('ACCESS_DENIED', 'You can only add to your own record.');
-    if (!meta.patientCanAdd) throw new AppError('VALIDATION', `${meta.label} entries are added by your doctor.`);
+    if (ctx.patient!.id !== patientId) throw new AppError('ACCESS_DENIED', tr('You can only add to your own record.'));
+    if (!meta.patientCanAdd) throw new AppError('VALIDATION', tr('{label} entries are added by your doctor.', { label: tr(meta.label) }));
     return;
   }
-  if (!meta.doctorCanAdd) throw new AppError('VALIDATION', `${meta.label} entries can only be added by the patient.`);
+  if (!meta.doctorCanAdd) throw new AppError('VALIDATION', tr('{label} entries can only be added by the patient.', { label: tr(meta.label) }));
   requireGrant(ctx.db, ctx.doctor!.id, patientId, meta.permission);
 }
 
@@ -83,8 +84,8 @@ function buildRecord(ctx: Ctx, patientId: string, type: RecordType, date: string
   const clean = cleanData(type, data);
   const errors = validateData(type, clean);
   if (Object.keys(errors).length) throw new AppError('VALIDATION', Object.values(errors)[0]);
-  if (!date) throw new AppError('VALIDATION', 'Date is required.');
-  if (date > toISODate(addDays(now(), 366))) throw new AppError('VALIDATION', 'That date is too far in the future.');
+  if (!date) throw new AppError('VALIDATION', tr('Date is required.'));
+  if (date > toISODate(addDays(now(), 366))) throw new AppError('VALIDATION', tr('That date is too far in the future.'));
   const t = nowISO();
   const org = ctx.doctor ? ctx.db.hospitals.find((h) => h.id === ctx.doctor!.hospitalId) : undefined;
   return {
@@ -165,8 +166,8 @@ export const HANDOVER_MIN_LENGTH = 10;
 /** Every visit a doctor records ends with a note for the next visit. Returns the trimmed note. */
 export function checkHandoverNote(note: string | undefined): string {
   const n = (note ?? '').trim();
-  if (!n) throw new AppError('VALIDATION', 'Write a note for the next visit before saving.');
-  if (n.length < HANDOVER_MIN_LENGTH) throw new AppError('VALIDATION', `The note for the next visit needs at least ${HANDOVER_MIN_LENGTH} characters.`);
+  if (!n) throw new AppError('VALIDATION', tr('Write a note for the next visit before saving.'));
+  if (n.length < HANDOVER_MIN_LENGTH) throw new AppError('VALIDATION', tr('The note for the next visit needs at least {HANDOVER_MIN_LENGTH} characters.', { HANDOVER_MIN_LENGTH }));
   return n;
 }
 
@@ -182,8 +183,8 @@ export function checkRecord(type: RecordType, date: string, data: RecordData): R
   const clean = cleanData(type, data);
   const errors = validateData(type, clean);
   if (Object.keys(errors).length) throw new AppError('VALIDATION', Object.values(errors)[0]);
-  if (!date) throw new AppError('VALIDATION', 'Date is required.');
-  if (date > toISODate(addDays(now(), 366))) throw new AppError('VALIDATION', 'That date is too far in the future.');
+  if (!date) throw new AppError('VALIDATION', tr('Date is required.'));
+  if (date > toISODate(addDays(now(), 366))) throw new AppError('VALIDATION', tr('That date is too far in the future.'));
   return clean;
 }
 
@@ -192,7 +193,7 @@ export const recordService = {
     await delay();
     const ctx = await requireCtx();
     const pid = patientId ?? ctx.patient?.id;
-    if (!pid) throw new AppError('VALIDATION', 'Choose a patient.');
+    if (!pid) throw new AppError('VALIDATION', tr('Choose a patient.'));
     return visibleRecords(ctx, pid).slice().sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
   },
 
@@ -200,9 +201,9 @@ export const recordService = {
     await delay(150);
     const ctx = await requireCtx();
     const r = ctx.db.records.find((x) => x.id === recordId);
-    if (!r) throw new AppError('NOT_FOUND', 'This record could not be found.');
+    if (!r) throw new AppError('NOT_FOUND', tr('This record could not be found.'));
     const visible = visibleRecords(ctx, r.patientId);
-    if (!visible.some((x) => x.id === r.id)) throw new AppError('ACCESS_DENIED', 'The patient hasn’t shared this part of their record with you.');
+    if (!visible.some((x) => x.id === r.id)) throw new AppError('ACCESS_DENIED', tr('The patient hasn’t shared this part of their record with you.'));
     // Views are logged without triggering a UI refresh (a refresh would re-read and re-log).
     if (ctx.doctor && !recentlyLogged(ctx.db, ctx.actor.id, 'viewed_record', r.id, r.patientId)) {
       await mutateQuiet((db) => audit(db, { patientId: r.patientId, actor: ctx.actor, action: 'viewed_record', target: { type: r.type, id: r.id, label: `${RECORD_TYPES[r.type].label}: ${recordTitle(r)}` } }));
@@ -226,7 +227,7 @@ export const recordService = {
     await delay();
     const ctx = await requireCtx();
     const pid = input.patientId ?? ctx.patient?.id;
-    if (!pid) throw new AppError('VALIDATION', 'Choose a patient.');
+    if (!pid) throw new AppError('VALIDATION', tr('Choose a patient.'));
     assertCanWrite(ctx, pid, input.type);
     if (ctx.doctor && input.type === 'consultation') checkHandoverNote(String(input.data.handoverNote ?? ''));
     const data = { ...input.data };
@@ -288,12 +289,12 @@ export const recordService = {
   async amend(recordId: string, change: { date: string; data: RecordData; reason: string }): Promise<MedicalRecord> {
     await delay();
     const ctx = await requireCtx();
-    if (!change.reason.trim()) throw new AppError('VALIDATION', 'Give a reason for the correction.');
+    if (!change.reason.trim()) throw new AppError('VALIDATION', tr('Give a reason for the correction.'));
     const r = ctx.db.records.find((x) => x.id === recordId);
-    if (!r) throw new AppError('NOT_FOUND', 'This record could not be found.');
+    if (!r) throw new AppError('NOT_FOUND', tr('This record could not be found.'));
     if (ctx.user.role === 'patient') {
-      if (r.patientId !== ctx.patient!.id) throw new AppError('ACCESS_DENIED', 'You can only change your own record.');
-      if (r.createdBy.role === 'doctor') throw new AppError('ACCESS_DENIED', 'Entries added by a doctor can only be corrected by a doctor. You can add a note as a new record.');
+      if (r.patientId !== ctx.patient!.id) throw new AppError('ACCESS_DENIED', tr('You can only change your own record.'));
+      if (r.createdBy.role === 'doctor') throw new AppError('ACCESS_DENIED', tr('Entries added by a doctor can only be corrected by a doctor. You can add a note as a new record.'));
     } else {
       requireGrant(ctx.db, ctx.doctor!.id, r.patientId, RECORD_TYPES[r.type].permission);
     }
@@ -302,7 +303,7 @@ export const recordService = {
     const errors = validateData(r.type, next);
     if (Object.keys(errors).length) throw new AppError('VALIDATION', Object.values(errors)[0]);
     const changed = Object.keys({ ...r.data, ...next }).filter((k) => String(r.data[k] ?? '') !== String(next[k] ?? ''));
-    if (!changed.length && change.date === r.date) throw new AppError('VALIDATION', 'Nothing has changed.');
+    if (!changed.length && change.date === r.date) throw new AppError('VALIDATION', tr('Nothing has changed.'));
     return mutate((db) => {
       const rec = db.records.find((x) => x.id === recordId)!;
       pushVersion(rec, ctx.actor, 'amended', next, change.date, change.reason.trim());
@@ -323,10 +324,10 @@ export const recordService = {
     await delay();
     const ctx = await requireCtx();
     const r = ctx.db.records.find((x) => x.id === recordId && x.type === 'medication');
-    if (!r) throw new AppError('NOT_FOUND', 'Medication not found.');
-    if (ctx.user.role === 'patient' && r.patientId !== ctx.patient!.id) throw new AppError('ACCESS_DENIED', 'You can only change your own record.');
+    if (!r) throw new AppError('NOT_FOUND', tr('Medication not found.'));
+    if (ctx.user.role === 'patient' && r.patientId !== ctx.patient!.id) throw new AppError('ACCESS_DENIED', tr('You can only change your own record.'));
     if (ctx.doctor) requireGrant(ctx.db, ctx.doctor.id, r.patientId, 'medications');
-    if (!isMedicationActive(r)) throw new AppError('VALIDATION', 'This medication is already stopped.');
+    if (!isMedicationActive(r)) throw new AppError('VALIDATION', tr('This medication is already stopped.'));
     await mutate((db) => {
       const rec = db.records.find((x) => x.id === recordId)!;
       pushVersion(rec, ctx.actor, 'discontinued', { ...rec.data, medStatus: 'discontinued', discontinuedOn: date, discontinueReason: reason.trim() || undefined }, rec.date, reason.trim() || 'Stopped');
@@ -343,7 +344,7 @@ export const recordService = {
     await delay();
     const ctx = await requireCtx();
     const order = ctx.db.records.find((x) => x.id === orderId && x.type === 'lab_test');
-    if (!order) throw new AppError('NOT_FOUND', 'Lab order not found.');
+    if (!order) throw new AppError('NOT_FOUND', tr('Lab order not found.'));
     assertCanWrite(ctx, order.patientId, 'lab_result');
     const result = buildRecord(ctx, order.patientId, 'lab_result', date, { laboratory: order.data.laboratory, ...data, test: data.test || order.data.test }, orderId);
     const docIds: string[] = [];

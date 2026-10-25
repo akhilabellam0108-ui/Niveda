@@ -10,6 +10,7 @@ import { toDocument } from './mappers';
 import { openSealed } from './sealed';
 import { patientIdFor } from './context';
 
+import { t } from '../../i18n';
 const BUCKET = 'documents';
 
 function newDocId(): string {
@@ -22,7 +23,7 @@ function newDocId(): string {
 /** Calls the document-access function as the signed-in person. */
 async function documentAccess(action: 'open' | 'scan', id: string): Promise<Response> {
   const { data } = await sb().auth.getSession();
-  if (!data.session) throw new AppError('SESSION_EXPIRED', 'Your session has expired. Please sign in again.');
+  if (!data.session) throw new AppError('SESSION_EXPIRED', t('Your session has expired. Please sign in again.'));
   let res: Response;
   try {
     res = await fetch(`${backend.supabaseUrl}/functions/v1/document-access`, {
@@ -31,14 +32,14 @@ async function documentAccess(action: 'open' | 'scan', id: string): Promise<Resp
       body: JSON.stringify({ action, id }),
     });
   } catch {
-    throw new AppError('UNKNOWN', 'Can’t reach Niveda right now. Check your internet connection and try again.');
+    throw new AppError('UNKNOWN', t('Can’t reach Niveda right now. Check your internet connection and try again.'));
   }
   if (!res.ok) {
     const e = await res.json().catch(() => ({})) as { code?: string; message?: string };
-    if (e.code === 'BLOCKED') throw new AppError('VALIDATION', e.message ?? 'This file was blocked by Niveda’s safety check.');
-    if (e.code === 'NOT_SIGNED_IN' || res.status === 401) throw new AppError('SESSION_EXPIRED', 'Your session has expired. Please sign in again.');
-    if (res.status === 404 && !e.code) throw new AppError('UNKNOWN', 'Opening documents isn’t switched on yet. Please try again later.');
-    throw new AppError(e.code === 'NOT_FOUND' ? 'NOT_FOUND' : 'ACCESS_DENIED', e.message ?? 'This document isn’t available.');
+    if (e.code === 'BLOCKED') throw new AppError('VALIDATION', e.message ?? t('This file was blocked by Niveda’s safety check.'));
+    if (e.code === 'NOT_SIGNED_IN' || res.status === 401) throw new AppError('SESSION_EXPIRED', t('Your session has expired. Please sign in again.'));
+    if (res.status === 404 && !e.code) throw new AppError('UNKNOWN', t('Opening documents isn’t switched on yet. Please try again later.'));
+    throw new AppError(e.code === 'NOT_FOUND' ? 'NOT_FOUND' : 'ACCESS_DENIED', e.message ?? t('This document isn’t available.'));
   }
   return res;
 }
@@ -46,7 +47,7 @@ async function documentAccess(action: 'open' | 'scan', id: string): Promise<Resp
 /** Same check the server runs, so a refused file is reported before it's sent. */
 async function checkBeforeUpload(f: NewFile) {
   const r = scanFile(new Uint8Array(await f.blob.arrayBuffer()), f.type);
-  if (!r.ok) throw new AppError('VALIDATION', `${f.name} can’t be added: ${r.reason}`);
+  if (!r.ok) throw new AppError('VALIDATION', t('{name} can’t be added: {reason}', { name: f.name, reason: r.reason }));
 }
 
 export async function uploadDocument(patientId: string, f: NewFile, date: string, recordId?: string): Promise<string> {
@@ -57,10 +58,10 @@ export async function uploadDocument(patientId: string, f: NewFile, date: string
   const contentType = f.type || 'application/octet-stream';
   const { error } = await sb().storage.from(BUCKET).upload(path, f.blob, { contentType, upsert: false });
   if (error) {
-    if (/row-level security|unauthorized|403/i.test(error.message)) throw new AppError('ACCESS_DENIED', 'You don’t have permission to add documents to this record.');
-    if (/mime|type/i.test(error.message)) throw new AppError('VALIDATION', `${f.name}: use PDF, image or text files.`);
-    if (/size|large/i.test(error.message)) throw new AppError('VALIDATION', `${f.name} is larger than 15 MB.`);
-    throw new AppError('UNKNOWN', `${f.name} couldn’t be uploaded. Check your connection and try again.`);
+    if (/row-level security|unauthorized|403/i.test(error.message)) throw new AppError('ACCESS_DENIED', t('You don’t have permission to add documents to this record.'));
+    if (/mime|type/i.test(error.message)) throw new AppError('VALIDATION', t('{name}: use PDF, image or text files.', { name: f.name }));
+    if (/size|large/i.test(error.message)) throw new AppError('VALIDATION', t('{name} is larger than 15 MB.', { name: f.name }));
+    throw new AppError('UNKNOWN', t('{name} couldn’t be uploaded. Check your connection and try again.', { name: f.name }));
   }
   try {
     await read('register_document', {
@@ -82,7 +83,7 @@ export const remoteDocumentService: typeof MockDocs = {
     const docs = (await all((from, to) => sb().from('documents').select('*').eq('patient_id', pid).range(from, to))).map(toDocument);
     const recordIds = [...new Set(docs.map((d) => d.recordId).filter(Boolean) as string[])];
     const recs = recordIds.length ? await openSealed(await q(sb().from('records').select('id, type, data').in('id', recordIds))) : [];
-    const label = new Map(recs.map((r: { id: string; type: keyof typeof RECORD_TYPES; data: Record<string, string> }) => [r.id, `${RECORD_TYPES[r.type].label}: ${recordTitle(r)}`]));
+    const label = new Map(recs.map((r: { id: string; type: keyof typeof RECORD_TYPES; data: Record<string, string> }) => [r.id, `${t(RECORD_TYPES[r.type].label)}: ${recordTitle(r)}`]));
     return docs
       .map((d) => ({ ...d, recordLabel: d.recordId ? label.get(d.recordId) : undefined }))
       .sort((a, b) => b.date.localeCompare(a.date) || b.uploadedAt.localeCompare(a.uploadedAt));
@@ -101,7 +102,7 @@ export const remoteDocumentService: typeof MockDocs = {
 
   async open(documentId: string): Promise<{ doc: MedicalDocument; blob: Blob }> {
     const rows = await q(sb().from('documents').select('*').eq('id', documentId));
-    if (!rows.length) throw new AppError('ACCESS_DENIED', 'This document isn’t available — it may have been removed, or it isn’t shared with you.');
+    if (!rows.length) throw new AppError('ACCESS_DENIED', t('This document isn’t available — it may have been removed, or it isn’t shared with you.'));
     const doc = toDocument(rows[0]);
     // Files are only readable through the server function, which checks access,
     // writes doctors' views to the patient's log and runs the safety check.

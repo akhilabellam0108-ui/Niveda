@@ -4,7 +4,8 @@ import { Search, FileText, Stethoscope, Building2, ArrowRight, CornerDownLeft } 
 import { searchPatient, type SearchResult } from '../../services';
 import { Modal } from '../ui';
 
-const GROUP_LABEL: Record<SearchResult['kind'], string> = { record: 'Records', document: 'Documents', doctor: 'Doctors', hospital: 'Hospitals & clinics', page: 'Go to' };
+import { t } from '../../i18n';
+const GROUP_LABEL: Record<SearchResult['kind'], string> = { record: t('Records'), document: t('Documents'), doctor: t('Doctors'), hospital: t('Hospitals & clinics'), page: t('Go to') };
 const ICON = { record: Stethoscope, document: FileText, doctor: Stethoscope, hospital: Building2, page: ArrowRight };
 
 /** Global search (Ctrl/⌘ K) across the patient's own record. */
@@ -37,13 +38,13 @@ export function SearchPalette({ open, onClose, onOpenRecord }: { open: boolean; 
   };
 
   return (
-    <Modal open={open} onClose={onClose} title={<span className="sr-only">Search your record</span>} className="palette" hideClose>
+    <Modal open={open} onClose={onClose} title={<span className="sr-only">{t('Search your record')}</span>} className="palette" hideClose>
       <div style={{ margin: '-8px -20px -20px', display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}>
         <div className="palette-input">
           <Search aria-hidden />
           <input
-            data-autofocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search doctors, diagnoses, medicines, tests, dates…"
-            aria-label="Search" role="combobox" aria-expanded={flat.length > 0} aria-controls="search-results"
+            data-autofocus value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('Search doctors, diagnoses, medicines, tests, dates…')}
+            aria-label={t('Search')} role="combobox" aria-expanded={flat.length > 0} aria-controls="search-results"
             aria-activedescendant={flat[active] ? `sr-${flat[active].id}` : undefined}
             onKeyDown={(e) => {
               if (e.key === 'ArrowDown') { e.preventDefault(); setActive((a) => Math.min(flat.length - 1, a + 1)); }
@@ -51,13 +52,13 @@ export function SearchPalette({ open, onClose, onOpenRecord }: { open: boolean; 
               if (e.key === 'Enter' && flat[active]) choose(flat[active]);
             }}
           />
-          <button className="btn btn-ghost btn-sm" onClick={onClose}>Close</button>
+          <button className="btn btn-ghost btn-sm" onClick={onClose}>{t('Close')}</button>
         </div>
         <div className="palette-results" id="search-results" role="listbox" ref={listRef}>
           {q.trim().length < 2 ? (
-            <p className="small subtle" style={{ padding: 12 }}>Try “asthma”, “Priya”, “CBC”, “Lakeview” or “2022”.</p>
+            <p className="small subtle" style={{ padding: 12 }}>{t('Try “asthma”, “Priya”, “CBC”, “Lakeview” or “2022”.')}</p>
           ) : !loading && !flat.length ? (
-            <p className="small subtle" style={{ padding: 12 }}>Nothing found for “{q}”.</p>
+            <p className="small subtle" style={{ padding: 12 }}>{t('Nothing found for “{q}”.', { q })}</p>
           ) : grouped.map(([kind, list]) => (
             <div key={kind}>
               <div className="palette-group">{GROUP_LABEL[kind]}</div>

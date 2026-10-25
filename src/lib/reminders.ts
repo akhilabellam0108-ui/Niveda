@@ -1,5 +1,6 @@
 import type { DoseLog, MedicalRecord, MedicationReminder } from '../types';
 import { parseDate, toISODate, addDays } from './dates';
+import { getLocale } from '../i18n';
 
 /** Sensible default reminder times for a prescription frequency. */
 export function defaultTimes(frequency: string | undefined): string[] {
@@ -25,7 +26,7 @@ export function normaliseTimes(times: string[]): string[] {
 export function fmtClock(t: string): string {
   const [h, m] = t.split(':').map(Number);
   const d = new Date(2000, 0, 1, h, m);
-  return d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
+  return d.toLocaleTimeString(`${getLocale()}-u-nu-latn`, { hour: 'numeric', minute: '2-digit' });
 }
 
 /** Is this medication taken on this date (within start/end, not stopped, right weekday for weekly)? */

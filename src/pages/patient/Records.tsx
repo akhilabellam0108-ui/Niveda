@@ -12,8 +12,9 @@ import { RecordFilters, Timeline, applyFilters, emptyFilters, type FilterState }
 import { RecordCard } from '../../components/records/RecordCard';
 import { usePatientUI } from '../../components/layout/PatientShell';
 
+import { t } from '../../i18n';
 export function TimelinePage() {
-  useDocumentTitle(`Timeline · ${brand.name}`);
+  useDocumentTitle(`${t('Timeline')} · ${brand.name}`);
   const ui = usePatientUI();
   const [params] = useSearchParams();
   const records = useLive(() => recordService.list(), []);
@@ -25,21 +26,21 @@ export function TimelinePage() {
     <>
       <div className="page-head">
         <div>
-          <h1>Health timeline</h1>
-          <p>Everything in your record, newest first{years ? ` · ${years}` : ''}. Entries added by doctors show who added them and where.</p>
+          <h1>{t('Health timeline')}</h1>
+          <p>{t('Everything in your record, newest first')}{years ? ` · ${years}` : ''}. {t('Entries added by doctors show who added them and where.')}</p>
         </div>
         <div className="actions">
-          <Button icon={Upload} onClick={() => ui.upload()}>Upload</Button>
-          <Button variant="primary" icon={FilePlus2} onClick={() => ui.addRecord()}>Add record</Button>
+          <Button icon={Upload} onClick={() => ui.upload()}>{t('Upload')}</Button>
+          <Button variant="primary" icon={FilePlus2} onClick={() => ui.addRecord()}>{t('Add record')}</Button>
         </div>
       </div>
-      {records.error ? <ErrorState error={records.error} title="Unable to load medical records" onRetry={records.reload} /> : !records.data ? <SkeletonList rows={6} /> : records.data.length === 0 ? (
-        <div className="card"><EmptyState icon={Clock3} title="Your timeline is empty" body="Add past visits, tests, vaccinations or surgeries. Doctors you grant access to can add entries too." action={<Button variant="primary" icon={FilePlus2} onClick={() => ui.addRecord()}>Add your first record</Button>} /></div>
+      {records.error ? <ErrorState error={records.error} title={t('Unable to load medical records')} onRetry={records.reload} /> : !records.data ? <SkeletonList rows={6} /> : records.data.length === 0 ? (
+        <div className="card"><EmptyState icon={Clock3} title={t('Your timeline is empty')} body={t('Add past visits, tests, vaccinations or surgeries. Doctors you grant access to can add entries too.')} action={<Button variant="primary" icon={FilePlus2} onClick={() => ui.addRecord()}>{t('Add your first record')}</Button>} /></div>
       ) : (
         <>
           <RecordFilters records={records.data} value={filters} onChange={setFilters} />
           {shown.length === 0 ? (
-            <div className="card"><EmptyState icon={SearchX} title="No matching entries" body="Try a different search or clear the filters." action={<Button onClick={() => setFilters(emptyFilters())}>Clear filters</Button>} /></div>
+            <div className="card"><EmptyState icon={SearchX} title={t('No matching entries')} body={t('Try a different search or clear the filters.')} action={<Button onClick={() => setFilters(emptyFilters())}>{t('Clear filters')}</Button>} /></div>
           ) : <Timeline records={shown} onOpen={ui.openRecord} highlightId={params.get('record') ?? undefined} />}
         </>
       )}
@@ -48,7 +49,7 @@ export function TimelinePage() {
 }
 
 export function RecordsPage() {
-  useDocumentTitle(`Medical records · ${brand.name}`);
+  useDocumentTitle(`${t('Medical records')} · ${brand.name}`);
   const ui = usePatientUI();
   const [params, setParams] = useSearchParams();
   const narrow = useMediaQuery('(max-width: 640px)');
@@ -72,16 +73,16 @@ export function RecordsPage() {
     <>
       <div className="page-head">
         <div>
-          <h1>Medical records</h1>
-          <p>Your records by category. Each entry is structured, dated and attributed — attach reports to keep documents alongside the details.</p>
+          <h1>{t('Medical records')}</h1>
+          <p>{t('Your records by category. Each entry is structured, dated and attributed — attach reports to keep documents alongside the details.')}</p>
         </div>
         <div className="actions">
-          <Button icon={Upload} onClick={() => ui.upload()}>Upload report</Button>
-          <Button variant="primary" icon={FilePlus2} onClick={() => ui.addRecord()}>Add record</Button>
+          <Button icon={Upload} onClick={() => ui.upload()}>{t('Upload report')}</Button>
+          <Button variant="primary" icon={FilePlus2} onClick={() => ui.addRecord()}>{t('Add record')}</Button>
         </div>
       </div>
 
-      {records.error ? <ErrorState error={records.error} title="Unable to load medical records" onRetry={records.reload} /> : !records.data ? <SkeletonList rows={6} /> : (
+      {records.error ? <ErrorState error={records.error} title={t('Unable to load medical records')} onRetry={records.reload} /> : !records.data ? <SkeletonList rows={6} /> : (
         <>
           {filters.category === 'all' && !filters.q && (
             <div className="grid-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
@@ -93,7 +94,7 @@ export function RecordsPage() {
                   <button key={c.key} className="qa" style={{ gap: 8 }} onClick={() => setFilters({ ...filters, category: c.key })}>
                     <div className="spread" style={{ width: '100%' }}><Icon aria-hidden /><span className="num subtle">{list.length}</span></div>
                     <span>{c.label}</span>
-                    <span className="xs subtle" style={{ fontWeight: 400 }}>{latest ? `Latest ${fmtDate(latest.date)}` : 'Nothing yet'}</span>
+                    <span className="xs subtle" style={{ fontWeight: 400 }}>{latest ? t('Latest {value}', { value: fmtDate(latest.date) }) : t('Nothing yet')}</span>
                   </button>
                 );
               })}
@@ -103,10 +104,10 @@ export function RecordsPage() {
           {shown.length === 0 ? (
             <div className="card">
               {filters.category !== 'all' && !filters.q && !filters.doctor && !filters.hospital ? (
-                <EmptyState icon={FolderHeart} title={`No ${RECORD_CATEGORIES.find((c) => c.key === filters.category)?.label.toLowerCase()} yet`} body="Add an entry to keep this part of your history complete."
-                  action={<Button variant="primary" icon={FilePlus2} onClick={() => ui.addRecord(RECORD_CATEGORIES.find((c) => c.key === filters.category)?.types[0])}>Add entry</Button>} />
+                <EmptyState icon={FolderHeart} title={t('No {value} yet', { value: RECORD_CATEGORIES.find((c) => c.key === filters.category)?.label.toLowerCase() })} body={t('Add an entry to keep this part of your history complete.')}
+                  action={<Button variant="primary" icon={FilePlus2} onClick={() => ui.addRecord(RECORD_CATEGORIES.find((c) => c.key === filters.category)?.types[0])}>{t('Add entry')}</Button>} />
               ) : (
-                <EmptyState icon={SearchX} title="No matching records" body="Try a different search or clear the filters." action={<Button onClick={() => setFilters(emptyFilters())}>Clear filters</Button>} />
+                <EmptyState icon={SearchX} title={t('No matching records')} body={t('Try a different search or clear the filters.')} action={<Button onClick={() => setFilters(emptyFilters())}>{t('Clear filters')}</Button>} />
               )}
             </div>
           ) : (

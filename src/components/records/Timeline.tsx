@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
 import { Search, SlidersHorizontal, X, Ban, Paperclip, CornerDownRight } from 'lucide-react';
 import type { MedicalRecord } from '../../types';
-import { RECORD_CATEGORIES, RECORD_TYPES, recordTitle, recordSummary } from '../../lib/recordMeta';
+import { RECORD_CATEGORIES, RECORD_TYPES, recordTitle, recordSummary, typeLabel } from '../../lib/recordMeta';
 import { fmtDayMonth, fmtDate } from '../../lib/dates';
 import { Button, Input, Select } from '../ui';
 import { RecordCard, StatusBadge, TypeIcon } from './RecordCard';
 
+import { t } from '../../i18n';
 /* ---------------- Filters ---------------- */
 
 export interface FilterState {
@@ -32,7 +33,7 @@ export function applyFilters(records: MedicalRecord[], f: FilterState): MedicalR
     if (f.from && r.date < f.from) return false;
     if (f.to && r.date > f.to) return false;
     if (q) {
-      const hay = [recordTitle(r), RECORD_TYPES[r.type].label, r.createdBy.name, hospitalOf(r), fmtDate(r.date), r.date, ...Object.values(r.data).map(String)].join(' ').toLowerCase();
+      const hay = [recordTitle(r), RECORD_TYPES[r.type].label, typeLabel(r.type), r.createdBy.name, hospitalOf(r), fmtDate(r.date), r.date, ...Object.values(r.data).map(String)].join(' ').toLowerCase();
       if (!hay.includes(q)) return false;
     }
     return true;
@@ -51,26 +52,26 @@ export function RecordFilters({ records, value, onChange, showCategories = true 
       <div className="row">
         <div className="input-wrap grow">
           <Search aria-hidden />
-          <Input type="search" placeholder="Search diagnoses, medicines, doctors, hospitals…" aria-label="Search records" value={value.q} onChange={(e) => set({ q: e.target.value })} />
+          <Input type="search" placeholder={t('Search diagnoses, medicines, doctors, hospitals…')} aria-label={t('Search records')} value={value.q} onChange={(e) => set({ q: e.target.value })} />
         </div>
         <Button icon={SlidersHorizontal} onClick={() => setMore((m) => !m)} aria-expanded={more}>
-          <span className="desktop-only">Filters</span>{active ? <span className="badge badge-accent" style={{ height: 18 }}>on</span> : null}
+          <span className="desktop-only">{t('Filters')}</span>{active ? <span className="badge badge-accent" style={{ height: 18 }}>{t('on')}</span> : null}
         </Button>
       </div>
       {more && (
         <div className="card card-pad" style={{ padding: 14 }}>
           <div className="grid-2" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12 }}>
-            <label className="field"><span className="field-label">Doctor</span><Select value={value.doctor} onChange={(e) => set({ doctor: e.target.value })} options={doctors} placeholder="Any doctor" /></label>
-            <label className="field"><span className="field-label">Hospital / clinic</span><Select value={value.hospital} onChange={(e) => set({ hospital: e.target.value })} options={hospitals} placeholder="Any" /></label>
-            <label className="field"><span className="field-label">From</span><Input type="date" value={value.from} onChange={(e) => set({ from: e.target.value })} /></label>
-            <label className="field"><span className="field-label">To</span><Input type="date" value={value.to} onChange={(e) => set({ to: e.target.value })} /></label>
+            <label className="field"><span className="field-label">{t('Doctor')}</span><Select value={value.doctor} onChange={(e) => set({ doctor: e.target.value })} options={doctors} placeholder={t('Any doctor')} /></label>
+            <label className="field"><span className="field-label">{t('Hospital / clinic')}</span><Select value={value.hospital} onChange={(e) => set({ hospital: e.target.value })} options={hospitals} placeholder={t('Any')} /></label>
+            <label className="field"><span className="field-label">{t('From')}</span><Input type="date" value={value.from} onChange={(e) => set({ from: e.target.value })} /></label>
+            <label className="field"><span className="field-label">{t('To')}</span><Input type="date" value={value.to} onChange={(e) => set({ to: e.target.value })} /></label>
           </div>
-          {active && <Button size="sm" variant="ghost" icon={X} style={{ marginTop: 10 }} onClick={() => set({ doctor: '', hospital: '', from: '', to: '' })}>Clear filters</Button>}
+          {active && <Button size="sm" variant="ghost" icon={X} style={{ marginTop: 10 }} onClick={() => set({ doctor: '', hospital: '', from: '', to: '' })}>{t('Clear filters')}</Button>}
         </div>
       )}
       {showCategories && (
-        <div className="chip-scroll" role="group" aria-label="Record type">
-          <button className="chip" aria-pressed={value.category === 'all'} onClick={() => set({ category: 'all' })}>All <span className="count">{records.length}</span></button>
+        <div className="chip-scroll" role="group" aria-label={t('Record type')}>
+          <button className="chip" aria-pressed={value.category === 'all'} onClick={() => set({ category: 'all' })}>{t('All')}{' '}<span className="count">{records.length}</span></button>
           {RECORD_CATEGORIES.filter((c) => counts[c.key] > 0 || value.category === c.key).map((c) => (
             <button key={c.key} className="chip" aria-pressed={value.category === c.key} onClick={() => set({ category: c.key })}>{c.label} <span className="count">{counts[c.key]}</span></button>
           ))}
@@ -124,7 +125,7 @@ export function Timeline({ records, onOpen, highlightId, viewerIsPatient = true 
                 <div className="tl-node">{e.kind === 'stopped' ? <span className="type-icon" aria-hidden><Ban /></span> : <TypeIcon type={e.record.type} />}</div>
                 {e.kind === 'stopped' ? (
                   <button type="button" className="rec-card" onClick={() => onOpen(e.record.id)} style={{ boxShadow: 'none', background: 'transparent' }}>
-                    <div className="rec-top"><span className="rec-type">Medication stopped</span><span className="subtle xs mobile-only">{fmtDate(e.date)}</span></div>
+                    <div className="rec-top"><span className="rec-type">{t('Medication stopped')}</span><span className="subtle xs mobile-only">{fmtDate(e.date)}</span></div>
                     <div className="rec-title">{recordTitle(e.record)}</div>
                     {e.record.data.discontinueReason && <div className="rec-summary">{String(e.record.data.discontinueReason)}</div>}
                   </button>
@@ -136,7 +137,7 @@ export function Timeline({ records, onOpen, highlightId, viewerIsPatient = true 
                           <button type="button" key={c.id} className="sub-row"
                             onClick={(ev) => { ev.stopPropagation(); onOpen(c.id); }}>
                             <CornerDownRight aria-hidden />
-                            <span className="subtle" style={{ minWidth: 86 }}>{RECORD_TYPES[c.type].label}</span>
+                            <span className="subtle" style={{ minWidth: 86 }}>{typeLabel(c.type)}</span>
                             <span className="truncate" style={{ color: 'var(--text)' }}>{recordTitle(c)}{recordSummary(c) && c.type === 'medication' ? ` · ${recordSummary(c)}` : ''}</span>
                             <StatusBadge record={c} />
                             {c.attachments.length > 0 && <Paperclip aria-hidden />}

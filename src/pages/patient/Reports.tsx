@@ -12,8 +12,9 @@ import { Badge, Button, ConfirmDialog, EmptyState, ErrorState, Field, Input, Sel
 import { DocumentViewer, DOC_ICON, formatBytes, downloadBlob } from '../../components/documents/DocumentViewer';
 import { usePatientUI } from '../../components/layout/PatientShell';
 
+import { t } from '../../i18n';
 export function ReportsPage() {
-  useDocumentTitle(`Reports · ${brand.name}`);
+  useDocumentTitle(`${t('Reports')} · ${brand.name}`);
   const ui = usePatientUI();
   const toast = useToast();
   const [params, setParams] = useSearchParams();
@@ -35,28 +36,28 @@ export function ReportsPage() {
       const { blob } = await documentService.open(d.id);
       downloadBlob(blob, d.name);
     } catch {
-      toast('This document couldn’t be downloaded.', 'error');
+      toast(t('This document couldn’t be downloaded.'), 'error');
     }
   };
 
   return (
     <>
       <div className="page-head">
-        <div><h1>Reports & documents</h1><p>Lab reports, scans, prescriptions and discharge summaries. Linking a document to an entry puts it in the right place in your timeline.</p></div>
-        <Button variant="primary" icon={Upload} onClick={() => ui.upload()}>Upload</Button>
+        <div><h1>{t('Reports & documents')}</h1><p>{t('Lab reports, scans, prescriptions and discharge summaries. Linking a document to an entry puts it in the right place in your timeline.')}</p></div>
+        <Button variant="primary" icon={Upload} onClick={() => ui.upload()}>{t('Upload')}</Button>
       </div>
-      {docs.error ? <ErrorState error={docs.error} title="Unable to load your reports" onRetry={docs.reload} /> : !docs.data ? <SkeletonList rows={4} /> : docs.data.length === 0 ? (
-        <div className="card"><EmptyState icon={FileText} title="No documents yet" body="Upload reports, scans or prescriptions you already have. PDFs and photos both work." action={<Button variant="primary" icon={Upload} onClick={() => ui.upload()}>Upload a report</Button>} /></div>
+      {docs.error ? <ErrorState error={docs.error} title={t('Unable to load your reports')} onRetry={docs.reload} /> : !docs.data ? <SkeletonList rows={4} /> : docs.data.length === 0 ? (
+        <div className="card"><EmptyState icon={FileText} title={t('No documents yet')} body={t('Upload reports, scans or prescriptions you already have. PDFs and photos both work.')} action={<Button variant="primary" icon={Upload} onClick={() => ui.upload()}>{t('Upload a report')}</Button>} /></div>
       ) : (
         <>
           <div className="row" style={{ flexWrap: 'wrap' }}>
-            <div className="input-wrap grow" style={{ minWidth: 200 }}><Search aria-hidden /><Input type="search" placeholder="Search documents" aria-label="Search documents" value={q} onChange={(e) => setQ(e.target.value)} /></div>
+            <div className="input-wrap grow" style={{ minWidth: 200 }}><Search aria-hidden /><Input type="search" placeholder={t('Search documents')} aria-label={t('Search documents')} value={q} onChange={(e) => setQ(e.target.value)} /></div>
             <div className="chip-scroll">
-              <button className="chip" aria-pressed={cat === 'all'} onClick={() => setCat('all')}>All <span className="count">{docs.data.length}</span></button>
+              <button className="chip" aria-pressed={cat === 'all'} onClick={() => setCat('all')}>{t('All')}{' '}<span className="count">{docs.data.length}</span></button>
               {cats.map((c) => <button key={c} className="chip" aria-pressed={cat === c} onClick={() => setCat(c)}>{DOC_CATEGORY_LABEL[c]}</button>)}
             </div>
           </div>
-          {shown.length === 0 ? <div className="card"><EmptyState compact icon={Search} title="No matching documents" /></div> : (
+          {shown.length === 0 ? <div className="card"><EmptyState compact icon={Search} title={t('No matching documents')} /></div> : (
             <div className="doc-grid">
               {shown.map((d) => {
                 const Icon = DOC_ICON[d.category];
@@ -66,15 +67,15 @@ export function ReportsPage() {
                     <div className="doc-thumb"><Icon aria-hidden /></div>
                     <div className="stack" style={{ '--gap': '4px' } as React.CSSProperties}>
                       <button className="rec-open truncate" onClick={(e) => { e.stopPropagation(); setViewing(d.id); }}>{d.name}</button>
-                      <div className="row-wrap">{d.scanStatus === 'blocked' && <Badge tone="danger" icon={ShieldAlert}>Blocked</Badge>}<Badge>{DOC_CATEGORY_LABEL[d.category]}</Badge><span className="xs subtle">{fmtDate(d.date)} · {formatBytes(d.size)}</span></div>
-                      <div className="xs muted truncate">{d.recordLabel ? <><Link2 size={11} aria-hidden /> {d.recordLabel}</> : 'Not linked to an entry'}</div>
-                      <div className="xs subtle truncate">Added by {d.uploadedBy.role === 'patient' ? 'you' : d.uploadedBy.name}</div>
+                      <div className="row-wrap">{d.scanStatus === 'blocked' && <Badge tone="danger" icon={ShieldAlert}>{t('Blocked')}</Badge>}<Badge>{DOC_CATEGORY_LABEL[d.category]}</Badge><span className="xs subtle">{fmtDate(d.date)} · {formatBytes(d.size)}</span></div>
+                      <div className="xs muted truncate">{d.recordLabel ? <><Link2 size={11} aria-hidden /> {d.recordLabel}</> : t('Not linked to an entry')}</div>
+                      <div className="xs subtle truncate">{d.uploadedBy.role === 'patient' ? t('Added by you') : t('Added by {name}', { name: d.uploadedBy.name })}</div>
                     </div>
                     <div className="row" style={{ '--gap': '4px', marginTop: 'auto' } as React.CSSProperties} onClick={(e) => e.stopPropagation()}>
-                      <Button size="sm" variant="ghost" icon={Download} onClick={() => download(d)}>Download</Button>
-                      <Button size="sm" variant="ghost" icon={Link2} iconOnly aria-label={`Link ${d.name} to an entry`} onClick={() => { setLinkTo(d.recordId ?? ''); setLink(d); }} />
-                      {locked ? <span className="xs subtle row" style={{ marginLeft: 'auto', '--gap': '4px' } as React.CSSProperties} title="Added by a doctor — stays with its record"><Lock size={12} aria-hidden /></span>
-                        : <Button size="sm" variant="ghost" icon={Trash2} iconOnly aria-label={`Delete ${d.name}`} style={{ marginLeft: 'auto' }} onClick={() => setDel(d)} />}
+                      <Button size="sm" variant="ghost" icon={Download} onClick={() => download(d)}>{t('Download')}</Button>
+                      <Button size="sm" variant="ghost" icon={Link2} iconOnly aria-label={t('Link {name} to an entry', { name: d.name })} onClick={() => { setLinkTo(d.recordId ?? ''); setLink(d); }} />
+                      {locked ? <span className="xs subtle row" style={{ marginLeft: 'auto', '--gap': '4px' } as React.CSSProperties} title={t('Added by a doctor — stays with its record')}><Lock size={12} aria-hidden /></span>
+                        : <Button size="sm" variant="ghost" icon={Trash2} iconOnly aria-label={t('Delete {name}', { name: d.name })} style={{ marginLeft: 'auto' }} onClick={() => setDel(d)} />}
                     </div>
                   </div>
                 );
@@ -84,13 +85,13 @@ export function ReportsPage() {
         </>
       )}
       <DocumentViewer docId={viewing} onClose={() => setViewing(undefined)} />
-      <ConfirmDialog open={!!del} onClose={() => setDel(undefined)} danger confirmLabel="Delete document" title="Delete this document?"
-        body={<>“{del?.name}” will be removed from your record{del?.recordLabel ? ` and from ${del.recordLabel}` : ''}. The deletion is recorded in your access log. This can’t be undone.</>}
-        onConfirm={async () => { await documentService.remove(del!.id); toast('Document deleted'); }} />
-      <ConfirmDialog open={!!link} onClose={() => setLink(undefined)} confirmLabel="Save link" title="Link to an entry"
-        body="Choose the visit, test or other entry this document belongs to."
-        onConfirm={async () => { await documentService.attach(link!.id, linkTo || undefined); toast(linkTo ? 'Document linked' : 'Link removed'); }}>
-        <Field label="Entry">{(p) => <Select {...p} value={linkTo} onChange={(e) => setLinkTo(e.target.value)} placeholder="Not linked" options={(records.data ?? []).map((r: MedicalRecord) => ({ value: r.id, label: `${fmtDate(r.date)} · ${RECORD_TYPES[r.type].label}: ${recordTitle(r)}` }))} />}</Field>
+      <ConfirmDialog open={!!del} onClose={() => setDel(undefined)} danger confirmLabel={t('Delete document')} title={t('Delete this document?')}
+        body={del?.recordLabel ? t('“{name}” will be removed from your record and from {entry}. The deletion is recorded in your access log. This can’t be undone.', { name: del?.name, entry: del.recordLabel }) : t('“{name}” will be removed from your record. The deletion is recorded in your access log. This can’t be undone.', { name: del?.name })}
+        onConfirm={async () => { await documentService.remove(del!.id); toast(t('Document deleted')); }} />
+      <ConfirmDialog open={!!link} onClose={() => setLink(undefined)} confirmLabel={t('Save link')} title={t('Link to an entry')}
+        body={t('Choose the visit, test or other entry this document belongs to.')}
+        onConfirm={async () => { await documentService.attach(link!.id, linkTo || undefined); toast(linkTo ? t('Document linked') : t('Link removed')); }}>
+        <Field label={t('Entry')}>{(p) => <Select {...p} value={linkTo} onChange={(e) => setLinkTo(e.target.value)} placeholder={t('Not linked')} options={(records.data ?? []).map((r: MedicalRecord) => ({ value: r.id, label: `${fmtDate(r.date)} · ${t(RECORD_TYPES[r.type].label)}: ${recordTitle(r)}` }))} />}</Field>
       </ConfirmDialog>
     </>
   );

@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useState, type ReactNode } from 'react';
 import { CheckCircle2, AlertCircle, X } from 'lucide-react';
 
+import { t as tr } from '../i18n';
 interface Toast { id: number; message: string; kind: 'ok' | 'error' }
 const Ctx = createContext<(message: string, kind?: Toast['kind']) => void>(() => undefined);
 
@@ -19,7 +20,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           <div key={t.id} className={`toast ${t.kind === 'error' ? 'error' : ''}`}>
             {t.kind === 'error' ? <AlertCircle /> : <CheckCircle2 />}
             <span>{t.message}</span>
-            <button aria-label="Dismiss" onClick={() => setToasts((x) => x.filter((y) => y.id !== t.id))}><X size={15} /></button>
+            <button aria-label={tr('Dismiss')} onClick={() => setToasts((x) => x.filter((y) => y.id !== t.id))}><X size={15} /></button>
           </div>
         ))}
       </div>

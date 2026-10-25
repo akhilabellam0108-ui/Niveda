@@ -1,11 +1,12 @@
 import type { EmergencyContact, MedicalRecord, Patient, RecordData } from '../types';
 import { delay, mutate, mutateQuiet } from '../mock/db';
 import { nowISO, todayISO } from '../lib/dates';
-import { isSevereAllergy, ALLERGY_SEVERITY_RANK } from '../lib/recordMeta';
+import { isSevereAllergy, ALLERGY_SEVERITY_RANK, opt } from '../lib/recordMeta';
 import { AppError, audit, recentlyLogged, requireCtx, requireGrant } from './core';
 import { isMedicationActive, latestHandover, recordService } from './recordService';
 import { documentService, validateFile, type NewFile } from './documentService';
 
+import { t } from '../i18n';
 export interface HealthSummary {
   patient: Patient;
   allergies: MedicalRecord[];
@@ -46,26 +47,26 @@ const PHONE_OK = (s: string) => s.replace(/\D/g, '').length >= 10;
 
 /** Every onboarding section must be answered: either with entries or an explicit "none". Returns the first problem. */
 export function validateOnboarding(i: OnboardingInput): string | undefined {
-  if (!i.bloodGroup) return 'Choose your blood group (or “Not sure”).';
+  if (!i.bloodGroup) return t('Choose your blood group (or “Not sure”).');
   const c = i.emergencyContact;
-  if (!c?.name?.trim() || !c.relationship?.trim() || !c.phone?.trim()) return 'Add an emergency contact with name, relationship and phone.';
-  if (!PHONE_OK(c.phone)) return 'Enter a valid phone number for your emergency contact.';
+  if (!c?.name?.trim() || !c.relationship?.trim() || !c.phone?.trim()) return t('Add an emergency contact with name, relationship and phone.');
+  if (!PHONE_OK(c.phone)) return t('Enter a valid phone number for your emergency contact.');
   const section = (items: unknown[], none: boolean, what: string) => {
-    if (!items.length && !none) return `Add your ${what}, or confirm you have none.`;
-    if (items.length && none) return `You added ${what} but also ticked “none”. Remove one.`;
+    if (!items.length && !none) return t('Add your {what}, or confirm you have none.', { what });
+    if (items.length && none) return t('You added {what} but also ticked “none”. Remove one.', { what });
     return undefined;
   };
-  return section(i.allergies, i.noAllergies, 'allergies')
-    ?? (i.allergies.some((a) => !a.allergen.trim() || !a.severity || !a.reaction.trim()) ? 'Each allergy needs the allergen, severity and reaction.' : undefined)
-    ?? section(i.conditions, i.noConditions, 'ongoing conditions')
-    ?? (i.conditions.some((x) => !x.condition.trim()) ? 'Each condition needs a name.' : undefined)
-    ?? section(i.medications, i.noMedications, 'current medicines')
-    ?? (i.medications.some((m) => !m.name.trim() || !m.dosage.trim() || !m.frequency) ? 'Each medicine needs the name, dose and how often you take it.' : undefined)
-    ?? (i.medications.some((m) => m.frequency !== 'As needed' && !m.times.length) ? 'Set at least one reminder time for each regular medicine.' : undefined)
-    ?? section(i.history, i.noHistory, 'past surgeries or hospital stays')
-    ?? (i.history.some((h) => !h.name.trim() || !h.date || !h.hospital.trim()) ? 'Each surgery or hospital stay needs what it was, the date and the hospital.' : undefined)
-    ?? section(i.documents ?? [], !!i.noDocuments, 'medical documents')
-    ?? (i.documents.some((d) => !d.date) ? 'Add the date on each uploaded document.' : undefined);
+  return section(i.allergies, i.noAllergies, t('allergies'))
+    ?? (i.allergies.some((a) => !a.allergen.trim() || !a.severity || !a.reaction.trim()) ? t('Each allergy needs the allergen, severity and reaction.') : undefined)
+    ?? section(i.conditions, i.noConditions, t('ongoing conditions'))
+    ?? (i.conditions.some((x) => !x.condition.trim()) ? t('Each condition needs a name.') : undefined)
+    ?? section(i.medications, i.noMedications, t('current medicines'))
+    ?? (i.medications.some((m) => !m.name.trim() || !m.dosage.trim() || !m.frequency) ? t('Each medicine needs the name, dose and how often you take it.') : undefined)
+    ?? (i.medications.some((m) => m.frequency !== 'As needed' && !m.times.length) ? t('Set at least one reminder time for each regular medicine.') : undefined)
+    ?? section(i.history, i.noHistory, t('past surgeries or hospital stays'))
+    ?? (i.history.some((h) => !h.name.trim() || !h.date || !h.hospital.trim()) ? t('Each surgery or hospital stay needs what it was, the date and the hospital.') : undefined)
+    ?? section(i.documents ?? [], !!i.noDocuments, t('medical documents'))
+    ?? (i.documents.some((d) => !d.date) ? t('Add the date on each uploaded document.') : undefined);
 }
 
 export function summarise(patient: Patient, records: MedicalRecord[]): Omit<HealthSummary, 'counts'> {
@@ -106,11 +107,11 @@ export const patientService = {
   async updateProfile(patch: Partial<Pick<Patient, 'fullName' | 'phone' | 'email' | 'dateOfBirth' | 'bloodGroup' | 'photoDataUrl' | 'emergencyContact' | 'importantNotes' | 'sex' | 'emergencyCardEnabled'>>): Promise<Patient> {
     await delay();
     const ctx = await requireCtx('patient');
-    if (patch.fullName !== undefined && !patch.fullName.trim()) throw new AppError('VALIDATION', 'Name can’t be empty.');
+    if (patch.fullName !== undefined && !patch.fullName.trim()) throw new AppError('VALIDATION', t('Name can’t be empty.'));
     if ('emergencyContact' in patch) {
       const c = patch.emergencyContact;
-      if (!c?.name?.trim() || !c.relationship?.trim() || !c.phone?.trim()) throw new AppError('VALIDATION', 'An emergency contact with name, relationship and phone is required.');
-      if (!PHONE_OK(c.phone)) throw new AppError('VALIDATION', 'Enter a valid phone number for your emergency contact.');
+      if (!c?.name?.trim() || !c.relationship?.trim() || !c.phone?.trim()) throw new AppError('VALIDATION', t('An emergency contact with name, relationship and phone is required.'));
+      if (!PHONE_OK(c.phone)) throw new AppError('VALIDATION', t('Enter a valid phone number for your emergency contact.'));
     }
     return mutate((db) => {
       const p = db.patients.find((x) => x.id === ctx.patient!.id)!;
@@ -165,13 +166,13 @@ export const patientService = {
     await delay(150);
     const ctx = await requireCtx();
     const pid = patientId ?? ctx.patient?.id;
-    if (!pid) throw new AppError('VALIDATION', 'Choose a patient.');
+    if (!pid) throw new AppError('VALIDATION', t('Choose a patient.'));
     if (ctx.doctor) requireGrant(ctx.db, ctx.doctor.id, pid);
     const patient = ctx.db.patients.find((p) => p.id === pid)!;
     const records = ctx.db.records.filter((r) => r.patientId === pid);
     const s = summarise(patient, records);
     const warnings: string[] = [];
-    for (const a of s.allergies.filter(isSevereAllergy)) warnings.push(`${String(a.data.severity).toUpperCase()} ALLERGY: ${a.data.allergen} — ${a.data.reaction}`);
+    for (const a of s.allergies.filter(isSevereAllergy)) warnings.push(t('{value} ALLERGY: {allergen} — {reaction}', { value: opt(a.data.severity).toUpperCase(), allergen: a.data.allergen, reaction: a.data.reaction }));
     if (patient.importantNotes) warnings.push(patient.importantNotes);
     if (ctx.doctor && !recentlyLogged(ctx.db, ctx.actor.id, 'emergency_viewed', undefined, pid)) await mutateQuiet((db) => audit(db, { patientId: pid, actor: ctx.actor, action: 'emergency_viewed', target: { type: 'emergency', label: 'Emergency profile' } }));
     return { ...s, warnings };

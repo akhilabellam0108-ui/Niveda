@@ -2,6 +2,7 @@
 import { AppError } from '../core';
 import { emit, read, sb } from './client';
 
+import { t } from '../../i18n';
 export interface MfaState { required: boolean; enrolled: boolean; verified: boolean; factorId?: string }
 
 export async function mfaState(): Promise<MfaState> {
@@ -19,18 +20,18 @@ export async function startEnrolment(): Promise<{ factorId: string; qr: string; 
   const { data: list } = await sb().auth.mfa.listFactors();
   for (const f of list?.all ?? []) if (f.factor_type === 'totp' && f.status !== 'verified') await sb().auth.mfa.unenroll({ factorId: f.id });
   const { data, error } = await sb().auth.mfa.enroll({ factorType: 'totp', friendlyName: `Niveda ${new Date().toISOString().slice(0, 10)}`, issuer: 'Niveda' });
-  if (error || !data) throw new AppError('UNKNOWN', 'Two-step sign-in couldn’t be set up right now. Please try again.');
+  if (error || !data) throw new AppError('UNKNOWN', t('Two-step sign-in couldn’t be set up right now. Please try again.'));
   return { factorId: data.id, qr: data.totp.qr_code, secret: data.totp.secret };
 }
 
 /** Checks a 6-digit code from the authenticator app; the session is upgraded on success. */
 export async function verifyMfaCode(factorId: string, code: string): Promise<void> {
-  if (!/^\d{6}$/.test(code)) throw new AppError('OTP_INVALID', 'Enter the 6-digit code from your authenticator app.');
+  if (!/^\d{6}$/.test(code)) throw new AppError('OTP_INVALID', t('Enter the 6-digit code from your authenticator app.'));
   const { error } = await sb().auth.mfa.challengeAndVerify({ factorId, code });
   if (error) {
-    if (/invalid|expired|code/i.test(error.message)) throw new AppError('OTP_INVALID', 'That code didn’t work. Codes change every 30 seconds — enter the one showing now.');
-    if (error.status === 429) throw new AppError('VALIDATION', 'Too many attempts. Please wait a minute and try again.');
-    throw new AppError('UNKNOWN', 'The code couldn’t be checked right now. Please try again.');
+    if (/invalid|expired|code/i.test(error.message)) throw new AppError('OTP_INVALID', t('That code didn’t work. Codes change every 30 seconds — enter the one showing now.'));
+    if (error.status === 429) throw new AppError('VALIDATION', t('Too many attempts. Please wait a minute and try again.'));
+    throw new AppError('UNKNOWN', t('The code couldn’t be checked right now. Please try again.'));
   }
   emit();
 }

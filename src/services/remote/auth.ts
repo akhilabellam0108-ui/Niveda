@@ -17,6 +17,7 @@ import { maskDestination, type OtpChallenge, type OtpPurpose } from '../otpServi
 import type { authService as MockAuth, SignUpInput } from '../authService';
 import { account, authError, currentSessionId, emit, onAuthChanged, read, requireAccount, resetCaches, sb, write, type Account } from './client';
 
+import { t } from '../../i18n';
 const CODE_MINUTES = 10;
 type Flow = 'signup' | 'login' | 'reset';
 /** Where a code was sent: the account's email, or its verified phone (E.164). */
@@ -57,7 +58,7 @@ function toUser(a: Account): User {
 
 async function verifyEmailCode(email: string, code: string, type: 'email' | 'recovery') {
   const token = code.replace(/\D/g, '');
-  if (token.length < 6) throw new AppError('OTP_INVALID', 'Enter the code from the email.');
+  if (token.length < 6) throw new AppError('OTP_INVALID', t('Enter the code from the email.'));
   const { error } = await sb().auth.verifyOtp({ email, token, type });
   if (error) throw authError(error);
   onAuthChanged();
@@ -66,7 +67,7 @@ async function verifyEmailCode(email: string, code: string, type: 'email' | 'rec
 async function verifyCode(target: CodeTarget, code: string) {
   if (target.kind === 'email') return verifyEmailCode(target.to, code, 'email');
   const token = code.replace(/\D/g, '');
-  if (token.length < 6) throw new AppError('OTP_INVALID', 'Enter the code from the text message.');
+  if (token.length < 6) throw new AppError('OTP_INVALID', t('Enter the code from the text message.'));
   const { error } = await sb().auth.verifyOtp({ phone: target.to, token, type: 'sms' });
   if (error) throw authError(error);
   onAuthChanged();
@@ -125,7 +126,7 @@ export const remoteAuthService: typeof MockAuth = {
     const { data, error } = await sb().auth.signUp({ email, password, options: { data: { signup_kind: 'doctor', ...details, privacy_consent: true, privacy_notice_version: brand.privacyNoticeVersion } } });
     if (error) throw authError(error);
     if (data.user && (data.user.identities?.length ?? 0) === 0) {
-      throw new AppError('CONFLICT', 'An account with this email already exists. Try signing in instead.');
+      throw new AppError('CONFLICT', t('An account with this email already exists. Try signing in instead.'));
     }
     const c = challengeFor('signup', email);
     pending = { flow: 'signup', email, challengeId: c.id };
@@ -147,7 +148,7 @@ export const remoteAuthService: typeof MockAuth = {
     if (error) throw authError(error);
     // Supabase hides whether an email is taken; an empty identity list means it is.
     if (data.user && (data.user.identities?.length ?? 0) === 0) {
-      throw new AppError('CONFLICT', 'An account with this email already exists. Try signing in instead.');
+      throw new AppError('CONFLICT', t('An account with this email already exists. Try signing in instead.'));
     }
     const c = challengeFor('signup', email);
     pending = { flow: 'signup', email, challengeId: c.id };
@@ -155,7 +156,7 @@ export const remoteAuthService: typeof MockAuth = {
   },
 
   async completeSignUp(challengeId: string, code: string): Promise<User> {
-    if (!pending || pending.flow !== 'signup' || pending.challengeId !== challengeId) throw new AppError('OTP_EXPIRED', 'Your sign-up has timed out. Please start again.');
+    if (!pending || pending.flow !== 'signup' || pending.challengeId !== challengeId) throw new AppError('OTP_EXPIRED', t('Your sign-up has timed out. Please start again.'));
     const { data } = await sb().auth.getSession();
     // Projects with email confirmation switched off sign in straight away.
     if (!data.session) await verifyEmailCode(pending.email, code, 'email');
@@ -167,7 +168,7 @@ export const remoteAuthService: typeof MockAuth = {
 
   async startLogin(identifier: string, password: string): Promise<OtpChallenge> {
     const email = norm(identifier);
-    if (!email.includes('@')) throw new AppError('AUTH_FAILED', 'Sign in with the email address on your account.');
+    if (!email.includes('@')) throw new AppError('AUTH_FAILED', t('Sign in with the email address on your account.'));
     const { data, error } = await sb().auth.signInWithPassword({ email, password });
     if (error) throw authError(error);
     const target = codeTargetFor(data.user, email);
@@ -180,14 +181,14 @@ export const remoteAuthService: typeof MockAuth = {
   },
 
   async completeLogin(challengeId: string, code: string): Promise<User> {
-    if (!pending || pending.flow !== 'login' || pending.challengeId !== challengeId) throw new AppError('OTP_EXPIRED', 'Your sign-in has timed out. Please start again.');
+    if (!pending || pending.flow !== 'login' || pending.challengeId !== challengeId) throw new AppError('OTP_EXPIRED', t('Your sign-in has timed out. Please start again.'));
     await verifyCode(pending.target ?? { kind: 'email', to: pending.email }, code);
     pending = null;
     return afterSignIn();
   },
 
   resendCode(purpose: 'signup' | 'login'): OtpChallenge {
-    if (!pending || pending.flow !== purpose) throw new AppError('OTP_EXPIRED', 'Please start again.');
+    if (!pending || pending.flow !== purpose) throw new AppError('OTP_EXPIRED', t('Please start again.'));
     const email = pending.email;
     const target = pending.target ?? { kind: 'email' as const, to: email };
     const c = challengeFor(purpose, target.to);
@@ -203,7 +204,7 @@ export const remoteAuthService: typeof MockAuth = {
   /** Always "sends" so the page never reveals whether an account exists. */
   async startPasswordReset(identifier: string): Promise<OtpChallenge | null> {
     const email = norm(identifier);
-    if (!email.includes('@')) throw new AppError('VALIDATION', 'Enter the email address on your account.');
+    if (!email.includes('@')) throw new AppError('VALIDATION', t('Enter the email address on your account.'));
     const { error } = await sb().auth.resetPasswordForEmail(email);
     if (error && /rate limit|too many|security purposes/i.test(error.message)) throw authError(error);
     const c = challengeFor('reset_password', email);
@@ -212,7 +213,7 @@ export const remoteAuthService: typeof MockAuth = {
   },
 
   async completePasswordReset(challengeId: string, code: string, newPassword: string): Promise<void> {
-    if (!pending || pending.flow !== 'reset' || pending.challengeId !== challengeId) throw new AppError('OTP_EXPIRED', 'This reset has expired. Please start again.');
+    if (!pending || pending.flow !== 'reset' || pending.challengeId !== challengeId) throw new AppError('OTP_EXPIRED', t('This reset has expired. Please start again.'));
     await verifyEmailCode(pending.email, code, 'recovery');
     const { error } = await sb().auth.updateUser({ password: newPassword });
     if (error) throw authError(error);
@@ -227,7 +228,7 @@ export const remoteAuthService: typeof MockAuth = {
     const a = await requireAccount();
     const previous = await currentSessionId();
     const { error: wrong } = await sb().auth.signInWithPassword({ email: a.email, password: current });
-    if (wrong) throw new AppError('AUTH_FAILED', 'Your current password is incorrect.');
+    if (wrong) throw new AppError('AUTH_FAILED', t('Your current password is incorrect.'));
     if (previous) await read('revoke_session', { p_id: previous }).catch(() => undefined);
     const { error } = await sb().auth.updateUser({ password: next });
     if (error) throw authError(error);
@@ -246,7 +247,7 @@ export const remoteAuthService: typeof MockAuth = {
   async startPhoneVerification(phone: string): Promise<OtpChallenge> {
     await requireAccount();
     const e164 = toE164(phone);
-    if (!/^\+\d{11,15}$/.test(e164)) throw new AppError('VALIDATION', 'Enter a valid mobile number.');
+    if (!/^\+\d{11,15}$/.test(e164)) throw new AppError('VALIDATION', t('Enter a valid mobile number.'));
     const { error } = await sb().auth.updateUser({ phone: e164 });
     if (error) throw authError(error);
     pendingPhone = e164;
@@ -254,9 +255,9 @@ export const remoteAuthService: typeof MockAuth = {
   },
 
   async confirmPhone(code: string): Promise<void> {
-    if (!pendingPhone) throw new AppError('OTP_EXPIRED', 'Please start again.');
+    if (!pendingPhone) throw new AppError('OTP_EXPIRED', t('Please start again.'));
     const token = code.replace(/\D/g, '');
-    if (token.length < 6) throw new AppError('OTP_INVALID', 'Enter the code from the text message.');
+    if (token.length < 6) throw new AppError('OTP_INVALID', t('Enter the code from the text message.'));
     const { error } = await sb().auth.verifyOtp({ phone: pendingPhone, token, type: 'phone_change' });
     if (error) throw authError(error);
     await write('log_phone_verified', { p_phone: pendingPhone });

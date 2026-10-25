@@ -7,9 +7,10 @@
  * allowed to see, so the brief never reveals a section the patient hasn't shared.
  */
 import type { MedicalRecord, PermissionKey } from '../types';
-import { ALLERGY_SEVERITY_RANK, PERMISSIONS, recordTitle } from './recordMeta';
+import { ALLERGY_SEVERITY_RANK, PERMISSIONS, opt, recordTitle } from './recordMeta';
 import { addDays, fmtDate, parseDate, toISODate } from './dates';
 
+import { t } from '../i18n';
 export type Flag = 'danger' | 'warn' | 'ok' | 'info' | undefined;
 
 export interface BriefLine {
@@ -80,7 +81,7 @@ export function buildBrief(records: MedicalRecord[], permissions: PermissionKey[
 
   const visit = of('consultation')[0];
   const lastVisit = visit && {
-    recordId: visit.id, date: visit.date, title: s(visit.data.reason) || 'Consultation',
+    recordId: visit.id, date: visit.date, title: s(visit.data.reason) || t('Consultation'),
     detail: s(visit.data.diagnosis) || undefined,
     handoverNote: s(visit.data.handoverNote) || undefined,
     doctor: by(visit) || s(visit.data.doctor) || undefined,
@@ -89,7 +90,7 @@ export function buildBrief(records: MedicalRecord[], permissions: PermissionKey[
 
   const dx = of('diagnosis');
   const activeProblems = dx.filter((r) => ACTIVE_STATUSES.includes(s(r.data.status))).map((r): BriefLine => ({
-    recordId: r.id, date: r.date, title: recordTitle(r), detail: join(r.data.severity, by(r) || r.data.doctor),
+    recordId: r.id, date: r.date, title: recordTitle(r), detail: join(opt(r.data.severity), by(r) || r.data.doctor),
     flag: s(r.data.status) === 'Suspected' ? 'warn' : 'info', flagLabel: s(r.data.status),
   }));
   const pastProblems = dx.filter((r) => !ACTIVE_STATUSES.includes(s(r.data.status))).map((r): BriefLine => ({
@@ -101,14 +102,14 @@ export function buildBrief(records: MedicalRecord[], permissions: PermissionKey[
   const isActive = (r: MedicalRecord) => s(r.data.medStatus) !== 'discontinued' && (!s(r.data.endDate) || s(r.data.endDate) >= today);
   const currentMeds = meds.filter(isActive).map((r): BriefLine => ({
     recordId: r.id, date: r.date, title: `${recordTitle(r)} ${s(r.data.dosage)}`.trim(),
-    detail: join(r.data.frequency, r.data.reason && `for ${s(r.data.reason)}`, by(r) || r.data.prescriber, r.data.endDate && `until ${fmtDate(s(r.data.endDate))}`),
+    detail: join(opt(r.data.frequency), r.data.reason && t('for {value}', { value: s(r.data.reason) }), by(r) || r.data.prescriber, r.data.endDate && t('until {value}', { value: fmtDate(s(r.data.endDate)) })),
   }));
   const cutoff = monthsBefore(today, STOPPED_MEDS_MONTHS);
   const stoppedMeds = meds.filter((r) => !isActive(r) && stoppedOn(r) >= cutoff)
     .sort((a, b) => stoppedOn(b).localeCompare(stoppedOn(a)))
     .map((r): BriefLine => ({
       recordId: r.id, date: stoppedOn(r), title: `${recordTitle(r)} ${s(r.data.dosage)}`.trim(),
-      detail: s(r.data.discontinueReason) || (s(r.data.medStatus) === 'discontinued' ? 'Stopped' : 'Course finished'),
+      detail: s(r.data.discontinueReason) || (s(r.data.medStatus) === 'discontinued' ? t('Stopped') : t('Course finished')),
     }));
 
   const results = of('lab_result');
@@ -134,11 +135,11 @@ export function buildBrief(records: MedicalRecord[], permissions: PermissionKey[
   const imaging = of('imaging').map((r): BriefLine => ({ recordId: r.id, date: r.date, title: recordTitle(r), detail: s(r.data.impression) || s(r.data.findings) || undefined }));
 
   const surgeriesAndStays = all.filter((r) => ['surgery', 'procedure', 'hospitalization'].includes(r.type)).map((r): BriefLine => ({
-    recordId: r.id, date: r.date, title: r.type === 'hospitalization' ? `Admitted: ${recordTitle(r)}` : recordTitle(r),
-    detail: join(r.data.facility, r.data.outcome),
+    recordId: r.id, date: r.date, title: r.type === 'hospitalization' ? t('Admitted: {value}', { value: recordTitle(r) }) : recordTitle(r),
+    detail: join(r.data.facility, opt(r.data.outcome)),
   }));
 
-  const familyHistory = of('family_history').map((r): BriefLine => ({ recordId: r.id, date: r.date, title: recordTitle(r), detail: s(r.data.relative) || undefined }));
+  const familyHistory = of('family_history').map((r): BriefLine => ({ recordId: r.id, date: r.date, title: recordTitle(r), detail: opt(r.data.relative) || undefined }));
 
   const openItems: OpenItem[] = [];
   const soon = toISODate(addDays(parseDate(today), 30));
@@ -146,18 +147,18 @@ export function buildBrief(records: MedicalRecord[], permissions: PermissionKey[
   const f = visit ? s(visit.data.followUp) : '';
   if (visit && f) {
     const overdue = f < today;
-    openItems.push({ kind: 'follow_up', recordId: visit.id, date: f, title: overdue ? 'Follow-up overdue' : 'Follow-up due', detail: join(visit.data.diagnosis || visit.data.reason, by(visit)), flag: overdue ? 'danger' : 'info' });
+    openItems.push({ kind: 'follow_up', recordId: visit.id, date: f, title: overdue ? t('Follow-up overdue') : t('Follow-up due'), detail: join(visit.data.diagnosis || visit.data.reason, by(visit)), flag: overdue ? 'danger' : 'info' });
   }
   for (const r of of('lab_test')) {
     if (!['Ordered', 'Sample collected'].includes(s(r.data.status))) continue;
-    openItems.push({ kind: 'lab_pending', recordId: r.id, date: r.date, title: `Result awaited: ${recordTitle(r)}`, detail: join(r.data.status, r.data.orderedBy || by(r)), flag: 'warn' });
+    openItems.push({ kind: 'lab_pending', recordId: r.id, date: r.date, title: t('Result awaited: {value}', { value: recordTitle(r) }), detail: join(opt(r.data.status), r.data.orderedBy || by(r)), flag: 'warn' });
   }
   for (const r of of('vaccination')) {
     const due = s(r.data.nextDue);
     if (!due || due > soon) continue;
     // A later dose of the same vaccine means this one is no longer due.
     if (of('vaccination').some((x) => x.id !== r.id && x.date > r.date && testKey(recordTitle(x)) === testKey(recordTitle(r)))) continue;
-    openItems.push({ kind: 'vaccine_due', recordId: r.id, date: due, title: `${due < today ? 'Overdue' : 'Due'}: ${recordTitle(r)}`, detail: s(r.data.dose) || undefined, flag: due < today ? 'danger' : 'warn' });
+    openItems.push({ kind: 'vaccine_due', recordId: r.id, date: due, title: due < today ? t('Overdue: {value}', { value: recordTitle(r) }) : t('Due: {value}', { value: recordTitle(r) }), detail: s(r.data.dose) || undefined, flag: due < today ? 'danger' : 'warn' });
   }
   openItems.sort((a, b) => a.date.localeCompare(b.date));
 
@@ -167,6 +168,6 @@ export function buildBrief(records: MedicalRecord[], permissions: PermissionKey[
   return {
     stats: { entries: all.length, since: all.length ? all[all.length - 1].date : undefined, doctors: doctors.size, facilities: facilities.size },
     allergies, lastVisit, activeProblems, pastProblems, currentMeds, stoppedMeds, labs, imaging, surgeriesAndStays, familyHistory, openItems,
-    notShared: PERMISSIONS.filter((p) => !permissions.includes(p.key)).map((p) => p.label),
+    notShared: PERMISSIONS.filter((p) => !permissions.includes(p.key)).map((p) => t(p.label)),
   };
 }

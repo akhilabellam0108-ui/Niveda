@@ -13,6 +13,8 @@ import { Badge, Button, ErrorState, Field, InlineError, Input, Select, SkeletonL
 import { AuthLayout, PasswordInput } from './AuthPages';
 import { fmtDateTime } from '../../lib/dates';
 
+import { t } from '../../i18n';
+import { T } from '../../i18n/T';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 export const EMPTY_APPLICATION: DoctorApplicationInput = {
@@ -21,8 +23,8 @@ export const EMPTY_APPLICATION: DoctorApplicationInput = {
 };
 
 const HOSPITAL_TYPES = [
-  { value: 'hospital', label: 'Hospital' }, { value: 'clinic', label: 'Clinic' },
-  { value: 'laboratory', label: 'Laboratory' }, { value: 'imaging', label: 'Imaging centre' },
+  { value: 'hospital', label: t('Hospital') }, { value: 'clinic', label: t('Clinic') },
+  { value: 'laboratory', label: t('Laboratory') }, { value: 'imaging', label: t('Imaging centre') },
 ];
 
 const toInput = (a: DoctorApplication): DoctorApplicationInput => ({
@@ -36,25 +38,25 @@ function ApplicationFields({ value, onChange, errors }: { value: DoctorApplicati
   const set = (k: keyof DoctorApplicationInput) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => onChange({ ...value, [k]: e.target.value });
   return (
     <>
-      <Field label="Full name" required error={errors.fullName} help="As it appears on your medical registration">{(p) => <Input {...p} autoComplete="name" value={value.fullName} onChange={set('fullName')} placeholder="Dr. " />}</Field>
-      <Field label="Mobile number" required error={errors.phone}>{(p) => <Input {...p} type="tel" autoComplete="tel" value={value.phone} onChange={set('phone')} placeholder="+91" />}</Field>
+      <Field label={t('Full name')} required error={errors.fullName} help={t('As it appears on your medical registration')}>{(p) => <Input {...p} autoComplete="name" value={value.fullName} onChange={set('fullName')} placeholder={t('Dr. ')} />}</Field>
+      <Field label={t('Mobile number')} required error={errors.phone}>{(p) => <Input {...p} type="tel" autoComplete="tel" value={value.phone} onChange={set('phone')} placeholder="+91" />}</Field>
       <fieldset className="stack fieldset">
-        <legend>Medical registration</legend>
-        <Field label="Medical council" required error={errors.medicalCouncil}>{(p) => <Select {...p} value={value.medicalCouncil} onChange={set('medicalCouncil')} placeholder="Choose your council" options={[...MEDICAL_COUNCILS]} />}</Field>
+        <legend>{t('Medical registration')}</legend>
+        <Field label={t('Medical council')} required error={errors.medicalCouncil}>{(p) => <Select {...p} value={value.medicalCouncil} onChange={set('medicalCouncil')} placeholder={t('Choose your council')} options={[...MEDICAL_COUNCILS]} />}</Field>
         <div className="form-grid">
-          <Field label="Registration number" required error={errors.registrationNumber}>{(p) => <Input {...p} value={value.registrationNumber} onChange={set('registrationNumber')} autoCapitalize="characters" />}</Field>
-          <Field label="Year of registration" error={errors.registrationYear}>{(p) => <Input {...p} inputMode="numeric" value={value.registrationYear} onChange={set('registrationYear')} placeholder="e.g. 2012" />}</Field>
+          <Field label={t('Registration number')} required error={errors.registrationNumber}>{(p) => <Input {...p} value={value.registrationNumber} onChange={set('registrationNumber')} autoCapitalize="characters" />}</Field>
+          <Field label={t('Year of registration')} error={errors.registrationYear}>{(p) => <Input {...p} inputMode="numeric" value={value.registrationYear} onChange={set('registrationYear')} placeholder="e.g. 2012" />}</Field>
         </div>
       </fieldset>
       <fieldset className="stack fieldset">
-        <legend>Practice</legend>
+        <legend>{t('Practice')}</legend>
         <div className="form-grid">
-          <Field label="Specialisation" required error={errors.specialization}>{(p) => <Input {...p} value={value.specialization} onChange={set('specialization')} placeholder="e.g. General medicine" />}</Field>
-          <Field label="Qualifications" required error={errors.qualifications}>{(p) => <Input {...p} value={value.qualifications} onChange={set('qualifications')} placeholder="e.g. MBBS, MD" />}</Field>
-          <Field label="Years of practice" error={errors.yearsOfPractice}>{(p) => <Input {...p} inputMode="numeric" value={value.yearsOfPractice} onChange={set('yearsOfPractice')} />}</Field>
-          <Field label="Type" required>{(p) => <Select {...p} value={value.hospitalType} onChange={set('hospitalType')} options={HOSPITAL_TYPES} />}</Field>
-          <Field label="Hospital or clinic" required error={errors.hospitalName}>{(p) => <Input {...p} value={value.hospitalName} onChange={set('hospitalName')} />}</Field>
-          <Field label="City" required error={errors.hospitalCity}>{(p) => <Input {...p} value={value.hospitalCity} onChange={set('hospitalCity')} />}</Field>
+          <Field label={t('Specialisation')} required error={errors.specialization}>{(p) => <Input {...p} value={value.specialization} onChange={set('specialization')} placeholder={t('e.g. General medicine')} />}</Field>
+          <Field label={t('Qualifications')} required error={errors.qualifications}>{(p) => <Input {...p} value={value.qualifications} onChange={set('qualifications')} placeholder={t('e.g. MBBS, MD')} />}</Field>
+          <Field label={t('Years of practice')} error={errors.yearsOfPractice}>{(p) => <Input {...p} inputMode="numeric" value={value.yearsOfPractice} onChange={set('yearsOfPractice')} />}</Field>
+          <Field label={t('Type')} required>{(p) => <Select {...p} value={value.hospitalType} onChange={set('hospitalType')} options={HOSPITAL_TYPES} />}</Field>
+          <Field label={t('Hospital or clinic')} required error={errors.hospitalName}>{(p) => <Input {...p} value={value.hospitalName} onChange={set('hospitalName')} />}</Field>
+          <Field label={t('City')} required error={errors.hospitalCity}>{(p) => <Input {...p} value={value.hospitalCity} onChange={set('hospitalCity')} />}</Field>
         </div>
       </fieldset>
     </>
@@ -64,7 +66,7 @@ function ApplicationFields({ value, onChange, errors }: { value: DoctorApplicati
 /* ---------------- Apply ---------------- */
 
 export function DoctorSignupPage() {
-  useDocumentTitle(`Join as a doctor · ${brand.name}`);
+  useDocumentTitle(`${t('Join as a doctor')} · ${brand.name}`);
   const navigate = useNavigate();
   const [f, setF] = useState(EMPTY_APPLICATION);
   const [acct, setAcct] = useState({ email: '', password: '', confirm: '' });
@@ -77,13 +79,13 @@ export function DoctorSignupPage() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const v = validateApplication(f);
-    if (!EMAIL_RE.test(acct.email.trim())) v.email = 'Enter a valid email address';
-    if (acct.password.length < 8 || !/[A-Za-z]/.test(acct.password) || !/\d/.test(acct.password)) v.password = 'Use at least 8 characters with letters and numbers';
-    if (acct.confirm !== acct.password) v.confirm = 'Passwords don’t match';
-    if (!agree) v.agree = 'Please confirm to continue';
+    if (!EMAIL_RE.test(acct.email.trim())) v.email = t('Enter a valid email address');
+    if (acct.password.length < 8 || !/[A-Za-z]/.test(acct.password) || !/\d/.test(acct.password)) v.password = t('Use at least 8 characters with letters and numbers');
+    if (acct.confirm !== acct.password) v.confirm = t('Passwords don’t match');
+    if (!agree) v.agree = t('Please confirm to continue');
     setErrors(v);
     if (Object.keys(v).length) {
-      setErr('Please check the highlighted fields.');
+      setErr(t('Please check the highlighted fields.'));
       return;
     }
     setBusy(true);
@@ -101,32 +103,32 @@ export function DoctorSignupPage() {
   return (
     <AuthLayout>
       <div>
-        <h1>Join Niveda as a doctor</h1>
-        <p className="lede">Patients share their records only with verified doctors. Apply with your medical registration; the Niveda team checks it against the medical register, usually within 1–2 working days.</p>
+        <h1>{t('Join Niveda as a doctor')}</h1>
+        <p className="lede">{t('Patients share their records only with verified doctors. Apply with your medical registration; the Niveda team checks it against the medical register, usually within 1–2 working days.')}</p>
       </div>
       {!isLive ? (
         <div className="stack">
           <div className="alert alert-info" role="status"><ShieldCheck aria-hidden /><div>{DEMO_ONLY_MESSAGE}</div></div>
-          <Link to="/login?as=doctor" className="btn btn-primary btn-lg btn-block">Try the demo doctor</Link>
+          <Link to="/login?as=doctor" className="btn btn-primary btn-lg btn-block">{t('Try the demo doctor')}</Link>
         </div>
       ) : (
         <form className="stack" onSubmit={submit} noValidate>
           <div className="form-grid">
-            <Field label="Work email" required error={errors.email} className="wide">{(p) => <Input {...p} type="email" autoComplete="email" value={acct.email} onChange={setA('email')} />}</Field>
-            <Field label="Password" required error={errors.password} help="8+ characters, letters and numbers">{(p) => <PasswordInput {...p} autoComplete="new-password" value={acct.password} onChange={setA('password')} />}</Field>
-            <Field label="Confirm password" required error={errors.confirm}>{(p) => <PasswordInput {...p} autoComplete="new-password" value={acct.confirm} onChange={setA('confirm')} />}</Field>
+            <Field label={t('Work email')} required error={errors.email} className="wide">{(p) => <Input {...p} type="email" autoComplete="email" value={acct.email} onChange={setA('email')} />}</Field>
+            <Field label={t('Password')} required error={errors.password} help={t('8+ characters, letters and numbers')}>{(p) => <PasswordInput {...p} autoComplete="new-password" value={acct.password} onChange={setA('password')} />}</Field>
+            <Field label={t('Confirm password')} required error={errors.confirm}>{(p) => <PasswordInput {...p} autoComplete="new-password" value={acct.confirm} onChange={setA('confirm')} />}</Field>
           </div>
           <ApplicationFields value={f} onChange={setF} errors={errors} />
           <label className="check">
             <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} aria-invalid={!!errors.agree} />
-            <span>I confirm these details are true, and I agree to the <Link to="/legal/terms" target="_blank">Terms</Link>. I understand I can open a patient’s record only when they grant access, and every view is logged for them.</span>
+            <span><T text="I confirm these details are true, and I agree to the {terms}. I understand I can open a patient’s record only when they grant access, and every view is logged for them." terms={<Link to="/legal/terms" target="_blank">{t('Terms')}</Link>} /></span>
           </label>
           {errors.agree && <span className="field-error">{errors.agree}</span>}
           <InlineError message={err} />
-          <Button type="submit" variant="primary" size="lg" block loading={busy}>Apply</Button>
+          <Button type="submit" variant="primary" size="lg" block loading={busy}>{t('Apply')}</Button>
         </form>
       )}
-      <p className="small muted" style={{ textAlign: 'center' }}>Already applied or verified? <Link to="/login?as=doctor">Log in</Link></p>
+      <p className="small muted" style={{ textAlign: 'center' }}>{t('Already applied or verified?')}{' '}<Link to="/login?as=doctor">{t('Log in')}</Link></p>
     </AuthLayout>
   );
 }
@@ -134,7 +136,7 @@ export function DoctorSignupPage() {
 /* ---------------- Waiting for review ---------------- */
 
 export function ApplicationStatusPage() {
-  useDocumentTitle(`Your application · ${brand.name}`);
+  useDocumentTitle(`${t('Your application')} · ${brand.name}`);
   const navigate = useNavigate();
   const toast = useToast();
   const { signOut, refresh, user } = useSession();
@@ -171,7 +173,7 @@ export function ApplicationStatusPage() {
     try {
       await applicationService.update(f);
       setEditing(false);
-      toast('Sent for review again');
+      toast(t('Sent for review again'));
       app.reload();
     } catch (x) {
       setErr(friendlyError(x));
@@ -184,40 +186,40 @@ export function ApplicationStatusPage() {
   return (
     <AuthLayout back={false}>
       <div className="row" style={{ justifyContent: 'space-between' }}>
-        <h1>Your application</h1>
-        <Button variant="ghost" size="sm" icon={LogOut} onClick={async () => { await signOut(); navigate('/login'); }}>Log out</Button>
+        <h1>{t('Your application')}</h1>
+        <Button variant="ghost" size="sm" icon={LogOut} onClick={async () => { await signOut(); navigate('/login'); }}>{t('Log out')}</Button>
       </div>
       {app.loading && !a ? <SkeletonList rows={3} card={false} /> : app.error ? <ErrorState error={app.error} onRetry={app.reload} /> : !a ? (
-        <p className="muted">We couldn’t find an application for this account.</p>
+        <p className="muted">{t('We couldn’t find an application for this account.')}</p>
       ) : editing ? (
         <form className="stack" onSubmit={save} noValidate>
           <ApplicationFields value={f} onChange={setF} errors={errors} />
           <InlineError message={err} />
           <div className="row">
-            <Button variant="ghost" onClick={() => setEditing(false)} disabled={busy}>Cancel</Button>
-            <Button type="submit" variant="primary" loading={busy} style={{ marginLeft: 'auto' }}>Send for review</Button>
+            <Button variant="ghost" onClick={() => setEditing(false)} disabled={busy}>{t('Cancel')}</Button>
+            <Button type="submit" variant="primary" loading={busy} style={{ marginLeft: 'auto' }}>{t('Send for review')}</Button>
           </div>
         </form>
       ) : (
         <div className="stack">
           {a.status === 'pending' && (
-            <div className="alert alert-info" role="status"><Clock3 aria-hidden /><div><strong>Waiting for verification.</strong> The Niveda team is checking your registration with the {a.medicalCouncil}. We’ll notify you here and by email. Submitted {fmtDateTime(a.submittedAt)}.</div></div>
+            <div className="alert alert-info" role="status"><Clock3 aria-hidden /><div><strong>{t('Waiting for verification.')}</strong>{' '}{t('The Niveda team is checking your registration with the {council}. We’ll notify you here and by email. Submitted {date}.', { council: a.medicalCouncil, date: fmtDateTime(a.submittedAt) })}</div></div>
           )}
           {a.status === 'declined' && (
-            <div className="alert alert-danger" role="alert"><TriangleAlert aria-hidden /><div><strong>Your application needs changes.</strong> {a.reviewNote}</div></div>
+            <div className="alert alert-danger" role="alert"><TriangleAlert aria-hidden /><div><strong>{t('Your application needs changes.')}</strong> {a.reviewNote}</div></div>
           )}
           {a.status === 'approved' && (
-            <div className="alert alert-ok" role="status"><BadgeCheck aria-hidden /><div><strong>You’re verified.</strong> Opening your workspace…</div></div>
+            <div className="alert alert-ok" role="status"><BadgeCheck aria-hidden /><div><strong>{t('You’re verified.')}</strong>{' '}{t('Opening your workspace…')}</div></div>
           )}
-          {a.status === 'pending' && a.reviewNote && <p className="small muted">Previous note from the team: {a.reviewNote}</p>}
+          {a.status === 'pending' && a.reviewNote && <p className="small muted">{t('Previous note from the team:')}{' '}{a.reviewNote}</p>}
           <dl className="kv">
-            <dt>Name</dt><dd>{a.fullName}</dd>
-            <dt>Registration</dt><dd>{a.registrationNumber} · {a.medicalCouncil}{a.registrationYear ? ` · ${a.registrationYear}` : ''}</dd>
-            <dt>Practice</dt><dd>{a.specialization} · {a.qualifications} · {a.yearsOfPractice} years</dd>
-            <dt>Works at</dt><dd>{a.hospitalName}, {a.hospitalCity}</dd>
-            <dt>Status</dt><dd><Badge tone={a.status === 'declined' ? 'danger' : a.status === 'approved' ? 'ok' : 'warn'} dot>{a.status === 'pending' ? 'Under review' : a.status === 'declined' ? 'Needs changes' : 'Verified'}</Badge></dd>
+            <dt>{t('Name')}</dt><dd>{a.fullName}</dd>
+            <dt>{t('Registration')}</dt><dd>{a.registrationNumber} · {a.medicalCouncil}{a.registrationYear ? ` · ${a.registrationYear}` : ''}</dd>
+            <dt>{t('Practice')}</dt><dd>{a.specialization} · {a.qualifications} · {t('{n} years', { n: a.yearsOfPractice })}</dd>
+            <dt>{t('Works at')}</dt><dd>{a.hospitalName}, {a.hospitalCity}</dd>
+            <dt>{t('Status')}</dt><dd><Badge tone={a.status === 'declined' ? 'danger' : a.status === 'approved' ? 'ok' : 'warn'} dot>{a.status === 'pending' ? t('Under review') : a.status === 'declined' ? t('Needs changes') : t('Verified')}</Badge></dd>
           </dl>
-          {a.status !== 'approved' && <Button icon={PencilLine} onClick={startEdit}>{a.status === 'declined' ? 'Correct and resubmit' : 'Edit details'}</Button>}
+          {a.status !== 'approved' && <Button icon={PencilLine} onClick={startEdit}>{a.status === 'declined' ? t('Correct and resubmit') : t('Edit details')}</Button>}
         </div>
       )}
     </AuthLayout>

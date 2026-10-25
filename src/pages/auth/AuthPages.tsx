@@ -15,25 +15,28 @@ import { BackButton } from '../../components/ui/BackButton';
 import { OtpInput, PrototypeCode } from '../../components/ui/Otp';
 import { toISODate } from '../../lib/dates';
 
+import { t } from '../../i18n';
+import { T } from '../../i18n/T';
+import { LanguagePicker } from '../../components/ui/LanguagePicker';
 export function AuthLayout({ children, back = true, onBack }: { children: ReactNode; back?: boolean; onBack?: () => void }) {
   return (
     <div className="auth">
       <aside className="auth-aside">
         <Brand />
         <div style={{ position: 'relative' }}>
-          <h2>One record for your whole life — and you hold the key.</h2>
+          <h2>{t('One record for your whole life — and you hold the key.')}</h2>
           <div className="auth-points">
-            <div><Clock3 aria-hidden />Every visit, test and prescription in one timeline</div>
-            <div><ShieldCheck aria-hidden />Doctors see only what you share, only for as long as you allow</div>
-            <div><ScrollText aria-hidden />Every view and every change is logged for you to see</div>
+            <div><Clock3 aria-hidden />{t('Every visit, test and prescription in one timeline')}</div>
+            <div><ShieldCheck aria-hidden />{t('Doctors see only what you share, only for as long as you allow')}</div>
+            <div><ScrollText aria-hidden />{t('Every view and every change is logged for you to see')}</div>
           </div>
         </div>
-        {!isLive && <p className="xs" style={{ position: 'relative' }}>Prototype build · fictional demo data only</p>}
+        {!isLive && <p className="xs" style={{ position: 'relative' }}>{t('Prototype build · fictional demo data only')}</p>}
         <TimelineArt />
       </aside>
       <main className="auth-main">
         <div className="auth-card">
-          {back && <BackButton fallback="/" className="auth-back" onBack={onBack} />}
+          <div className="auth-top">{back ? <BackButton fallback="/" className="auth-back" onBack={onBack} /> : <span />}<LanguagePicker compact /></div>
           <div className="mobile-only"><Brand /></div>
           {children}
         </div>
@@ -58,7 +61,7 @@ export function PasswordInput(props: React.InputHTMLAttributes<HTMLInputElement>
   return (
     <div className="input-wrap">
       <Input {...props} type={show ? 'text' : 'password'} style={{ paddingRight: 44 }} />
-      <button type="button" className="btn btn-ghost btn-sm btn-icon input-action" aria-label={show ? 'Hide password' : 'Show password'} onClick={() => setShow((s) => !s)}>
+      <button type="button" className="btn btn-ghost btn-sm btn-icon input-action" aria-label={show ? t('Hide password') : t('Show password')} onClick={() => setShow((s) => !s)}>
         {show ? <EyeOff /> : <Eye />}
       </button>
     </div>
@@ -70,8 +73,8 @@ export function PasswordInput(props: React.InputHTMLAttributes<HTMLInputElement>
 export type LoginRole = 'patient' | 'doctor';
 
 const ROLE_COPY: Record<LoginRole, { icon: typeof UserRound; title: string; sub: string; heading: string; lede: string }> = {
-  patient: { icon: UserRound, title: 'I’m a patient', sub: 'See your health record, medicines, reminders and who can see your record.', heading: 'Log in as a patient', lede: `Log in to your ${brand.name} record.` },
-  doctor: { icon: Stethoscope, title: 'I’m a doctor', sub: 'See patients who have shared their record with you, and add to it.', heading: 'Log in as a doctor', lede: 'Log in to your clinician workspace.' },
+  patient: { icon: UserRound, title: t('I’m a patient'), sub: t('See your health record, medicines, reminders and who can see your record.'), heading: t('Log in as a patient'), lede: t('Log in to your {name} record.', { name: brand.name }) },
+  doctor: { icon: Stethoscope, title: t('I’m a doctor'), sub: t('See patients who have shared their record with you, and add to it.'), heading: t('Log in as a doctor'), lede: t('Log in to your clinician workspace.') },
 };
 
 /** Step 1 of logging in: who is it — a patient or a doctor? */
@@ -80,8 +83,8 @@ function RolePicker({ onPick }: { onPick: (r: LoginRole) => void }) {
   return (
     <AuthLayout>
       <div>
-        <h1>Who’s logging in?</h1>
-        <p className="lede">Choose one to continue.</p>
+        <h1>{t('Who’s logging in?')}</h1>
+        <p className="lede">{t('Choose one to continue.')}</p>
       </div>
       {notice && <div className="alert alert-warn" role="alert"><Clock3 aria-hidden /><div>{notice}</div></div>}
       <ul className="stack role-list" style={{ '--gap': '12px' } as React.CSSProperties}>
@@ -99,15 +102,14 @@ function RolePicker({ onPick }: { onPick: (r: LoginRole) => void }) {
           );
         })}
       </ul>
-      <p className="small muted" style={{ textAlign: 'center' }}>
-        New here? <Link to="/signup">Create a patient account</Link> · <Link to="/signup/doctor">Join as a doctor</Link>
+      <p className="small muted" style={{ textAlign: 'center' }}>{t('New here?')}{' '}<Link to="/signup">{t('Create a patient account')}</Link> · <Link to="/signup/doctor">{t('Join as a doctor')}</Link>
       </p>
     </AuthLayout>
   );
 }
 
 export function LoginPage() {
-  useDocumentTitle(`Log in · ${brand.name}`);
+  useDocumentTitle(`${t('Log in')} · ${brand.name}`);
   const navigate = useNavigate();
   const location = useLocation();
   const [params, setParams] = useSearchParams();
@@ -127,7 +129,7 @@ export function LoginPage() {
   const submit = async (e?: React.FormEvent, creds?: { id: string; pw: string }) => {
     e?.preventDefault();
     const c = creds ?? { id, pw };
-    if (!c.id.trim() || !c.pw) { setErr(isLive ? 'Enter your email and password.' : 'Enter your email or phone and password.'); return; }
+    if (!c.id.trim() || !c.pw) { setErr(isLive ? t('Enter your email and password.') : t('Enter your email or phone and password.')); return; }
     setBusy(true);
     setErr(undefined);
     try {
@@ -154,35 +156,35 @@ export function LoginPage() {
   return (
     <AuthLayout onBack={backToPicker}>
       <div>
-        <span className={`role-chip role-chip-${role}`}><copy.icon aria-hidden />{role === 'doctor' ? 'Doctor' : 'Patient'}</span>
+        <span className={`role-chip role-chip-${role}`}><copy.icon aria-hidden />{role === 'doctor' ? t('Doctor') : t('Patient')}</span>
         <h1>{copy.heading}</h1>
         <p className="lede">{copy.lede}</p>
       </div>
       {notice && <div className="alert alert-warn" role="alert"><Clock3 aria-hidden /><div>{notice}</div></div>}
       <form className="stack" onSubmit={submit} noValidate>
-        <Field label={isLive ? 'Email' : 'Email or phone number'}>{(p) => <Input {...p} type={isLive ? 'email' : 'text'} autoComplete="username" value={id} onChange={(e) => setId(e.target.value)} placeholder={role === 'doctor' ? 'you@hospital.com' : 'you@example.com'} />}</Field>
-        <Field label="Password">{(p) => <PasswordInput {...p} autoComplete="current-password" value={pw} onChange={(e) => setPw(e.target.value)} />}</Field>
-        <div className="spread small"><span /><Link to="/forgot-password">Forgot password?</Link></div>
+        <Field label={isLive ? t('Email') : t('Email or phone number')}>{(p) => <Input {...p} type={isLive ? 'email' : 'text'} autoComplete="username" value={id} onChange={(e) => setId(e.target.value)} placeholder={role === 'doctor' ? 'you@hospital.com' : 'you@example.com'} />}</Field>
+        <Field label={t('Password')}>{(p) => <PasswordInput {...p} autoComplete="current-password" value={pw} onChange={(e) => setPw(e.target.value)} />}</Field>
+        <div className="spread small"><span /><Link to="/forgot-password">{t('Forgot password?')}</Link></div>
         <InlineError message={err} />
-        <Button type="submit" variant="primary" size="lg" block loading={busy}>Log in</Button>
+        <Button type="submit" variant="primary" size="lg" block loading={busy}>{t('Log in')}</Button>
       </form>
       <p className="small muted" style={{ textAlign: 'center' }}>
         {role === 'patient'
-          ? <>New here? <Link to="/signup">Create an account</Link></>
-          : <>Not on {brand.name} yet? <Link to="/signup/doctor">Apply to join as a doctor</Link></>}
+          ? <>{t('New here?')}{' '}<Link to="/signup">{t('Create an account')}</Link></>
+          : <>{t('Not on {app} yet?', { app: brand.name })}{' '}<Link to="/signup/doctor">{t('Apply to join as a doctor')}</Link></>}
       </p>
       <button type="button" className="btn btn-ghost btn-sm" style={{ alignSelf: 'center' }} onClick={() => { setErr(undefined); setParams({ as: other }, { replace: true, state: location.state }); }}>
-        <ArrowLeftRight aria-hidden />I’m {other === 'doctor' ? 'a doctor' : 'a patient'} instead
+        <ArrowLeftRight aria-hidden />{other === 'doctor' ? t('I’m a doctor instead') : t('I’m a patient instead')}
       </button>
       {!isLive && <div className="demo-box">
-        <div className="row xs strong" style={{ color: 'var(--warn)' }}><FlaskConical size={14} aria-hidden />Demo {role} account{demos.length > 1 ? 's' : ''} (password {DEMO_PASSWORD})</div>
+        <div className="row xs strong" style={{ color: 'var(--warn)' }}><FlaskConical size={14} aria-hidden />{role === 'doctor' ? t('Demo doctor accounts') : t('Demo patient accounts')} ({t('password')} {DEMO_PASSWORD})</div>
         {demos.map((k) => (
           <button key={k} type="button" className="btn btn-ghost btn-sm" style={{ justifyContent: 'flex-start' }} disabled={busy}
             onClick={() => { setId(DEMO_ACCOUNTS[k].email); setPw(DEMO_PASSWORD); void submit(undefined, { id: DEMO_ACCOUNTS[k].email, pw: DEMO_PASSWORD }); }}>
-            <copy.icon aria-hidden />Continue as {DEMO_ACCOUNTS[k].label}
+            <copy.icon aria-hidden />{t('Continue as {name}', { name: DEMO_ACCOUNTS[k].label })}
           </button>
         ))}
-        <p className="xs subtle">Tip: open a second browser tab to be the patient in one and the doctor in the other — changes appear live.</p>
+        <p className="xs subtle">{t('Tip: open a second browser tab to be the patient in one and the doctor in the other — changes appear live.')}</p>
       </div>}
     </AuthLayout>
   );
@@ -193,7 +195,7 @@ export function LoginPage() {
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 export function SignupPage() {
-  useDocumentTitle(`Create account · ${brand.name}`);
+  useDocumentTitle(`${t('Create account')} · ${brand.name}`);
   const navigate = useNavigate();
   const [f, setF] = useState({ fullName: '', dateOfBirth: '', email: '', phone: '', password: '', confirm: '' });
   const [agree, setAgree] = useState(false);
@@ -205,15 +207,15 @@ export function SignupPage() {
 
   const validate = () => {
     const v: Record<string, string> = {};
-    if (f.fullName.trim().length < 2) v.fullName = 'Enter your full name';
-    if (!f.dateOfBirth) v.dateOfBirth = 'Enter your date of birth';
-    else if (f.dateOfBirth > toISODate(new Date()) || f.dateOfBirth < '1900-01-01') v.dateOfBirth = 'Check your date of birth';
-    else if (!isAdult(f.dateOfBirth)) v.dateOfBirth = 'You need to be 18 or older to create your own account. A parent or guardian can keep your records.';
-    if (!EMAIL_RE.test(f.email.trim())) v.email = 'Enter a valid email address';
-    if (f.phone.replace(/\D/g, '').length < 10) v.phone = 'Enter a 10-digit mobile number';
-    if (f.password.length < 8 || !/[A-Za-z]/.test(f.password) || !/\d/.test(f.password)) v.password = 'Use at least 8 characters with letters and numbers';
-    if (f.confirm !== f.password) v.confirm = 'Passwords don’t match';
-    if (!agree) v.agree = 'Please accept to continue';
+    if (f.fullName.trim().length < 2) v.fullName = t('Enter your full name');
+    if (!f.dateOfBirth) v.dateOfBirth = t('Enter your date of birth');
+    else if (f.dateOfBirth > toISODate(new Date()) || f.dateOfBirth < '1900-01-01') v.dateOfBirth = t('Check your date of birth');
+    else if (!isAdult(f.dateOfBirth)) v.dateOfBirth = t('You need to be 18 or older to create your own account. A parent or guardian can keep your records.');
+    if (!EMAIL_RE.test(f.email.trim())) v.email = t('Enter a valid email address');
+    if (f.phone.replace(/\D/g, '').length < 10) v.phone = t('Enter a 10-digit mobile number');
+    if (f.password.length < 8 || !/[A-Za-z]/.test(f.password) || !/\d/.test(f.password)) v.password = t('Use at least 8 characters with letters and numbers');
+    if (f.confirm !== f.password) v.confirm = t('Passwords don’t match');
+    if (!agree) v.agree = t('Please accept to continue');
     setErrors(v);
     return !Object.keys(v).length;
   };
@@ -236,33 +238,33 @@ export function SignupPage() {
   return (
     <AuthLayout>
       <div>
-        <h1>Create your record</h1>
-        <p className="lede">After this you’ll set up your record: blood group, emergency contact, allergies, conditions, medicines, past surgeries and your medical documents. Every step must be answered — keep a report or prescription handy if you have one.</p>
+        <h1>{t('Create your record')}</h1>
+        <p className="lede">{t('After this you’ll set up your record: blood group, emergency contact, allergies, conditions, medicines, past surgeries and your medical documents. Every step must be answered — keep a report or prescription handy if you have one.')}</p>
       </div>
       <form className="stack" onSubmit={submit} noValidate>
-        <Field label="Full name" required error={errors.fullName}>{(p) => <Input {...p} autoComplete="name" value={f.fullName} onChange={set('fullName')} />}</Field>
-        <Field label="Date of birth" required error={errors.dateOfBirth}>{(p) => <Input {...p} type="date" autoComplete="bday" value={f.dateOfBirth} onChange={set('dateOfBirth')} />}</Field>
+        <Field label={t('Full name')} required error={errors.fullName}>{(p) => <Input {...p} autoComplete="name" value={f.fullName} onChange={set('fullName')} />}</Field>
+        <Field label={t('Date of birth')} required error={errors.dateOfBirth}>{(p) => <Input {...p} type="date" autoComplete="bday" value={f.dateOfBirth} onChange={set('dateOfBirth')} />}</Field>
         <div className="form-grid">
-          <Field label="Email" required error={errors.email}>{(p) => <Input {...p} type="email" autoComplete="email" value={f.email} onChange={set('email')} />}</Field>
-          <Field label="Mobile number" required error={errors.phone}>{(p) => <Input {...p} type="tel" autoComplete="tel" value={f.phone} onChange={set('phone')} placeholder="+91" />}</Field>
-          <Field label="Password" required error={errors.password} help="8+ characters, letters and numbers">{(p) => <PasswordInput {...p} autoComplete="new-password" value={f.password} onChange={set('password')} />}</Field>
-          <Field label="Confirm password" required error={errors.confirm}>{(p) => <PasswordInput {...p} autoComplete="new-password" value={f.confirm} onChange={set('confirm')} />}</Field>
+          <Field label={t('Email')} required error={errors.email}>{(p) => <Input {...p} type="email" autoComplete="email" value={f.email} onChange={set('email')} />}</Field>
+          <Field label={t('Mobile number')} required error={errors.phone}>{(p) => <Input {...p} type="tel" autoComplete="tel" value={f.phone} onChange={set('phone')} placeholder="+91" />}</Field>
+          <Field label={t('Password')} required error={errors.password} help={t('8+ characters, letters and numbers')}>{(p) => <PasswordInput {...p} autoComplete="new-password" value={f.password} onChange={set('password')} />}</Field>
+          <Field label={t('Confirm password')} required error={errors.confirm}>{(p) => <PasswordInput {...p} autoComplete="new-password" value={f.confirm} onChange={set('confirm')} />}</Field>
         </div>
         <label className="check">
           <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} aria-invalid={!!errors.agree} />
-          <span>I have read the <Link to="/legal/privacy" target="_blank">Privacy notice</Link> and agree to the <Link to="/legal/terms" target="_blank">Terms</Link>. I consent to {brand.name} keeping my health record and sharing it only with doctors I approve.</span>
+          <span><T text="I have read the {privacy} and agree to the {terms}. I consent to {app} keeping my health record and sharing it only with doctors I approve." privacy={<Link to="/legal/privacy" target="_blank">{t('Privacy notice')}</Link>} terms={<Link to="/legal/terms" target="_blank">{t('Terms')}</Link>} app={brand.name} /></span>
         </label>
         {errors.agree && <span className="field-error">{errors.agree}</span>}
         <fieldset className="stack consent-optional" style={{ '--gap': '6px', border: 0, padding: 0, margin: 0 } as React.CSSProperties}>
-          <legend className="xs muted" style={{ marginBottom: 4 }}>Optional — change any time in Privacy &amp; security</legend>
-          <label className="check"><input type="checkbox" checked={optIn.reminders} onChange={(e) => setOptIn({ ...optIn, reminders: e.target.checked })} /><span>Send me medicine reminders</span></label>
-          <label className="check"><input type="checkbox" checked={optIn.productUpdates} onChange={(e) => setOptIn({ ...optIn, productUpdates: e.target.checked })} /><span>Tell me about new features (no ads, ever)</span></label>
+          <legend className="xs muted" style={{ marginBottom: 4 }}>{t('Optional — change any time in Privacy & security')}</legend>
+          <label className="check"><input type="checkbox" checked={optIn.reminders} onChange={(e) => setOptIn({ ...optIn, reminders: e.target.checked })} /><span>{t('Send me medicine reminders')}</span></label>
+          <label className="check"><input type="checkbox" checked={optIn.productUpdates} onChange={(e) => setOptIn({ ...optIn, productUpdates: e.target.checked })} /><span>{t('Tell me about new features (no ads, ever)')}</span></label>
         </fieldset>
         <InlineError message={err} />
-        <Button type="submit" variant="primary" size="lg" block loading={busy}>Continue</Button>
+        <Button type="submit" variant="primary" size="lg" block loading={busy}>{t('Continue')}</Button>
       </form>
-      <p className="small muted" style={{ textAlign: 'center' }}>Already have an account? <Link to="/login">Log in</Link></p>
-      <p className="small muted" style={{ textAlign: 'center' }}>Are you a doctor? <Link to="/signup/doctor">Apply to join as a doctor</Link></p>
+      <p className="small muted" style={{ textAlign: 'center' }}>{t('Already have an account?')}{' '}<Link to="/login">{t('Log in')}</Link></p>
+      <p className="small muted" style={{ textAlign: 'center' }}>{t('Are you a doctor?')}{' '}<Link to="/signup/doctor">{t('Apply to join as a doctor')}</Link></p>
     </AuthLayout>
   );
 }
@@ -270,7 +272,7 @@ export function SignupPage() {
 /* ---------------- OTP verification ---------------- */
 
 export function VerifyPage() {
-  useDocumentTitle(`Verify · ${brand.name}`);
+  useDocumentTitle(`${t('Verify')} · ${brand.name}`);
   const navigate = useNavigate();
   const location = useLocation();
   const { refresh } = useSession();
@@ -284,9 +286,9 @@ export function VerifyPage() {
   if (!state || !authService.hasPending(state.flow)) {
     return (
       <AuthLayout>
-        <h1>Let’s start again</h1>
-        <p className="muted">Your verification step timed out. For your security, please start again.</p>
-        <Button variant="primary" onClick={() => navigate('/login')}>Back to log in</Button>
+        <h1>{t('Let’s start again')}</h1>
+        <p className="muted">{t('Your verification step timed out. For your security, please start again.')}</p>
+        <Button variant="primary" onClick={() => navigate('/login')}>{t('Back to log in')}</Button>
       </AuthLayout>
     );
   }
@@ -301,7 +303,7 @@ export function VerifyPage() {
       // Picked "patient" but this is a doctor's account (or the other way round): open the right side and say so.
       const isDoctorSide = user.role === 'doctor' || user.role === 'applicant';
       if (state.as && (state.as === 'doctor') !== isDoctorSide) {
-        toast(isDoctorSide ? 'This is a doctor’s account, so we opened the doctor side.' : 'This is a patient’s account, so we opened the patient side.');
+        toast(isDoctorSide ? t('This is a doctor’s account, so we opened the doctor side.') : t('This is a patient’s account, so we opened the patient side.'));
       }
       navigate(homeFor(user), { replace: true });
     } catch (x) {
@@ -316,23 +318,23 @@ export function VerifyPage() {
     <AuthLayout>
       <div>
         <div className="type-icon tone-accent" style={{ marginBottom: 16 }}><Mail aria-hidden /></div>
-        <h1>Enter your code</h1>
-        <p className="lede">We sent a 6-digit code to {challenge?.destination}. {isLive ? 'Check your inbox (and spam folder).' : 'It expires in 5 minutes.'}</p>
+        <h1>{t('Enter your code')}</h1>
+        <p className="lede">{t('We sent a 6-digit code to {destination}.', { destination: challenge?.destination })} {isLive ? t('Check your inbox (and spam folder).') : t('It expires in 5 minutes.')}</p>
       </div>
       <OtpInput value={code} onChange={setCode} onComplete={(c) => verify(c)} disabled={busy} />
       {challenge && <PrototypeCode challenge={challenge} onUse={(c) => { setCode(c); void verify(c); }} />}
       <InlineError message={err} />
-      <Button variant="primary" size="lg" block loading={busy} disabled={code.length !== 6} onClick={() => verify()}>Verify</Button>
+      <Button variant="primary" size="lg" block loading={busy} disabled={code.length !== 6} onClick={() => verify()}>{t('Verify')}</Button>
       <div className="spread small">
         <a href="#" onClick={(e) => {
           // Return to the screen before (keeps what was typed), not a new copy of it on top.
           e.preventDefault();
           if (((window.history.state as { idx?: number } | null)?.idx ?? 0) > 0) navigate(-1);
           else navigate(state.flow === 'signup' ? '/signup' : state.as ? `/login?as=${state.as}` : '/login', { replace: true });
-        }}>Back</a>
-        <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => { try { setChallenge(authService.resendCode(state.flow)); setCode(''); setErr(undefined); } catch (x) { setErr(friendlyError(x)); } }}>Send a new code</button>
+        }}>{t('Back')}</a>
+        <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => { try { setChallenge(authService.resendCode(state.flow)); setCode(''); setErr(undefined); } catch (x) { setErr(friendlyError(x)); } }}>{t('Send a new code')}</button>
       </div>
-      {!isLive && <p className="xs subtle">In the real app this code arrives by email. Here it’s shown on screen because this is the demo.</p>}
+      {!isLive && <p className="xs subtle">{t('In the real app this code arrives by email. Here it’s shown on screen because this is the demo.')}</p>}
     </AuthLayout>
   );
 }
@@ -340,7 +342,7 @@ export function VerifyPage() {
 /* ---------------- Forgot password ---------------- */
 
 export function ForgotPasswordPage() {
-  useDocumentTitle(`Reset password · ${brand.name}`);
+  useDocumentTitle(`${t('Reset password')} · ${brand.name}`);
   const navigate = useNavigate();
   const [id, setId] = useState('');
   const [challenge, setChallenge] = useState<OtpChallenge | null>();
@@ -353,39 +355,39 @@ export function ForgotPasswordPage() {
   return (
     <AuthLayout>
       <div>
-        <h1>Reset your password</h1>
-        <p className="lede">{done ? 'Your password was changed and other devices were signed out.' : isLive ? 'We’ll email a code to the address on your account.' : 'We’ll send a code to the phone number on your account.'}</p>
+        <h1>{t('Reset your password')}</h1>
+        <p className="lede">{done ? t('Your password was changed and other devices were signed out.') : isLive ? t('We’ll email a code to the address on your account.') : t('We’ll send a code to the phone number on your account.')}</p>
       </div>
-      {done ? <Button variant="primary" onClick={() => navigate('/login')}>Log in</Button> : challenge === undefined ? (
+      {done ? <Button variant="primary" onClick={() => navigate('/login')}>{t('Log in')}</Button> : challenge === undefined ? (
         <form className="stack" onSubmit={async (e) => {
           e.preventDefault();
           setBusy(true);
           setErr(undefined);
           try { setChallenge(await authService.startPasswordReset(id)); } catch (x) { setErr(friendlyError(x)); } finally { setBusy(false); }
         }}>
-          <Field label={isLive ? 'Email' : 'Email or phone number'}>{(p) => <Input {...p} type={isLive ? 'email' : 'text'} value={id} onChange={(e) => setId(e.target.value)} />}</Field>
+          <Field label={isLive ? t('Email') : t('Email or phone number')}>{(p) => <Input {...p} type={isLive ? 'email' : 'text'} value={id} onChange={(e) => setId(e.target.value)} />}</Field>
           <InlineError message={err} />
-          <Button type="submit" variant="primary" block loading={busy} disabled={!id.trim()}>Send code</Button>
+          <Button type="submit" variant="primary" block loading={busy} disabled={!id.trim()}>{t('Send code')}</Button>
         </form>
       ) : challenge === null ? (
-        <div className="alert alert-info"><Mail aria-hidden /><div>If an account exists for <b>{id}</b>, a code has been sent. (Prototype: no account matched.)</div></div>
+        <div className="alert alert-info"><Mail aria-hidden /><div><T text="If an account exists for {id}, a code has been sent. (Prototype: no account matched.)" id={<b>{id}</b>} /></div></div>
       ) : (
         <form className="stack" onSubmit={async (e) => {
           e.preventDefault();
-          if (pw.length < 8 || !/\d/.test(pw) || !/[A-Za-z]/.test(pw)) { setErr('Use at least 8 characters with letters and numbers.'); return; }
+          if (pw.length < 8 || !/\d/.test(pw) || !/[A-Za-z]/.test(pw)) { setErr(t('Use at least 8 characters with letters and numbers.')); return; }
           setBusy(true);
           setErr(undefined);
           try { await authService.completePasswordReset(challenge.id, code, pw); setDone(true); } catch (x) { setErr(friendlyError(x)); } finally { setBusy(false); }
         }}>
-          <p className="small muted">Enter the code sent to {challenge.destination}.</p>
+          <p className="small muted">{t('Enter the code sent to {destination}.', { destination: challenge.destination })}</p>
           <OtpInput value={code} onChange={setCode} />
           <PrototypeCode challenge={challenge} onUse={setCode} />
-          <Field label="New password" help="8+ characters, letters and numbers">{(p) => <PasswordInput {...p} autoComplete="new-password" value={pw} onChange={(e) => setPw(e.target.value)} />}</Field>
+          <Field label={t('New password')} help={t('8+ characters, letters and numbers')}>{(p) => <PasswordInput {...p} autoComplete="new-password" value={pw} onChange={(e) => setPw(e.target.value)} />}</Field>
           <InlineError message={err} />
-          <Button type="submit" variant="primary" block loading={busy} disabled={code.length !== 6}>Set new password</Button>
+          <Button type="submit" variant="primary" block loading={busy} disabled={code.length !== 6}>{t('Set new password')}</Button>
         </form>
       )}
-      <p className="small" style={{ textAlign: 'center' }}><Link to="/login">Back to log in</Link></p>
+      <p className="small" style={{ textAlign: 'center' }}><Link to="/login">{t('Back to log in')}</Link></p>
     </AuthLayout>
   );
 }

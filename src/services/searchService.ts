@@ -4,6 +4,7 @@ import { fmtDate } from '../lib/dates';
 import { RECORD_TYPES, recordSummary, recordTitle } from '../lib/recordMeta';
 import { requireCtx } from './core';
 
+import { t } from '../i18n';
 export interface SearchResult {
   id: string;
   kind: 'record' | 'document' | 'doctor' | 'hospital' | 'page';
@@ -13,12 +14,12 @@ export interface SearchResult {
 }
 
 const PAGES: SearchResult[] = [
-  { id: 'pg_meds', kind: 'page', title: 'Medications', subtitle: 'Current and past medicines', link: '/app/medications' },
-  { id: 'pg_allergies', kind: 'page', title: 'Allergies', subtitle: 'Allergies and reactions', link: '/app/allergies' },
-  { id: 'pg_emergency', kind: 'page', title: 'Emergency profile', subtitle: 'Blood group, allergies, contact', link: '/app/emergency' },
-  { id: 'pg_access', kind: 'page', title: 'Doctors & access', subtitle: 'Grant or revoke access', link: '/app/access' },
-  { id: 'pg_activity', kind: 'page', title: 'Access log', subtitle: 'Who viewed or changed your record', link: '/app/activity' },
-  { id: 'pg_export', kind: 'page', title: 'Export my records', subtitle: 'Download a copy', link: '/app/settings/export' },
+  { id: 'pg_meds', kind: 'page', title: t('Medications'), subtitle: t('Current and past medicines'), link: '/app/medications' },
+  { id: 'pg_allergies', kind: 'page', title: t('Allergies'), subtitle: t('Allergies and reactions'), link: '/app/allergies' },
+  { id: 'pg_emergency', kind: 'page', title: t('Emergency profile'), subtitle: t('Blood group, allergies, contact'), link: '/app/emergency' },
+  { id: 'pg_access', kind: 'page', title: t('Doctors & access'), subtitle: t('Grant or revoke access'), link: '/app/access' },
+  { id: 'pg_activity', kind: 'page', title: t('Access log'), subtitle: t('Who viewed or changed your record'), link: '/app/activity' },
+  { id: 'pg_export', kind: 'page', title: t('Export my records'), subtitle: t('Download a copy'), link: '/app/settings/export' },
 ];
 
 /** Global search across the patient's own record. */
@@ -44,19 +45,19 @@ export function searchIn(query: string, src: { records: MedicalRecord[]; documen
 
   for (const r of src.records) {
     const values = Object.values(r.data).map(String);
-    if (has(recordTitle(r), RECORD_TYPES[r.type].label, r.createdBy.name, r.organization?.name, r.date, fmtDate(r.date), ...values)) {
-      results.push({ id: r.id, kind: 'record', title: recordTitle(r), subtitle: `${RECORD_TYPES[r.type].label} · ${fmtDate(r.date)}${recordSummary(r) ? ` · ${recordSummary(r)}` : ''}`, link: `?record=${r.id}` });
+    if (has(recordTitle(r), RECORD_TYPES[r.type].label, t(RECORD_TYPES[r.type].label), r.createdBy.name, r.organization?.name, r.date, fmtDate(r.date), ...values)) {
+      results.push({ id: r.id, kind: 'record', title: recordTitle(r), subtitle: `${t(RECORD_TYPES[r.type].label)} · ${fmtDate(r.date)}${recordSummary(r) ? ` · ${recordSummary(r)}` : ''}`, link: `?record=${r.id}` });
     }
   }
   for (const d of src.documents) {
-    if (has(d.name, d.date, fmtDate(d.date))) results.push({ id: d.id, kind: 'document', title: d.name, subtitle: `Document · ${fmtDate(d.date)}`, link: `/app/reports?doc=${d.id}` });
+    if (has(d.name, d.date, fmtDate(d.date))) results.push({ id: d.id, kind: 'document', title: d.name, subtitle: t('Document · {value}', { value: fmtDate(d.date) }), link: `/app/reports?doc=${d.id}` });
   }
   for (const d of src.doctors) {
     const h = src.hospitals.find((x) => x.id === d.hospitalId);
     if (has(d.fullName, d.specialization, h?.name)) results.push({ id: d.id, kind: 'doctor', title: d.fullName, subtitle: `${d.specialization} · ${h?.name}`, link: `/app/records?doctor=${encodeURIComponent(d.fullName)}` });
   }
   const hospitalNames = new Set(src.records.flatMap((r) => [r.organization?.name, r.data.facility as string | undefined]).filter(Boolean) as string[]);
-  for (const h of hospitalNames) if (has(h)) results.push({ id: `h_${h}`, kind: 'hospital', title: h, subtitle: 'Hospital / clinic', link: `/app/records?hospital=${encodeURIComponent(h)}` });
+  for (const h of hospitalNames) if (has(h)) results.push({ id: `h_${h}`, kind: 'hospital', title: h, subtitle: t('Hospital / clinic'), link: `/app/records?hospital=${encodeURIComponent(h)}` });
   for (const pg of PAGES) if (has(pg.title, pg.subtitle)) results.push(pg);
   return results.slice(0, 30);
 }

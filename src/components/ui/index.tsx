@@ -7,6 +7,7 @@ import { AlertCircle, CloudOff, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { friendlyError } from '../../services';
 
+import { t } from '../../i18n';
 /* ---------------- Button ---------------- */
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'danger-ghost';
@@ -72,7 +73,7 @@ export function Select({ className = '', options, placeholder, ...p }: SelectHTM
       {placeholder !== undefined && <option value="">{placeholder}</option>}
       {options.map((o) => {
         const v = typeof o === 'string' ? o : o.value;
-        const l = typeof o === 'string' ? o || '—' : o.label;
+        const l = typeof o === 'string' ? (o ? t(o) : '—') : o.label;
         return <option key={v} value={v}>{l}</option>;
       })}
     </select>
@@ -141,7 +142,7 @@ export function Modal({ open, onClose, title, description, children, footer, siz
             <h2 id={titleId}>{title}</h2>
             {description && <p>{description}</p>}
           </div>
-          {!hideClose && <Button variant="ghost" size="sm" iconOnly icon={X} aria-label="Close dialog" onClick={onClose} />}
+          {!hideClose && <Button variant="ghost" size="sm" iconOnly icon={X} aria-label={t('Close dialog')} onClick={onClose} />}
         </div>
         {children && <div className="modal-body">{children}</div>}
         {footer && <div className="modal-foot">{footer}</div>}
@@ -160,7 +161,7 @@ export function Drawer({ open, onClose, header, children, footer, label }: { ope
       <aside ref={ref} className="drawer" role="dialog" aria-modal="true" aria-label={label} tabIndex={-1}>
         <div className="drawer-head">
           <div className="grow">{header}</div>
-          <Button variant="ghost" size="sm" iconOnly icon={X} aria-label="Close panel" onClick={onClose} />
+          <Button variant="ghost" size="sm" iconOnly icon={X} aria-label={t('Close panel')} onClick={onClose} />
         </div>
         <div className="drawer-body">{children}</div>
         {footer && <div className="drawer-foot">{footer}</div>}
@@ -202,7 +203,7 @@ export function ConfirmDialog({ open, onClose, onConfirm, title, body, confirmLa
   return (
     <Modal open={open} onClose={() => !busy && onClose()} title={title} size="sm"
       footer={<>
-        <Button onClick={onClose} disabled={busy}>Cancel</Button>
+        <Button onClick={onClose} disabled={busy}>{t('Cancel')}</Button>
         <Button variant={danger ? 'danger' : 'primary'} onClick={go} loading={busy} disabled={disabled} data-autofocus>{confirmLabel}</Button>
       </>}>
       <div className="stack" style={{ '--gap': '12px' } as React.CSSProperties}>
@@ -227,13 +228,13 @@ export function EmptyState({ icon: Icon, title, body, action, compact }: { icon:
   );
 }
 
-export function ErrorState({ error, title = 'Unable to load this', onRetry }: { error: unknown; title?: string; onRetry?: () => void }) {
+export function ErrorState({ error, title = t('Unable to load this'), onRetry }: { error: unknown; title?: string; onRetry?: () => void }) {
   return (
     <div className="empty" role="alert">
       <div className="empty-icon tone-danger"><CloudOff aria-hidden /></div>
       <h3>{title}</h3>
-      <p>{friendlyError(error, 'Please check your connection and try again.')}</p>
-      {onRetry && <Button onClick={onRetry}>Try again</Button>}
+      <p>{friendlyError(error, t('Please check your connection and try again.'))}</p>
+      {onRetry && <Button onClick={onRetry}>{t('Try again')}</Button>}
     </div>
   );
 }
@@ -249,7 +250,7 @@ export function Skeleton({ w = '100%', h = 14, r, style }: { w?: number | string
 
 export function SkeletonList({ rows = 4, card = true }: { rows?: number; card?: boolean }) {
   const inner = (
-    <div className="stack" style={{ padding: card ? 20 : 0, '--gap': '18px' } as React.CSSProperties} aria-busy="true" aria-label="Loading">
+    <div className="stack" style={{ padding: card ? 20 : 0, '--gap': '18px' } as React.CSSProperties} aria-busy="true" aria-label={t('Loading')}>
       {Array.from({ length: rows }).map((_, i) => (
         <div key={i} className="row">
           <Skeleton w={36} h={36} r={10} />

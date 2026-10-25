@@ -7,6 +7,7 @@ import { all, q, read, requireAccount, sb, write } from './client';
 import { toDoctor, toGrant, toHospital, toInvite, toRequest } from './mappers';
 import { stepUp } from './auth';
 
+import { t } from '../../i18n';
 type Row = Record<string, unknown>;
 
 async function directory(ids: string[]): Promise<Map<string, Doctor & { hospital?: Hospital }>> {
@@ -21,7 +22,7 @@ async function directory(ids: string[]): Promise<Map<string, Doctor & { hospital
 
 async function grantById(id: string): Promise<AccessGrant> {
   const rows = await q(sb().from('access_grants').select('*').eq('id', id));
-  if (!rows.length) throw new AppError('NOT_FOUND', 'This access could not be found.');
+  if (!rows.length) throw new AppError('NOT_FOUND', t('This access could not be found.'));
   return toGrant(rows[0]);
 }
 

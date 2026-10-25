@@ -1,7 +1,7 @@
 /** Patient and doctor profiles on the live backend. */
 import type { Doctor, Hospital, MedicalRecord, Patient } from '../../types';
 import { AppError } from '../core';
-import { isSevereAllergy } from '../../lib/recordMeta';
+import { isSevereAllergy, opt } from '../../lib/recordMeta';
 import {
   summarise, validateOnboarding, type HealthSummary, type OnboardingInput, type patientService as MockPatient,
 } from '../patientService';
@@ -14,10 +14,11 @@ import { activeGrant } from './context';
 import { listRecords } from './records';
 import { uploadDocument } from './documents';
 
+import { t } from '../../i18n';
 async function myPatient(): Promise<Patient> {
   const a = await requireAccount('patient');
   const rows = await q(sb().from('patients').select('*').eq('id', a.profileId));
-  if (!rows.length) throw new AppError('NOT_SIGNED_IN', 'Please sign in to continue.');
+  if (!rows.length) throw new AppError('NOT_SIGNED_IN', t('Please sign in to continue.'));
   return toPatient(rows[0]);
 }
 
@@ -48,7 +49,7 @@ export const remotePatientService: typeof MockPatient = {
       // Changing the sign-in email needs confirmation from both addresses; the
       // profile follows automatically once it's confirmed.
       const { error } = await sb().auth.updateUser({ email: email.trim() });
-      if (error) throw new AppError('VALIDATION', 'That email couldn’t be used. Check it and try again.');
+      if (error) throw new AppError('VALIDATION', t('That email couldn’t be used. Check it and try again.'));
     }
     await write('update_patient_profile', { p_patch: rest });
     return myPatient();
@@ -72,7 +73,7 @@ export const remotePatientService: typeof MockPatient = {
     const records: MedicalRecord[] = res.records.map(toRecord);
     const s = summarise(patient, records);
     const warnings: string[] = [];
-    for (const a of s.allergies.filter(isSevereAllergy)) warnings.push(`${String(a.data.severity).toUpperCase()} ALLERGY: ${a.data.allergen} — ${a.data.reaction}`);
+    for (const a of s.allergies.filter(isSevereAllergy)) warnings.push(t('{value} ALLERGY: {allergen} — {reaction}', { value: opt(a.data.severity).toUpperCase(), allergen: a.data.allergen, reaction: a.data.reaction }));
     if (patient.importantNotes) warnings.push(patient.importantNotes);
     return { ...s, warnings };
   },
@@ -82,7 +83,7 @@ export const remoteDoctorService: typeof MockDoctor = {
   async me(): Promise<Doctor & { hospital?: Hospital }> {
     const a = await requireAccount('doctor');
     const rows = await q(sb().from('doctors').select('*, hospitals(*)').eq('user_id', a.id));
-    if (!rows.length) throw new AppError('NOT_SIGNED_IN', 'Please sign in to continue.');
+    if (!rows.length) throw new AppError('NOT_SIGNED_IN', t('Please sign in to continue.'));
     return { ...toDoctor(rows[0]), hospital: rows[0].hospitals ? toHospital(rows[0].hospitals) : undefined };
   },
 
@@ -94,7 +95,7 @@ export const remoteDoctorService: typeof MockDoctor = {
     await requireAccount('doctor');
     const grant = await activeGrant(patientId);
     const [rows, records] = await Promise.all([q(sb().from('patients').select('*').eq('id', patientId)), listRecords(patientId)]);
-    if (!rows.length) throw new AppError('ACCESS_DENIED', 'You no longer have access to this patient’s records. Ask the patient to grant access again.');
+    if (!rows.length) throw new AppError('ACCESS_DENIED', t('You no longer have access to this patient’s records. Ask the patient to grant access again.'));
     const patient = toPatient(rows[0]);
     return { grant, ...summarise({ ...patient, email: '' }, records), grantedBy: patient.fullName };
   },
@@ -102,7 +103,7 @@ export const remoteDoctorService: typeof MockDoctor = {
   /** Entries this doctor added, for patients whose records they can still see. */
   async myRecentEntries() {
     const a = await account();
-    if (!a || a.role !== 'doctor') throw new AppError('ACCESS_DENIED', 'This area isn’t available for your account.');
+    if (!a || a.role !== 'doctor') throw new AppError('ACCESS_DENIED', t('This area isn’t available for your account.'));
     const rows = await q(sb().from('records').select(RECORD_SELECT).eq('created_by->>id', a.profileId).is('parent_id', null).order('created_at', { ascending: false }).limit(8));
     const recs = await toRecords(rows);
     const ids = [...new Set(recs.map((r) => r.patientId))];

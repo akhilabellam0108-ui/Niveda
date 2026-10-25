@@ -50,7 +50,7 @@ with sync_playwright() as p:
     pt.get_by_label("Confirm password").fill("Health2026")
     pt.get_by_role("button", name="Continue").click()
     expect(pt.get_by_text("Please accept to continue")).to_be_visible()
-    pt.locator("label.check input").check()
+    pt.get_by_role("checkbox", name=re.compile("I have read the")).check()
     pt.get_by_role("button", name="Continue").click()
     expect(pt.get_by_role("heading", name="Enter your code")).to_be_visible()
     shot(pt, "otp")

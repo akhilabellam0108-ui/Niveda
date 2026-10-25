@@ -10,17 +10,18 @@ import { DurationPicker, PermissionBadges, PermissionSelector } from './Permissi
 import { QrScanner } from './Qr';
 import { isLive } from '../../config/backend';
 
+import { t } from '../../i18n';
 type DoctorResult = Doctor & { hospital?: Hospital };
 type Step = 'method' | 'find' | 'permissions' | 'duration' | 'review' | 'verify' | 'done' | 'invited';
 
 const METHODS: { key: GrantMethod; label: string; sub: string; icon: typeof QrCode }[] = [
-  { key: 'qr', label: 'Scan QR code', sub: 'At the clinic, from the doctor’s screen', icon: QrCode },
-  { key: 'code', label: 'Enter access code', sub: 'A short code your doctor gives you', icon: KeyRound },
-  { key: 'directory', label: 'Find a doctor', sub: 'Search by name, specialty or hospital', icon: Search },
-  { key: 'invite', label: 'Invite a doctor', sub: 'Your doctor isn’t on the app yet', icon: UserPlus },
+  { key: 'qr', label: t('Scan QR code'), sub: t('At the clinic, from the doctor’s screen'), icon: QrCode },
+  { key: 'code', label: t('Enter access code'), sub: t('A short code your doctor gives you'), icon: KeyRound },
+  { key: 'directory', label: t('Find a doctor'), sub: t('Search by name, specialty or hospital'), icon: Search },
+  { key: 'invite', label: t('Invite a doctor'), sub: t('Your doctor isn’t on the app yet'), icon: UserPlus },
 ];
 
-const STEPS: [Step, string][] = [['find', 'Doctor'], ['permissions', 'What to share'], ['duration', 'How long'], ['review', 'Confirm']];
+const STEPS: [Step, string][] = [['find', 'Doctor'], ['permissions', t('What to share')], ['duration', t('How long')], ['review', 'Confirm']];
 
 export function GrantAccessDialog({ open, onClose, onGranted }: { open: boolean; onClose: () => void; onGranted?: () => void }) {
   const [step, setStep] = useState<Step>('method');
@@ -54,7 +55,7 @@ export function GrantAccessDialog({ open, onClose, onGranted }: { open: boolean;
       go('done');
       onGranted?.();
     } catch (e) {
-      setErr(friendlyError(e, 'Access could not be granted. Please try again.'));
+      setErr(friendlyError(e, t('Access could not be granted. Please try again.')));
       setOtp('');
     } finally {
       setBusy(false);
@@ -62,25 +63,25 @@ export function GrantAccessDialog({ open, onClose, onGranted }: { open: boolean;
   };
 
   const stepIndex = STEPS.findIndex(([s]) => s === step);
-  const title = step === 'done' ? 'Access granted' : step === 'invited' ? 'Invitation recorded' : step === 'verify' ? 'Verify it’s you' : 'Grant doctor access';
+  const title = step === 'done' ? t('Access granted') : step === 'invited' ? t('Invitation recorded') : step === 'verify' ? t('Verify it’s you') : t('Grant doctor access');
 
   const footer = (() => {
     switch (step) {
-      case 'permissions': return <><Button icon={ArrowLeft} variant="ghost" onClick={() => go('find')} style={{ marginRight: 'auto' }}>Back</Button><Button variant="primary" disabled={!perms.length} onClick={() => go('duration')}>Continue</Button></>;
-      case 'duration': return <><Button icon={ArrowLeft} variant="ghost" onClick={() => go('permissions')} style={{ marginRight: 'auto' }}>Back</Button><Button variant="primary" onClick={() => go('review')}>Continue</Button></>;
-      case 'review': return <><Button icon={ArrowLeft} variant="ghost" onClick={() => go('duration')} style={{ marginRight: 'auto' }}>Back</Button><Button variant="primary" icon={ShieldCheck} onClick={() => { go('verify'); void sendCode(); }}>Verify and grant</Button></>;
-      case 'verify': return <><Button variant="ghost" onClick={() => go('review')} disabled={busy} style={{ marginRight: 'auto' }}>Back</Button><Button variant="primary" loading={busy} disabled={otp.length !== 6 || !challenge} onClick={() => verify()}>Grant access</Button></>;
-      case 'done': case 'invited': return <Button variant="primary" onClick={onClose}>Done</Button>;
+      case 'permissions': return <><Button icon={ArrowLeft} variant="ghost" onClick={() => go('find')} style={{ marginRight: 'auto' }}>{t('Back')}</Button><Button variant="primary" disabled={!perms.length} onClick={() => go('duration')}>{t('Continue')}</Button></>;
+      case 'duration': return <><Button icon={ArrowLeft} variant="ghost" onClick={() => go('permissions')} style={{ marginRight: 'auto' }}>{t('Back')}</Button><Button variant="primary" onClick={() => go('review')}>{t('Continue')}</Button></>;
+      case 'review': return <><Button icon={ArrowLeft} variant="ghost" onClick={() => go('duration')} style={{ marginRight: 'auto' }}>{t('Back')}</Button><Button variant="primary" icon={ShieldCheck} onClick={() => { go('verify'); void sendCode(); }}>{t('Verify and grant')}</Button></>;
+      case 'verify': return <><Button variant="ghost" onClick={() => go('review')} disabled={busy} style={{ marginRight: 'auto' }}>{t('Back')}</Button><Button variant="primary" loading={busy} disabled={otp.length !== 6 || !challenge} onClick={() => verify()}>{t('Grant access')}</Button></>;
+      case 'done': case 'invited': return <Button variant="primary" onClick={onClose}>{t('Done')}</Button>;
       default: return undefined;
     }
   })();
 
   return (
     <Modal open={open} onClose={() => !busy && onClose()} title={title} size="md" footer={footer}
-      description={step === 'method' ? 'Choose how to find your doctor. You decide what they see and for how long.' : undefined}>
+      description={step === 'method' ? t('Choose how to find your doctor. You decide what they see and for how long.') : undefined}>
       <div className="stack">
         {stepIndex >= 0 && (
-          <div className="stepper" aria-label={`Step ${stepIndex + 1} of ${STEPS.length}`}>
+          <div className="stepper" aria-label={t('Step {value} of {length}', { value: stepIndex + 1, length: STEPS.length })}>
             {STEPS.map(([s, l], i) => (
               <span key={s} className="row" style={{ '--gap': '8px' } as React.CSSProperties}>
                 {i > 0 && <span className="sep" />}
@@ -103,7 +104,7 @@ export function GrantAccessDialog({ open, onClose, onGranted }: { open: boolean;
 
         {step === 'find' && (
           <>
-            <Button variant="ghost" size="sm" icon={ArrowLeft} onClick={() => go('method')} style={{ alignSelf: 'flex-start' }}>Other ways</Button>
+            <Button variant="ghost" size="sm" icon={ArrowLeft} onClick={() => go('method')} style={{ alignSelf: 'flex-start' }}>{t('Other ways')}</Button>
             {method === 'invite' ? <InviteForm onInvited={() => go('invited')} /> : (
               <FindDoctor method={method} selected={doctor} onSelect={(d) => { setDoctor(d); go('permissions'); }} />
             )}
@@ -114,7 +115,7 @@ export function GrantAccessDialog({ open, onClose, onGranted }: { open: boolean;
 
         {step === 'permissions' && (
           <>
-            <p className="small muted">Choose what {doctor?.fullName} can see. They can add new entries only to the parts you share.</p>
+            <p className="small muted">{t('Choose what {name} can see. They can add new entries only to the parts you share.', { name: doctor?.fullName })}</p>
             <PermissionSelector value={perms} onChange={setPerms} />
           </>
         )}
@@ -123,37 +124,37 @@ export function GrantAccessDialog({ open, onClose, onGranted }: { open: boolean;
 
         {step === 'review' && doctor && (
           <div className="inset stack" style={{ '--gap': '12px' } as React.CSSProperties}>
-            <div><div className="xs subtle strong">CAN SEE AND ADD TO</div><div style={{ marginTop: 6 }}><PermissionBadges value={perms} /></div></div>
+            <div><div className="xs subtle strong">{t('CAN SEE AND ADD TO')}</div><div style={{ marginTop: 6 }}><PermissionBadges value={perms} /></div></div>
             <div className="grid-2">
-              <div><div className="xs subtle strong">FOR</div><div className="strong">{durationLabel(hours)}</div></div>
-              <div><div className="xs subtle strong">ENDS</div><div className="strong">{fmtDateTime(addHours(nowISO(), hours))}</div></div>
+              <div><div className="xs subtle strong">{t('For')}</div><div className="strong">{durationLabel(hours)}</div></div>
+              <div><div className="xs subtle strong">{t('Ends')}</div><div className="strong">{fmtDateTime(addHours(nowISO(), hours))}</div></div>
             </div>
-            <p className="xs muted">Every time they open your record or add to it, it’s logged in your access log. You can revoke access at any time.</p>
+            <p className="xs muted">{t('Every time they open your record or add to it, it’s logged in your access log. You can revoke access at any time.')}</p>
           </div>
         )}
 
         {step === 'verify' && (
           <>
-            <p className="small muted">For your security, confirm with the 6-digit code sent to {challenge?.destination ?? 'your phone'}.</p>
+            <p className="small muted">{t('For your security, confirm with the 6-digit code sent to {destination}.', { destination: challenge?.destination ?? t('your phone') })}</p>
             <OtpInput value={otp} onChange={setOtp} onComplete={(c) => verify(c)} disabled={busy || !challenge} />
             {challenge && <PrototypeCode challenge={challenge} onUse={(c) => { setOtp(c); void verify(c); }} />}
-            <button type="button" className="btn btn-ghost btn-sm" style={{ alignSelf: 'center' }} onClick={sendCode} disabled={busy}>Send a new code</button>
+            <button type="button" className="btn btn-ghost btn-sm" style={{ alignSelf: 'center' }} onClick={sendCode} disabled={busy}>{t('Send a new code')}</button>
           </>
         )}
 
         {step === 'done' && doctor && (
           <div className="success-hero" style={{ padding: '8px 0' }}>
             <div className="ok-icon"><CheckCircle2 aria-hidden /></div>
-            <h3>{doctor.fullName} can now see your record</h3>
-            <p className="small muted">Access to {perms.map((p) => permissionLabel(p).toLowerCase()).join(', ')} ends {fmtDateTime(addHours(nowISO(), hours))}.</p>
+            <h3>{t('{name} can now see your record', { name: doctor.fullName })}</h3>
+            <p className="small muted">{t('Access to {parts} ends {date}.', { parts: perms.map((p) => permissionLabel(p)).join(', '), date: fmtDateTime(addHours(nowISO(), hours)) })}</p>
           </div>
         )}
 
         {step === 'invited' && (
           <div className="success-hero" style={{ padding: '8px 0' }}>
             <div className="ok-icon"><CheckCircle2 aria-hidden /></div>
-            <h3>Invitation saved</h3>
-            <p className="small muted">{isLive ? 'We’ve saved the invitation. Share the Niveda link with your doctor — once they’re verified and join, you can grant them access here.' : 'In the full product your doctor would receive a link to join. Once they do, you can grant them access here. (Prototype: no message is sent.)'}</p>
+            <h3>{t('Invitation saved')}</h3>
+            <p className="small muted">{isLive ? t('We’ve saved the invitation. Share the Niveda link with your doctor — once they’re verified and join, you can grant them access here.') : t('In the full product your doctor would receive a link to join. Once they do, you can grant them access here. (Prototype: no message is sent.)')}</p>
           </div>
         )}
 
@@ -170,7 +171,7 @@ function DoctorSummary({ doctor }: { doctor: DoctorResult }) {
       <div className="grow">
         <div className="strong">{doctor.fullName}</div>
         <div className="xs muted">{doctor.specialization} · <Building2 size={11} style={{ verticalAlign: -1 }} aria-hidden /> {doctor.hospital?.name}</div>
-        <div className="xs subtle">Reg. {doctor.registrationNumber}</div>
+        <div className="xs subtle">{t('Reg.')}{' '}{doctor.registrationNumber}</div>
       </div>
     </div>
   );
@@ -205,8 +206,8 @@ function FindDoctor({ method, onSelect, selected }: { method: GrantMethod; onSel
   if (method === 'directory') {
     return (
       <div className="stack" style={{ '--gap': '10px' } as React.CSSProperties}>
-        <div className="input-wrap"><Search aria-hidden /><Input autoFocus placeholder="e.g. Priya, cardiologist, Lakeview" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search doctors" /></div>
-        {q.length >= 2 && results.length === 0 && <p className="small subtle">No doctors match “{q}”.</p>}
+        <div className="input-wrap"><Search aria-hidden /><Input autoFocus placeholder={t('e.g. Priya, cardiologist, Lakeview')} value={q} onChange={(e) => setQ(e.target.value)} aria-label={t('Search doctors')} /></div>
+        {q.length >= 2 && results.length === 0 && <p className="small subtle">{t('No doctors match “{q}”.', { q })}</p>}
         <ul className="list card">
           {results.map((d) => (
             <li key={d.id}>
@@ -217,7 +218,7 @@ function FindDoctor({ method, onSelect, selected }: { method: GrantMethod; onSel
             </li>
           ))}
         </ul>
-        {q.length < 2 && <p className="xs subtle">Only verified doctors appear in search. You still choose exactly what they can see.</p>}
+        {q.length < 2 && <p className="xs subtle">{t('Only verified doctors appear in search. You still choose exactly what they can see.')}</p>}
       </div>
     );
   }
@@ -226,16 +227,16 @@ function FindDoctor({ method, onSelect, selected }: { method: GrantMethod; onSel
     <div className="stack">
       {method === 'qr' && <QrScanner onResult={onScan} />}
       <form className="row" style={{ alignItems: 'flex-end' }} onSubmit={(e) => { e.preventDefault(); void lookup(code); }}>
-        <Field label={method === 'qr' ? 'Or type the code under the QR' : 'Doctor access code'} className="grow" help={method === 'code' ? 'Try PS-4821 (Dr. Priya Sharma, demo)' : undefined}>
-          {(p) => <Input {...p} autoFocus={method === 'code'} placeholder="e.g. PS-4821" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} autoCapitalize="characters" />}
+        <Field label={method === 'qr' ? t('Or type the code under the QR') : t('Doctor access code')} className="grow" help={method === 'code' ? t('Try PS-4821 (Dr. Priya Sharma, demo)') : undefined}>
+          {(p) => <Input {...p} autoFocus={method === 'code'} placeholder={t('e.g. PS-4821')} value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} autoCapitalize="characters" />}
         </Field>
-        <Button type="submit" loading={busy} disabled={code.trim().length < 4}>Find</Button>
+        <Button type="submit" loading={busy} disabled={code.trim().length < 4}>{t('Find')}</Button>
       </form>
       <InlineError message={err} />
       {found && (
         <div className="card card-pad stack" style={{ '--gap': '12px' } as React.CSSProperties}>
           <DoctorSummary doctor={found} />
-          <Button variant="primary" onClick={() => onSelect(found)}>This is my doctor</Button>
+          <Button variant="primary" onClick={() => onSelect(found)}>{t('This is my doctor')}</Button>
         </div>
       )}
     </div>
@@ -254,11 +255,11 @@ function InviteForm({ onInvited }: { onInvited: () => void }) {
       setErr(undefined);
       try { await accessService.inviteDoctor(name, contact); onInvited(); } catch (x) { setErr(friendlyError(x)); } finally { setBusy(false); }
     }}>
-      <Field label="Doctor’s name" required>{(p) => <Input {...p} value={name} onChange={(e) => setName(e.target.value)} placeholder="Dr. …" />}</Field>
-      <Field label="Email or phone" required>{(p) => <Input {...p} value={contact} onChange={(e) => setContact(e.target.value)} placeholder="doctor@clinic.com" />}</Field>
-      <p className="xs subtle">Inviting doesn’t share anything. You grant access separately once they join.</p>
+      <Field label={t('Doctor’s name')} required>{(p) => <Input {...p} value={name} onChange={(e) => setName(e.target.value)} placeholder={t('Dr. …')} />}</Field>
+      <Field label={t('Email or phone')} required>{(p) => <Input {...p} value={contact} onChange={(e) => setContact(e.target.value)} placeholder="doctor@clinic.com" />}</Field>
+      <p className="xs subtle">{t('Inviting doesn’t share anything. You grant access separately once they join.')}</p>
       <InlineError message={err} />
-      <Button type="submit" variant="primary" loading={busy} disabled={!name.trim() || !contact.trim()}>Send invitation</Button>
+      <Button type="submit" variant="primary" loading={busy} disabled={!name.trim() || !contact.trim()}>{t('Send invitation')}</Button>
     </form>
   );
 }

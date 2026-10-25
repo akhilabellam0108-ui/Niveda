@@ -56,7 +56,7 @@ self.addEventListener('push', (event) => {
     icon: new URL('icon-192.png', scope).href,
     badge: new URL('icon-192.png', scope).href,
     data: { url: d.url || '', taken: d.taken },
-    actions: d.taken ? [{ action: 'taken', title: 'Taken' }, { action: 'open', title: 'Open' }] : [],
+    actions: d.taken ? [{ action: 'taken', title: (d.labels && d.labels.taken) || 'Taken' }, { action: 'open', title: (d.labels && d.labels.open) || 'Open' }] : [],
   }));
 });
 

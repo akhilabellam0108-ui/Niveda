@@ -14,6 +14,8 @@ import { Avatar, Badge, Button, Card, ConfirmDialog, Field, InlineError, Input, 
 import { PermissionBadges } from '../../components/access/PermissionSelector';
 import { ACTION_LABEL } from '../patient/Activity';
 
+import { t } from '../../i18n';
+import { T } from '../../i18n/T';
 /** Sessions, sign-in history and password — shared by patients and doctors. */
 export function SecuritySection() {
   const toast = useToast();
@@ -26,7 +28,7 @@ export function SecuritySection() {
   const deviceIcon = (d: string) => (/Android|iOS|Pixel|iPhone/.test(d) ? Smartphone : /laptop|Windows|macOS/i.test(d) ? Laptop : Monitor);
   return (
     <>
-      <Card title="Signed-in devices" action={(sessions.data?.length ?? 0) > 1 ? <Button size="sm" variant="danger-ghost" icon={LogOut} onClick={() => setConfirmAll(true)}>Sign out others</Button> : undefined}>
+      <Card title={t('Signed-in devices')} action={(sessions.data?.length ?? 0) > 1 ? <Button size="sm" variant="danger-ghost" icon={LogOut} onClick={() => setConfirmAll(true)}>{t('Sign out others')}</Button> : undefined}>
         {!sessions.data ? <SkeletonList rows={2} card={false} /> : (
           <ul className="list">
             {sessions.data.map((s) => {
@@ -34,27 +36,27 @@ export function SecuritySection() {
               return (
                 <li key={s.id} className="list-item">
                   <span className="type-icon sm"><Icon aria-hidden /></span>
-                  <div className="grow"><div className="strong small">{s.device} {s.current && <Badge tone="ok">This device</Badge>}</div><div className="xs muted">{s.location} · active {relativeTime(s.lastActiveAt)}</div></div>
-                  {!s.current && <Button size="sm" variant="ghost" onClick={async () => { try { await authService.revokeSession(s.id); toast('Device signed out'); } catch (e) { toast(friendlyError(e), 'error'); } }}>Sign out</Button>}
+                  <div className="grow"><div className="strong small">{s.device === 'Unknown device' || s.device === 'Test runner' ? t(s.device) : s.device} {s.current && <Badge tone="ok">{t('This device')}</Badge>}</div><div className="xs muted">{s.location === 'This device' || s.location === 'Unknown location' ? t(s.location) : s.location} · {t('active {time}', { time: relativeTime(s.lastActiveAt) })}</div></div>
+                  {!s.current && <Button size="sm" variant="ghost" onClick={async () => { try { await authService.revokeSession(s.id); toast(t('Device signed out')); } catch (e) { toast(friendlyError(e), 'error'); } }}>{t('Sign out')}</Button>}
                 </li>
               );
             })}
           </ul>
         )}
       </Card>
-      <Card title="Password & verification">
+      <Card title={t('Password & verification')}>
         <ul className="list">
-          <li className="list-item"><span className="type-icon sm"><KeyRound aria-hidden /></span><div className="grow"><div className="strong small">Password</div><div className="xs muted">Use a unique password you don’t use elsewhere.</div></div><Button size="sm" onClick={() => setPwOpen(true)}>Change</Button></li>
-          <li className="list-item"><span className="type-icon sm tone-ok"><Fingerprint aria-hidden /></span><div className="grow"><div className="strong small">One-time codes</div><div className="xs muted">Required to sign in, grant access, approve requests and share more.</div></div><Badge tone="ok">On</Badge></li>
+          <li className="list-item"><span className="type-icon sm"><KeyRound aria-hidden /></span><div className="grow"><div className="strong small">{t('Password')}</div><div className="xs muted">{t('Use a unique password you don’t use elsewhere.')}</div></div><Button size="sm" onClick={() => setPwOpen(true)}>{t('Change')}</Button></li>
+          <li className="list-item"><span className="type-icon sm tone-ok"><Fingerprint aria-hidden /></span><div className="grow"><div className="strong small">{t('One-time codes')}</div><div className="xs muted">{t('Required to sign in, grant access, approve requests and share more.')}</div></div><Badge tone="ok">{t('On')}</Badge></li>
           {phone.data?.smsEnabled && (
             <li className="list-item"><span className="type-icon sm"><MessageSquare aria-hidden /></span>
-              <div className="grow"><div className="strong small">Codes by text message</div>
-                <div className="xs muted">{phone.data.verified ? `Codes are texted to ${phone.data.phone}.` : 'Verify your mobile number to get codes by SMS instead of email.'}</div></div>
-              <Button size="sm" onClick={() => setPhoneOpen(true)}>{phone.data.verified ? 'Change number' : 'Verify phone'}</Button></li>
+              <div className="grow"><div className="strong small">{t('Codes by text message')}</div>
+                <div className="xs muted">{phone.data.verified ? t('Codes are texted to {phone}.', { phone: phone.data.phone }) : t('Verify your mobile number to get codes by SMS instead of email.')}</div></div>
+              <Button size="sm" onClick={() => setPhoneOpen(true)}>{phone.data.verified ? t('Change number') : t('Verify phone')}</Button></li>
           )}
         </ul>
       </Card>
-      <Card title="Recent sign-ins">
+      <Card title={t('Recent sign-ins')}>
         {!signIns.data ? <SkeletonList rows={3} card={false} /> : (
           <ul className="list">
             {signIns.data.slice(0, 8).map((a) => (
@@ -63,15 +65,15 @@ export function SecuritySection() {
                 <span className="xs subtle nowrap">{fmtDateTime(a.timestamp)}</span>
               </li>
             ))}
-            {signIns.data.length === 0 && <li className="list-item small subtle">No sign-ins recorded yet.</li>}
+            {signIns.data.length === 0 && <li className="list-item small subtle">{t('No sign-ins recorded yet.')}</li>}
           </ul>
         )}
       </Card>
       <ChangePassword open={pwOpen} onClose={() => setPwOpen(false)} />
       <VerifyPhone open={phoneOpen} initial={phone.data?.phone ?? ''} onClose={() => setPhoneOpen(false)} />
-      <ConfirmDialog open={confirmAll} onClose={() => setConfirmAll(false)} danger confirmLabel="Sign out other devices" title="Sign out everywhere else?"
-        body="Every other device will need to sign in again with your password and a one-time code."
-        onConfirm={async () => { const n = await authService.revokeOtherSessions(); toast(`Signed out ${n} device${n === 1 ? '' : 's'}`); }} />
+      <ConfirmDialog open={confirmAll} onClose={() => setConfirmAll(false)} danger confirmLabel={t('Sign out other devices')} title={t('Sign out everywhere else?')}
+        body={t('Every other device will need to sign in again with your password and a one-time code.')}
+        onConfirm={async () => { const n = await authService.revokeOtherSessions(); toast(n === 1 ? t('Signed out 1 device') : t('Signed out {n} devices', { n })); }} />
     </>
   );
 }
@@ -90,19 +92,19 @@ function VerifyPhone({ open, initial, onClose }: { open: boolean; initial: strin
   };
   const confirm = async (c = code) => {
     setBusy(true); setErr(undefined);
-    try { await authService.confirmPhone(c); toast('Phone verified — codes will now come by SMS'); close(); } catch (e) { setErr(friendlyError(e)); } finally { setBusy(false); }
+    try { await authService.confirmPhone(c); toast(t('Phone verified — codes will now come by SMS')); close(); } catch (e) { setErr(friendlyError(e)); } finally { setBusy(false); }
   };
   return (
-    <Modal open={open} onClose={close} title="Codes by text message" size="sm"
-      footer={<><Button onClick={close}>Cancel</Button>{challenge
-        ? <Button variant="primary" loading={busy} onClick={() => confirm()}>Verify</Button>
-        : <Button variant="primary" loading={busy} onClick={send}>Send code</Button>}</>}>
+    <Modal open={open} onClose={close} title={t('Codes by text message')} size="sm"
+      footer={<><Button onClick={close}>{t('Cancel')}</Button>{challenge
+        ? <Button variant="primary" loading={busy} onClick={() => confirm()}>{t('Verify')}</Button>
+        : <Button variant="primary" loading={busy} onClick={send}>{t('Send code')}</Button>}</>}>
       <div className="stack">
         {!challenge ? (
-          <Field label="Mobile number" help="Indian numbers can be typed without +91.">{(p) => <Input {...p} type="tel" inputMode="tel" autoComplete="tel" value={number || initial} onChange={(e) => setNumber(e.target.value)} />}</Field>
+          <Field label={t('Mobile number')} help={t('Indian numbers can be typed without +91.')}>{(p) => <Input {...p} type="tel" inputMode="tel" autoComplete="tel" value={number || initial} onChange={(e) => setNumber(e.target.value)} />}</Field>
         ) : (
           <>
-            <p className="small muted">Enter the 6-digit code we texted to {challenge.destination}.</p>
+            <p className="small muted">{t('Enter the 6-digit code we texted to {destination}.', { destination: challenge.destination })}</p>
             <OtpInput value={code} onChange={setCode} onComplete={(c) => void confirm(c)} disabled={busy} />
             {!isLive && <PrototypeCode challenge={challenge} onUse={(c) => { setCode(c); void confirm(c); }} />}
           </>
@@ -121,19 +123,19 @@ function ChangePassword({ open, onClose }: { open: boolean; onClose: () => void 
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string>();
   const submit = async () => {
-    if (next.length < 8 || !/\d/.test(next) || !/[A-Za-z]/.test(next)) return setErr('Use at least 8 characters with letters and numbers.');
-    if (next !== confirm) return setErr('New passwords don’t match.');
+    if (next.length < 8 || !/\d/.test(next) || !/[A-Za-z]/.test(next)) return setErr(t('Use at least 8 characters with letters and numbers.'));
+    if (next !== confirm) return setErr(t('New passwords don’t match.'));
     setBusy(true);
     setErr(undefined);
-    try { await authService.changePassword(cur, next); toast('Password changed'); setCur(''); setNext(''); setConfirm(''); onClose(); } catch (e) { setErr(friendlyError(e)); } finally { setBusy(false); }
+    try { await authService.changePassword(cur, next); toast(t('Password changed')); setCur(''); setNext(''); setConfirm(''); onClose(); } catch (e) { setErr(friendlyError(e)); } finally { setBusy(false); }
   };
   return (
-    <Modal open={open} onClose={onClose} title="Change password" size="sm"
-      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" loading={busy} onClick={submit}>Change password</Button></>}>
+    <Modal open={open} onClose={onClose} title={t('Change password')} size="sm"
+      footer={<><Button onClick={onClose}>{t('Cancel')}</Button><Button variant="primary" loading={busy} onClick={submit}>{t('Change password')}</Button></>}>
       <div className="stack">
-        <Field label="Current password">{(p) => <Input {...p} type="password" autoComplete="current-password" value={cur} onChange={(e) => setCur(e.target.value)} />}</Field>
-        <Field label="New password">{(p) => <Input {...p} type="password" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} />}</Field>
-        <Field label="Confirm new password">{(p) => <Input {...p} type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />}</Field>
+        <Field label={t('Current password')}>{(p) => <Input {...p} type="password" autoComplete="current-password" value={cur} onChange={(e) => setCur(e.target.value)} />}</Field>
+        <Field label={t('New password')}>{(p) => <Input {...p} type="password" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} />}</Field>
+        <Field label={t('Confirm new password')}>{(p) => <Input {...p} type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />}</Field>
         <InlineError message={err} />
       </div>
     </Modal>
@@ -141,7 +143,7 @@ function ChangePassword({ open, onClose }: { open: boolean; onClose: () => void 
 }
 
 export function PrivacyPage() {
-  useDocumentTitle(`Privacy & security · ${brand.name}`);
+  useDocumentTitle(`${t('Privacy & security')} · ${brand.name}`);
   const { user } = useSession();
   const toast = useToast();
   const access = useLive(() => accessService.listForPatient(), [user?.id]);
@@ -149,15 +151,15 @@ export function PrivacyPage() {
   const revokeTarget = access.data?.active.find((g) => g.id === revokeId);
   return (
     <>
-      <div className="page-head"><div><h1>Privacy & security</h1><p>How your record is protected, who can see it right now, and the devices signed in to your account.</p></div></div>
+      <div className="page-head"><div><h1>{t('Privacy & security')}</h1><p>{t('How your record is protected, who can see it right now, and the devices signed in to your account.')}</p></div></div>
 
       <section className="card card-pad">
-        <h2 style={{ fontSize: 'var(--t-md)', marginBottom: 14 }}>How your privacy works</h2>
+        <h2 style={{ fontSize: 'var(--t-md)', marginBottom: 14 }}>{t('How your privacy works')}</h2>
         <div className="grid-3">
           {[
-            [LockKeyhole, 'Private by default', 'Nobody — including doctors — can see your record unless you grant access.'],
-            [ShieldCheck, 'You choose what and how long', 'Pick which parts to share and for how long. Access ends automatically; revoke it anytime.'],
-            [Eye, 'Every view is logged', 'Each time a doctor opens, adds to or corrects your record, it’s recorded in your access log.'],
+            [LockKeyhole, t('Private by default'), t('Nobody — including doctors — can see your record unless you grant access.')],
+            [ShieldCheck, t('You choose what and how long'), t('Pick which parts to share and for how long. Access ends automatically; revoke it anytime.')],
+            [Eye, t('Every view is logged'), t('Each time a doctor opens, adds to or corrects your record, it’s recorded in your access log.')],
           ].map(([Icon, t, b]) => {
             const I = Icon as typeof LockKeyhole;
             return <div key={t as string} className="stack" style={{ '--gap': '6px' } as React.CSSProperties}><span className="type-icon tone-accent"><I aria-hidden /></span><div className="strong small">{t as string}</div><div className="small muted">{b as string}</div></div>;
@@ -165,9 +167,9 @@ export function PrivacyPage() {
         </div>
       </section>
 
-      <Card title="Who can see your record now" action={<Link className="card-link" to="/app/access">Manage</Link>}>
+      <Card title={t('Who can see your record now')} action={<Link className="card-link" to="/app/access">{t('Manage')}</Link>}>
         {!access.data ? <SkeletonList rows={2} card={false} /> : access.data.active.length === 0 ? (
-          <div className="list-item"><span className="type-icon sm tone-ok"><LockKeyhole aria-hidden /></span><span className="small">Only you. No doctor has access right now.</span></div>
+          <div className="list-item"><span className="type-icon sm tone-ok"><LockKeyhole aria-hidden /></span><span className="small">{t('Only you. No doctor has access right now.')}</span></div>
         ) : (
           <ul className="list">
             {access.data.active.map((g) => (
@@ -177,24 +179,24 @@ export function PrivacyPage() {
                   <div><span className="strong small">{g.doctor.fullName}</span> <span className="xs muted">· {g.hospital?.name} · <Clock3 size={11} aria-hidden style={{ verticalAlign: -1 }} /> {timeLeft(g.expiresAt)}</span></div>
                   <PermissionBadges value={g.permissions} max={4} />
                 </div>
-                <Button size="sm" variant="danger-ghost" icon={ShieldOff} onClick={() => setRevokeId(g.id)}>Revoke</Button>
+                <Button size="sm" variant="danger-ghost" icon={ShieldOff} onClick={() => setRevokeId(g.id)}>{t('Revoke')}</Button>
               </li>
             ))}
           </ul>
         )}
       </Card>
 
-      <div className="alert alert-accent"><ScrollText aria-hidden /><div>See every view and change in your <Link to="/app/activity">access log</Link>.</div></div>
+      <div className="alert alert-accent"><ScrollText aria-hidden /><div><T text="See every view and change in your {log}." log={<Link to="/app/activity">{t('access log')}</Link>} /></div></div>
 
       <SecuritySection />
 
       <YourRights />
 
-      {!isLive && <div className="alert alert-warn"><Info aria-hidden /><div><div className="alert-title">About this demo</div>Sessions, one-time codes and encryption are simulated here. The live version uses Supabase: real sign-in, access rules enforced by the database, and encryption at rest and in transit.</div></div>}
+      {!isLive && <div className="alert alert-warn"><Info aria-hidden /><div><div className="alert-title">{t('About this demo')}</div>{t('Sessions, one-time codes and encryption are simulated here. The live version uses Supabase: real sign-in, access rules enforced by the database, and encryption at rest and in transit.')}</div></div>}
 
-      <ConfirmDialog open={!!revokeTarget} onClose={() => setRevokeId(undefined)} danger confirmLabel="Revoke access" title={`Revoke ${revokeTarget?.doctor.fullName}’s access?`}
-        body="They immediately lose access. Entries they already added stay in your record."
-        onConfirm={async () => { await accessService.revoke(revokeId!); toast('Access revoked'); }} />
+      <ConfirmDialog open={!!revokeTarget} onClose={() => setRevokeId(undefined)} danger confirmLabel={t('Revoke access')} title={t('Revoke {fullName}’s access?', { fullName: revokeTarget?.doctor.fullName })}
+        body={t('They immediately lose access. Entries they already added stay in your record.')}
+        onConfirm={async () => { await accessService.revoke(revokeId!); toast(t('Access revoked')); }} />
     </>
   );
 }

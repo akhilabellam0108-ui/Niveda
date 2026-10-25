@@ -4,6 +4,7 @@ import type { OtpChallenge } from '../../services';
 import { friendlyError } from '../../services';
 import { Button, InlineError, Modal } from './index';
 
+import { t } from '../../i18n';
 export function OtpInput({ value, onChange, onComplete, disabled, autoFocus = true }: { value: string; onChange: (v: string) => void; onComplete?: (v: string) => void; disabled?: boolean; autoFocus?: boolean }) {
   const refs = useRef<(HTMLInputElement | null)[]>([]);
   useEffect(() => { if (autoFocus) refs.current[0]?.focus(); }, [autoFocus]);
@@ -15,13 +16,13 @@ export function OtpInput({ value, onChange, onComplete, disabled, autoFocus = tr
     if (next.replace(/\s/g, '').length === 6 && !next.includes(' ')) onComplete?.(next);
   };
   return (
-    <div className="otp" role="group" aria-label="6-digit code">
+    <div className="otp" role="group" aria-label={t('6-digit code')}>
       {Array.from({ length: 6 }).map((_, i) => (
         <input
           key={i}
           ref={(el) => { refs.current[i] = el; }}
           inputMode="numeric" autoComplete={i === 0 ? 'one-time-code' : 'off'} maxLength={1}
-          aria-label={`Digit ${i + 1}`} disabled={disabled}
+          aria-label={t('Digit {value}', { value: i + 1 })} disabled={disabled}
           value={value[i]?.trim() ?? ''}
           onChange={(e) => {
             const d = e.target.value.replace(/\D/g, '');
@@ -55,11 +56,11 @@ export function PrototypeCode({ challenge, onUse }: { challenge: OtpChallenge; o
       <div className="row" style={{ '--gap': '10px' } as React.CSSProperties}>
         <FlaskConical size={16} aria-hidden />
         <div>
-          <div className="xs strong">Demo — no email is sent</div>
-          <div className="xs">Code for {challenge.destination}: <code>{challenge.prototypeCode}</code></div>
+          <div className="xs strong">{t('Demo — no email is sent')}</div>
+          <div className="xs">{t('Code for {destination}:', { destination: challenge.destination })} <code>{challenge.prototypeCode}</code></div>
         </div>
       </div>
-      {onUse && <Button size="sm" variant="ghost" onClick={() => onUse(challenge.prototypeCode)}>Fill in</Button>}
+      {onUse && <Button size="sm" variant="ghost" onClick={() => onUse(challenge.prototypeCode)}>{t('Fill in')}</Button>}
     </div>
   );
 }
@@ -115,16 +116,16 @@ export function OtpDialog({ open, onClose, title, description, request, onVerify
   return (
     <Modal open={open} onClose={() => !busy && onClose()} title={title} description={description} size="sm"
       footer={<>
-        <Button onClick={onClose} disabled={busy}>Cancel</Button>
+        <Button onClick={onClose} disabled={busy}>{t('Cancel')}</Button>
         <Button variant="primary" icon={ShieldCheck} onClick={() => verify()} loading={busy} disabled={code.length !== 6 || !challenge}>{confirmLabel}</Button>
       </>}>
       <div className="stack">
         {summary}
-        <p className="small muted">Enter the 6-digit code we sent to {challenge?.destination ?? 'your phone'}.</p>
+        <p className="small muted">{t('Enter the 6-digit code we sent to {destination}.', { destination: challenge?.destination ?? t('your phone') })}</p>
         <OtpInput value={code} onChange={setCode} onComplete={(v) => verify(v)} disabled={busy || !challenge} />
         {challenge && <PrototypeCode challenge={challenge} onUse={(c) => { setCode(c); void verify(c); }} />}
         <InlineError message={err} />
-        <button type="button" className="btn btn-ghost btn-sm" style={{ alignSelf: 'center' }} onClick={send} disabled={busy}>Send a new code</button>
+        <button type="button" className="btn btn-ghost btn-sm" style={{ alignSelf: 'center' }} onClick={send} disabled={busy}>{t('Send a new code')}</button>
       </div>
     </Modal>
   );
