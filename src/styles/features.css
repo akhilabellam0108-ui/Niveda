@@ -294,3 +294,16 @@
 }
 .brief .card-head { flex-wrap: wrap; row-gap: 4px; }
 .brief .card-head h2 { white-space: nowrap; }
+
+/* ---------- Vaccination schedule ---------- */
+.vax-list { display: flex; flex-direction: column; }
+.vax-row { display: flex; align-items: center; gap: var(--s3); padding: 12px var(--s4); border-top: 1px solid var(--border); flex-wrap: wrap; }
+.vax-row:first-child { border-top: 0; }
+.vax-row.as-button { width: 100%; background: none; border-left: 0; border-right: 0; border-bottom: 0; font: inherit; color: inherit; cursor: pointer; text-align: left; }
+.vax-row.as-button:first-child { border-top: 0; }
+.vax-row.as-button:hover { background: var(--surface-2); }
+.vax-given .strong { color: var(--text-2); }
+@media (max-width: 760px) { .vax-row { padding: 12px var(--s3); } }
+
+/* Sign-up: taking over a record a parent kept */
+.handover-box { display: grid; gap: 10px; padding: 12px 14px; border: 1px dashed var(--border, #d6d3cc); border-radius: var(--r-md, 10px); }

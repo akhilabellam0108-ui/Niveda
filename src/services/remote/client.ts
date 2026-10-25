@@ -147,7 +147,10 @@ export interface Account {
   isAdmin?: boolean;
   onboarded: boolean;
   createdAt: string;
+  /** The profile being worked on: the person's own, or a child's they manage. */
   profileId: string;
+  /** The signed-in person's own profile. */
+  ownProfileId?: string;
   email: string;
   phone: string;
 }

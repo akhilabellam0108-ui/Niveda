@@ -21,6 +21,8 @@ import { ReportsPage } from './pages/patient/Reports';
 import { EmergencyPage } from './pages/patient/Emergency';
 import { AccessPage } from './pages/patient/Access';
 import { ActivityPage } from './pages/patient/Activity';
+import { FamilyPage } from './pages/patient/Family';
+import { VaccinesPage } from './pages/patient/Vaccines';
 import { NotificationsPage } from './pages/shared/Notifications';
 import { PrivacyPage, SecuritySection } from './pages/shared/Security';
 import { ProfilePage, SettingsPage } from './pages/shared/Settings';
@@ -131,6 +133,8 @@ export default function App() {
                   <Route path="emergency" element={<EmergencyPage />} />
                   <Route path="access" element={<AccessPage />} />
                   <Route path="activity" element={<ActivityPage />} />
+                  <Route path="family" element={<FamilyPage />} />
+                  <Route path="vaccines" element={<VaccinesPage />} />
                   <Route path="notifications" element={<NotificationsPage />} />
                   <Route path="privacy" element={<PrivacyPage />} />
                   <Route path="profile" element={<ProfilePage />} />

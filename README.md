@@ -27,19 +27,20 @@ Niveda runs in two modes:
 4. [Try it in five minutes](#try-it-in-five-minutes)
 5. [Features — patient](#features--patient)
 6. [Features — doctor](#features--doctor)
-7. [How access works](#how-access-works)
-8. [How a doctor adds to the record](#how-a-doctor-adds-to-the-record)
-9. [Corrections and versioning](#corrections-and-versioning)
-10. [The audit trail](#the-audit-trail)
-11. [Design](#design)
-12. [Languages](#languages)
-13. [Technology](#technology)
-14. [Project structure](#project-structure)
-15. [Data model](#data-model)
-16. [Testing](#testing)
-17. [Demo vs live](#demo-vs-live)
-18. [What must be built before production](#what-must-be-built-before-production)
-19. [Roadmap ideas](#roadmap-ideas)
+7. [Children's records](#childrens-records)
+8. [How access works](#how-access-works)
+9. [How a doctor adds to the record](#how-a-doctor-adds-to-the-record)
+10. [Corrections and versioning](#corrections-and-versioning)
+11. [The audit trail](#the-audit-trail)
+12. [Design](#design)
+13. [Languages](#languages)
+14. [Technology](#technology)
+15. [Project structure](#project-structure)
+16. [Data model](#data-model)
+17. [Testing](#testing)
+18. [Demo vs live](#demo-vs-live)
+19. [What must be built before production](#what-must-be-built-before-production)
+20. [Roadmap ideas](#roadmap-ideas)
 
 ---
 
@@ -120,7 +121,7 @@ Password for all demo accounts: **`demo1234`**. Logging in starts with **Who's l
 
 | Who | Email | Good for |
 |---|---|---|
-| **Meera Iyer** (patient) | `meera@example.com` | A 9-year history (2018–2026), daily medicine reminders with a week of dose history, a pending access request, and active, expired and revoked doctors |
+| **Meera Iyer** (patient) | `meera@example.com` | A 9-year history (2018–2026), daily medicine reminders with a week of dose history, a pending access request, and active, expired and revoked doctors. Also keeps the record of her daughter **Anaya** (9 months) — switch to it from the top bar |
 | **Dr. Priya Sharma** (general physician) | `priya.sharma@lakeview.example` | Has access to Meera and Rohan — try adding a consultation |
 | **Dr. Arvind Rao** (cardiologist) | `arvind.rao@lakeview.example` | Waiting for Meera to approve his request |
 
@@ -216,6 +217,19 @@ Password for all demo accounts: **`demo1234`**. Logging in starts with **Who's l
 - **My activity** — everything you have viewed or added (the same entries patients see), plus profile and security pages.
 
 ---
+
+## Children's records
+
+Niveda is meant to hold a record from birth, so a parent can keep a child's record until the child is old enough to keep it themselves.
+
+- **No account for the child.** A parent adds a child from *Family* (name, date of birth, sex, blood group and optional birth details — place, weight, length, head circumference, weeks of pregnancy, type of delivery). They confirm they are the parent or legal guardian; that declaration is stored with the time.
+- **Switching records.** The profile switcher in the top bar opens the child's record. A coloured bar across the top says whose record is open, so it's never mistaken for your own. Everything — timeline, medicines, reports, emergency card, sharing with doctors — works the same way.
+- **More than one guardian.** Invite the other parent (or a grandparent, legal guardian or relative) by their email or phone; they need their own Niveda account and must accept with the same declaration. Every change a guardian makes is logged in the child's access log with *that guardian's* name and relationship, and doctors see who keeps the record.
+- **Vaccinations.** Children under 17 get a *Vaccinations* page with India's Universal Immunization Programme schedule (birth to 16 years, from the Ministry of Health's UIP chart), each dose's due date from the date of birth, what's given, due, overdue or past its age limit, and *Mark as given* (date, place, batch). Reminders go to every guardian a week before a dose and again if it's overdue. Vaccines outside the UIP (for example the IAP schedule used by many private clinics) are added as ordinary vaccination entries. The schedule lives in [`src/lib/immunization.ts`](src/lib/immunization.ts) and the `uip_schedule` table; a test keeps them identical.
+- **Reminders.** In-app medicine alarms follow the record that is open; pushed reminders reach a guardian's phone for each child they manage, prefixed with the child's name.
+- **Turning 18.** A guardian makes a one-time handover code (valid 30 days). The young adult signs up with their own email and phone, the same date of birth and the code; the whole record — same patient ID, same history — becomes theirs and every guardian's access ends. They can let a former guardian keep helping (for example with appointments) and stop it any time.
+- **Safeguards.** The last guardian of a child can't leave or delete their account until another guardian has joined. Nominee and account deletion can only be changed by an account holder on their own record.
+- **Try it:** sign in as Meera — she keeps the record of her daughter *Anaya* (9 months), with her birth vaccines already marked.
 
 ## How access works
 
@@ -512,7 +526,8 @@ Still needs you (accounts, money or outside people):
 ## Roadmap ideas
 
 - Reading uploaded reports with OCR and suggesting structured entries for the patient to confirm.
-- Family accounts — parents managing a child's record, carers for elderly relatives.
+- Carers for elderly relatives (a parent asking a grown-up child to help manage their record) — the guardianship model already supports it; it needs an invite flow started by the record's owner.
+- Verified parental identity (DigiLocker) when adding a child, and IAP schedule support alongside the UIP.
 - Lab-result trends (HbA1c, haemoglobin, blood pressure) over the years.
 - Medication reminders and refill tracking.
 - Translations into Hindi, Telugu, Tamil and other languages, with clinically reviewed terminology.

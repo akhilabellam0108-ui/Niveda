@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Eye, EyeOff, ShieldCheck, Clock3, ScrollText, FlaskConical, Stethoscope, UserRound, Mail, ChevronRight, ArrowLeftRight } from 'lucide-react';
 import { brand } from '../../config/brand';
-import { authService, friendlyError, isLive, type OtpChallenge } from '../../services';
+import { AppError, authService, friendlyError, isLive, type OtpChallenge } from '../../services';
 import { isAdult } from '../../services/authService';
 import { DEMO_ACCOUNTS, DEMO_PASSWORD } from '../../mock/seed';
 import { useSession } from '../../state/SessionContext';
@@ -197,7 +197,8 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 export function SignupPage() {
   useDocumentTitle(`${t('Create account')} · ${brand.name}`);
   const navigate = useNavigate();
-  const [f, setF] = useState({ fullName: '', dateOfBirth: '', email: '', phone: '', password: '', confirm: '' });
+  const [f, setF] = useState({ fullName: '', dateOfBirth: '', email: '', phone: '', password: '', confirm: '', handoverCode: '' });
+  const [hasCode, setHasCode] = useState(false);
   const [agree, setAgree] = useState(false);
   const [optIn, setOptIn] = useState({ reminders: true, productUpdates: false });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -210,11 +211,12 @@ export function SignupPage() {
     if (f.fullName.trim().length < 2) v.fullName = t('Enter your full name');
     if (!f.dateOfBirth) v.dateOfBirth = t('Enter your date of birth');
     else if (f.dateOfBirth > toISODate(new Date()) || f.dateOfBirth < '1900-01-01') v.dateOfBirth = t('Check your date of birth');
-    else if (!isAdult(f.dateOfBirth)) v.dateOfBirth = t('You need to be 18 or older to create your own account. A parent or guardian can keep your records.');
+    else if (!isAdult(f.dateOfBirth)) v.dateOfBirth = t('You need to be 18 or older to create your own account. A parent or guardian can add you as a child profile in their account.');
     if (!EMAIL_RE.test(f.email.trim())) v.email = t('Enter a valid email address');
     if (f.phone.replace(/\D/g, '').length < 10) v.phone = t('Enter a 10-digit mobile number');
     if (f.password.length < 8 || !/[A-Za-z]/.test(f.password) || !/\d/.test(f.password)) v.password = t('Use at least 8 characters with letters and numbers');
     if (f.confirm !== f.password) v.confirm = t('Passwords don’t match');
+    if (hasCode && !/^HO-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(f.handoverCode.trim().toUpperCase())) v.handoverCode = t('Enter the code as it was given, like HO-ABCD-EFGH-JKLM');
     if (!agree) v.agree = t('Please accept to continue');
     setErrors(v);
     return !Object.keys(v).length;
@@ -226,8 +228,8 @@ export function SignupPage() {
     setBusy(true);
     setErr(undefined);
     try {
-      const challenge = await authService.startSignUp({ fullName: f.fullName, dateOfBirth: f.dateOfBirth, email: f.email, phone: f.phone, password: f.password, consents: optIn });
-      navigate('/verify', { state: { flow: 'signup', challenge } });
+      const challenge = await authService.startSignUp({ fullName: f.fullName, dateOfBirth: f.dateOfBirth, email: f.email, phone: f.phone, password: f.password, consents: optIn, handoverCode: hasCode ? f.handoverCode.trim().toUpperCase() : undefined });
+      navigate('/verify', { state: { flow: 'signup', challenge, handover: hasCode } });
     } catch (x) {
       setErr(friendlyError(x));
     } finally {
@@ -249,6 +251,14 @@ export function SignupPage() {
           <Field label={t('Mobile number')} required error={errors.phone}>{(p) => <Input {...p} type="tel" autoComplete="tel" value={f.phone} onChange={set('phone')} placeholder="+91" />}</Field>
           <Field label={t('Password')} required error={errors.password} help={t('8+ characters, letters and numbers')}>{(p) => <PasswordInput {...p} autoComplete="new-password" value={f.password} onChange={set('password')} />}</Field>
           <Field label={t('Confirm password')} required error={errors.confirm}>{(p) => <PasswordInput {...p} autoComplete="new-password" value={f.confirm} onChange={set('confirm')} />}</Field>
+        </div>
+        <div className="handover-box">
+          <label className="check"><input type="checkbox" checked={hasCode} onChange={(e) => setHasCode(e.target.checked)} /><span>{t('My parent or guardian kept my record on {app} and gave me a handover code', { app: brand.name })}</span></label>
+          {hasCode && (
+            <Field label={t('Handover code')} required error={errors.handoverCode} help={t('Your name, date of birth and phone number must be your own. Your date of birth must match the record.')}>
+              {(p) => <Input {...p} autoComplete="off" spellCheck={false} value={f.handoverCode} onChange={set('handoverCode')} placeholder="HO-XXXX-XXXX-XXXX" style={{ textTransform: 'uppercase', fontFamily: 'var(--font-mono, monospace)' }} />}
+            </Field>
+          )}
         </div>
         <label className="check">
           <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} aria-invalid={!!errors.agree} />
@@ -277,11 +287,45 @@ export function VerifyPage() {
   const location = useLocation();
   const { refresh } = useSession();
   const toast = useToast();
-  const state = location.state as { flow: 'login' | 'signup'; challenge: OtpChallenge; as?: LoginRole } | null;
+  const state = location.state as { flow: 'login' | 'signup'; challenge: OtpChallenge; as?: LoginRole; handover?: boolean } | null;
   const [challenge, setChallenge] = useState(state?.challenge);
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string>();
+  // Live only: the email is verified but the handover code didn't match. Try another, or start fresh.
+  const [handoverFailed, setHandoverFailed] = useState(false);
+  const [newCode, setNewCode] = useState('');
+
+  const finish = async (user: Awaited<ReturnType<typeof authService.completeSignUp>>) => {
+    await refresh();
+    navigate(homeFor(user), { replace: true });
+  };
+  const retryHandover = async (c: string | null) => {
+    setBusy(true);
+    setErr(undefined);
+    try {
+      await finish(await authService.retrySignUpHandover(c ? c.trim().toUpperCase() : null));
+    } catch (x) {
+      setErr(friendlyError(x));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (handoverFailed) {
+    return (
+      <AuthLayout>
+        <div>
+          <h1>{t('Handover code didn’t match')}</h1>
+          <p className="lede">{t('Your email is verified. Check the code and that your date of birth matches the record your parent kept — or start a new, empty record instead.')}</p>
+        </div>
+        <Field label={t('Handover code')}>{(p) => <Input {...p} autoComplete="off" spellCheck={false} value={newCode} onChange={(e) => setNewCode(e.target.value)} placeholder="HO-XXXX-XXXX-XXXX" style={{ textTransform: 'uppercase' }} />}</Field>
+        <InlineError message={err} />
+        <Button variant="primary" size="lg" block loading={busy} disabled={!newCode.trim()} onClick={() => retryHandover(newCode)}>{t('Try this code')}</Button>
+        <Button block disabled={busy} onClick={() => retryHandover(null)}>{t('Start a new record instead')}</Button>
+      </AuthLayout>
+    );
+  }
 
   if (!state || !authService.hasPending(state.flow)) {
     return (
@@ -307,6 +351,10 @@ export function VerifyPage() {
       }
       navigate(homeFor(user), { replace: true });
     } catch (x) {
+      if (isLive && state.flow === 'signup' && state.handover && x instanceof AppError && x.code === 'VALIDATION' && /handover/i.test(x.message)) {
+        setHandoverFailed(true);
+        return;
+      }
       setErr(friendlyError(x));
       setCode('');
     } finally {

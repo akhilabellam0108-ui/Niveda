@@ -75,7 +75,8 @@ export interface EmergencyContact {
 
 export interface Patient {
   id: ID;
-  userId: ID;
+  /** Empty for a child's profile kept by a parent or guardian, until it is handed over at 18. */
+  userId?: ID;
   patientCode: string; // human-facing identifier shared with doctors
   fullName: string;
   dateOfBirth: ISODate;
@@ -89,7 +90,57 @@ export interface Patient {
   emergencyCardEnabled: boolean;
   /** Things the patient explicitly confirmed they don't have (so "nothing recorded" isn't ambiguous). */
   declarations?: HealthDeclarations;
+  /** Birth details — mainly for children's profiles. */
+  birthDetails?: BirthDetails;
   createdAt: ISODateTime;
+}
+
+export interface BirthDetails {
+  place?: string;
+  weightKg?: number;
+  lengthCm?: number;
+  headCm?: number;
+  gestationWeeks?: number;
+  delivery?: string;
+  notes?: string;
+}
+
+/* ---------- Children's profiles (parents and guardians) ---------- */
+
+export type GuardianRelationship = 'mother' | 'father' | 'parent' | 'legal_guardian' | 'grandparent' | 'relative';
+
+/**
+ * A person who manages someone else's record. Until 18 a child's record is kept by their
+ * parents or guardians (kind 'guardian'); at 18 it is handed over and the guardians' access
+ * ends — unless the new adult asks one of them to keep helping (kind 'carer').
+ */
+export interface Guardianship {
+  id: ID;
+  /** The profile being managed. */
+  childId: ID;
+  /** The guardian's own patient profile. */
+  guardianId: ID;
+  relationship: GuardianRelationship;
+  kind: 'guardian' | 'carer';
+  status: 'invited' | 'active' | 'ended';
+  /** Patient id of the guardian who sent the invitation. */
+  invitedBy?: ID;
+  /** When the guardian confirmed they are the child's parent or legal guardian (DPDP s.9). */
+  declaredAt?: ISODateTime;
+  createdAt: ISODateTime;
+  acceptedAt?: ISODateTime;
+  endedAt?: ISODateTime;
+  endReason?: 'handover' | 'left' | 'removed' | 'declined';
+}
+
+/** A one-time code a guardian gives the young adult so they can take over their record. */
+export interface HandoverCode {
+  childId: ID;
+  code: string;
+  createdBy: ID;
+  createdAt: ISODateTime;
+  expiresAt: ISODateTime;
+  usedAt?: ISODateTime;
 }
 
 export interface HealthDeclarations {
@@ -159,6 +210,8 @@ export interface Actor {
   role: Role | 'system';
   name: string;
   organization?: string;
+  /** Set when a parent or guardian acted for a child (or a carer for an adult). */
+  guardian?: { id: ID; name: string };
 }
 
 export type RecordFieldValue = string | number | undefined;
@@ -296,7 +349,14 @@ export type AuditAction =
   | 'consent_withdrawn'
   | 'deletion_requested'
   | 'deletion_cancelled'
-  | 'grievance_filed';
+  | 'grievance_filed'
+  | 'profile_created'
+  | 'guardian_invited'
+  | 'guardian_added'
+  | 'guardian_left'
+  | 'handover_started'
+  | 'handover_completed'
+  | 'carer_added';
 
 export interface AuditLog {
   id: ID;
@@ -317,6 +377,9 @@ export interface Notification {
   createdAt: ISODateTime;
   read: boolean;
   link?: string;
+  /** For a child's (or cared-for person's) record: whose it is, so opening it switches profile. */
+  profileId?: ID;
+  profileName?: string;
 }
 
 export interface Session {
@@ -384,6 +447,10 @@ export interface Database {
   consents?: ConsentRecord[];
   deletionRequests?: DeletionRequest[];
   grievances?: Grievance[];
+  guardianships?: Guardianship[];
+  handovers?: HandoverCode[];
+  /** Vaccine reminders already sent, as "childId:doseKey:soon|overdue". */
+  vaccineNotices?: string[];
 }
 
 /* ---------- ABHA (Ayushman Bharat Digital Mission) ---------- */

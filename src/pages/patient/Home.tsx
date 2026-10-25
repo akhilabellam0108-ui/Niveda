@@ -1,12 +1,14 @@
+import { Fragment } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  FilePlus2, Upload, Pill, TriangleAlert, ShieldCheck, Clock3, Siren, Droplet, CalendarDays, IdCard, ArrowRight, CalendarClock, Activity, Inbox,
+  FilePlus2, Upload, Pill, TriangleAlert, ShieldCheck, Clock3, Siren, Droplet, CalendarDays, IdCard, ArrowRight, CalendarClock, Activity, Inbox, Syringe, Baby,
 } from 'lucide-react';
 import { accessService, medicationService, patientService, recordService } from '../../services';
 import { DoseList, useClock } from '../../components/medications/Doses';
 import { useLive, useDocumentTitle } from '../../state/hooks';
 import { useSession } from '../../state/SessionContext';
-import { ageFrom, fmtDate, fmtMonthYear, timeLeft, now } from '../../lib/dates';
+import { ageFrom, fmtDate, fmtMonthYear, timeLeft, now, todayISO } from '../../lib/dates';
+import { ageLabel, doseLabel, nextDoses, onSchedule, scheduleFor } from '../../lib/immunization';
 import { RECORD_TYPES, recordTitle, isSevereAllergy, opt } from '../../lib/recordMeta';
 import { brand } from '../../config/brand';
 import { Avatar, Badge, Button, Card, EmptyState, ErrorState, Skeleton, SkeletonList } from '../../components/ui';
@@ -23,7 +25,7 @@ function greeting() {
 
 export function PatientHome() {
   useDocumentTitle(`${t('Home')} · ${brand.name}`);
-  const { patient } = useSession();
+  const { patient, managing } = useSession();
   const ui = usePatientUI();
   const navigate = useNavigate();
   const summary = useLive(() => patientService.summary(), []);
@@ -34,6 +36,10 @@ export function PatientHome() {
   if (!patient) return null;
   const s = summary.data;
   const age = ageFrom(patient.dateOfBirth);
+  const today = todayISO();
+  const child = onSchedule(patient.dateOfBirth, today);
+  const vaccines = child && records.data ? nextDoses(scheduleFor(patient.dateOfBirth, records.data, today)).filter((d) => !d.some) : [];
+  const birth = patient.birthDetails;
 
   const recent = records.data ? buildTimeline(records.data).filter((e) => e.kind === 'record').slice(0, 5) : [];
 
@@ -43,10 +49,12 @@ export function PatientHome() {
         <div className="row" style={{ '--gap': '18px' } as React.CSSProperties}>
           <Avatar name={patient.fullName} src={patient.photoDataUrl} size="lg" />
           <div>
-            <p className="small muted">{greeting()},</p>
+            <p className="small muted">{managing && !patient.userId ? t('Child’s record') : `${greeting()},`}</p>
             <h1>{patient.fullName}</h1>
             <div className="id-strip">
-              {age !== undefined && <span><CalendarDays aria-hidden /><T text="{n} years" n={<b>{age}</b>} /></span>}
+              {age !== undefined && (age < 2
+                ? <span><CalendarDays aria-hidden /><b>{ageLabel(patient.dateOfBirth, today)}</b></span>
+                : <span><CalendarDays aria-hidden /><T text="{n} years" n={<b>{age}</b>} /></span>)}
               <span><Droplet aria-hidden />{t('Blood group')}{' '}<b>{patient.bloodGroup ?? '—'}</b></span>
               <span><IdCard aria-hidden />{t('ID')} <b className="num">{patient.patientCode}</b></span>
             </div>
@@ -71,13 +79,29 @@ export function PatientHome() {
         </div>
       )}
 
+      {child && vaccines.length > 0 && (
+        <Link to="/app/vaccines" className={`alert ${vaccines.some((d) => d.status === 'overdue') ? 'alert-warn' : 'alert-accent'}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+          <Syringe aria-hidden />
+          <div className="grow">
+            <div className="alert-title">
+              {vaccines[0].status === 'upcoming' ? t('Next vaccines: {date}', { date: fmtDate(vaccines[0].dueDate) })
+                : vaccines.some((d) => d.status === 'overdue') ? t('Vaccines overdue') : t('Vaccines due now')}
+            </div>
+            <div className="small">{vaccines.slice(0, 6).map((d) => `${d.vaccine} (${doseLabel(d.dose)})`).join(' · ')}</div>
+          </div>
+          <ArrowRight aria-hidden />
+        </Link>
+      )}
+
       <section aria-label={t('Quick actions')} className="quick-actions">
         <button className="qa" onClick={() => ui.addRecord()}><FilePlus2 aria-hidden />{t('Add medical record')}</button>
         <button className="qa" onClick={() => ui.upload()}><Upload aria-hidden />{t('Upload report')}</button>
         <button className="qa" onClick={() => ui.addRecord('medication')}><Pill aria-hidden />{t('Add medication')}</button>
         <button className="qa" onClick={() => ui.addRecord('allergy')}><TriangleAlert aria-hidden />{t('Add allergy')}</button>
         <button className="qa" onClick={() => ui.grantAccess()}><ShieldCheck aria-hidden />{t('Grant doctor access')}</button>
-        <button className="qa" onClick={() => navigate('/app/timeline')}><Clock3 aria-hidden />{t('View timeline')}</button>
+        {child
+          ? <button className="qa" onClick={() => navigate('/app/vaccines')}><Syringe aria-hidden />{t('Vaccinations')}</button>
+          : <button className="qa" onClick={() => navigate('/app/timeline')}><Clock3 aria-hidden />{t('View timeline')}</button>}
       </section>
 
       <section className="card" aria-label={t('Record at a glance')}>
@@ -178,6 +202,7 @@ export function PatientHome() {
             )}
           </Card>
 
+          {birth && <BirthCard birth={birth} />}
           <Card title={t('Health summary')}>
             {!s ? <SkeletonList rows={2} card={false} /> : (
               <ul className="list">
@@ -199,5 +224,26 @@ export function PatientHome() {
         </div>
       </div>
     </>
+  );
+}
+
+/** A child's birth details, kept with their record. */
+export function BirthCard({ birth }: { birth: NonNullable<import('../../types').Patient['birthDetails']> }) {
+  const rows: [string, string][] = [
+    [t('Place of birth'), birth.place ?? ''],
+    [t('Birth weight'), birth.weightKg ? t('{n} kg', { n: birth.weightKg }) : ''],
+    [t('Length'), birth.lengthCm ? t('{n} cm', { n: birth.lengthCm }) : ''],
+    [t('Head circumference'), birth.headCm ? t('{n} cm', { n: birth.headCm }) : ''],
+    [t('Weeks of pregnancy at birth'), birth.gestationWeeks ? String(birth.gestationWeeks) : ''],
+    [t('Delivery'), birth.delivery ? t(birth.delivery) : ''],
+    [t('Notes'), birth.notes ?? ''],
+  ].filter(([, v]) => v) as [string, string][];
+  if (!rows.length) return null;
+  return (
+    <Card title={<span className="row" style={{ gap: 6 }}><Baby size={16} aria-hidden />{t('Birth details')}</span>}>
+      <dl className="kv" style={{ padding: '4px 20px 16px' }}>
+        {rows.map(([k, v]) => <Fragment key={k}><dt>{k}</dt><dd>{v}</dd></Fragment>)}
+      </dl>
+    </Card>
   );
 }

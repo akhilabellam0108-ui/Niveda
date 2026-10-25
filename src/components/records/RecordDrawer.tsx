@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Lock, PencilLine, Ban, FlaskConical, History, Building2, CornerDownRight } from 'lucide-react';
 import type { MedicalRecord, RecordData, RecordVersion } from '../../types';
-import { RECORD_TYPES, fieldLabel, recordTitle, typeLabel, validateData, INTERNAL_KEYS } from '../../lib/recordMeta';
+import { RECORD_TYPES, addedByLabel, fieldLabel, recordTitle, typeLabel, validateData, INTERNAL_KEYS } from '../../lib/recordMeta';
+import { useSession } from '../../state/SessionContext';
 import { fmtDate, fmtDateTime, fmtLongDate, todayISO } from '../../lib/dates';
 import { documentService, isMedicationActive, recordService, friendlyError, type DocumentView, type NewFile } from '../../services';
 import { useLive } from '../../state/hooks';
@@ -20,6 +21,7 @@ interface Props {
 }
 
 export function RecordDrawer({ recordId, onClose, onOpenRecord, viewer }: Props) {
+  const selfId = useSession().family?.self.id;
   const live = useLive(() => (recordId ? recordService.get(recordId) : Promise.resolve(undefined)), [recordId]);
   const rec = live.data?.record;
   const docs = useLive(() => (rec ? documentService.list(rec.patientId) : Promise.resolve([] as DocumentView[])), [rec?.id, rec?.attachments.length]);
@@ -64,7 +66,7 @@ export function RecordDrawer({ recordId, onClose, onOpenRecord, viewer }: Props)
             <div className="attribution">
               <Avatar name={rec.createdBy.name} size="sm" doctor={rec.createdBy.role === 'doctor'} />
               <div className="grow">
-                <div className="strong">{rec.createdBy.role === 'patient' && viewer === 'patient' ? t('Added by you') : t('Added by {name}', { name: rec.createdBy.name })}</div>
+                <div className="strong">{addedByLabel(rec.createdBy, viewer, selfId)}</div>
                 <div className="xs muted">
                   {rec.organization?.name && <><Building2 size={12} aria-hidden style={{ verticalAlign: -2 }} /> {rec.organization.name} · </>}
                   {fmtDateTime(rec.createdAt)}

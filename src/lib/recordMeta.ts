@@ -1,6 +1,7 @@
-import type { PermissionKey, RecordData, RecordType, MedicalRecord } from '../types';
+import type { PermissionKey, RecordData, RecordType, MedicalRecord, Actor } from '../types';
 
 import { t } from '../i18n';
+import { doseLabel } from './immunization';
 export type FieldKind = 'text' | 'textarea' | 'date' | 'select' | 'number';
 
 export interface FieldDef {
@@ -250,6 +251,19 @@ export const PERMISSIONS: PermissionMeta[] = [
   { key: 'sensitive', label: 'Other sensitive records', description: t('Anything you filed under "Other"'), sensitive: true, defaultOn: false },
 ];
 
+/**
+ * Who added an entry, as the reader should see it. `selfId` is the reader's own patient
+ * profile (patients only): their own entries say "Added by you".
+ */
+export function addedByLabel(by: Actor, viewer: 'patient' | 'doctor', selfId?: string): string {
+  if (by.guardian) return viewer === 'patient' && by.guardian.id === selfId ? t('Added by you') : t('Added by {name}, parent or guardian', { name: by.guardian.name });
+  if (by.role === 'patient') {
+    if (viewer === 'doctor') return t('Added by patient');
+    return !selfId || by.id === selfId ? t('Added by you') : t('Added by {name}', { name: by.name });
+  }
+  return t('Added by {name}', { name: by.name });
+}
+
 /** Permission name in English — for saved text (notifications, access log). */
 export const permissionLabelEn = (k: PermissionKey) => PERMISSIONS.find((p) => p.key === k)?.label ?? k;
 /** Permission name in the interface language. */
@@ -277,7 +291,8 @@ export const opt = (v: unknown): string => {
 export function recordSummary(r: Pick<MedicalRecord, 'type' | 'data'>): string {
   const meta = RECORD_TYPES[r.type];
   return meta.summaryKeys
-    .map((k) => opt(r.data[k]))
+    // Doses from the national schedule are saved in English ("Dose 2", "Booster") and shown translated.
+    .map((k) => (r.type === 'vaccination' && k === 'dose' && typeof r.data.dose === 'string' ? doseLabel(r.data.dose) : opt(r.data[k])))
     .filter((v) => v !== undefined && String(v).trim() !== '')
     .join(' · ');
 }
@@ -302,7 +317,7 @@ export function cleanData(type: RecordType, data: RecordData): RecordData {
 }
 
 /** Keys the system manages that aren't user-editable fields. */
-export const INTERNAL_KEYS = new Set(['medStatus', 'discontinuedOn', 'discontinueReason', 'resultRecordId', 'orderRecordId']);
+export const INTERNAL_KEYS = new Set(['medStatus', 'discontinuedOn', 'discontinueReason', 'resultRecordId', 'orderRecordId', 'uipKey']);
 
 export function validateData(type: RecordType, data: RecordData): Record<string, string> {
   const errors: Record<string, string> = {};

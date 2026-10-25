@@ -37,10 +37,10 @@ export function toRecord(r: Row): MedicalRecord {
 
 export function toPatient(p: Row): Patient {
   return {
-    id: p.id, userId: p.user_id, patientCode: p.patient_code, fullName: p.full_name, dateOfBirth: p.date_of_birth,
+    id: p.id, userId: p.user_id ?? undefined, patientCode: p.patient_code, fullName: p.full_name, dateOfBirth: p.date_of_birth,
     sex: p.sex ?? '', email: p.email ?? '', phone: p.phone ?? '', bloodGroup: opt(p.blood_group), photoDataUrl: opt(p.photo_data_url),
     emergencyContact: opt(p.emergency_contact), importantNotes: opt(p.important_notes),
-    emergencyCardEnabled: !!p.emergency_card_enabled, declarations: opt(p.declarations), createdAt: ts(p.created_at),
+    emergencyCardEnabled: !!p.emergency_card_enabled, declarations: opt(p.declarations), birthDetails: opt(p.birth_details), createdAt: ts(p.created_at),
   };
 }
 
@@ -83,6 +83,7 @@ export const toAudit = (a: Row): AuditLog => ({
 
 export const toNotification = (n: Row): Notification => ({
   id: n.id, userId: n.user_id, kind: n.kind, title: n.title, body: n.body, createdAt: ts(n.created_at), read: n.read, link: opt(n.link),
+  profileId: opt(n.profile_id), profileName: opt(n.profile_name),
 });
 
 export const toDocument = (d: Row): MedicalDocument => ({

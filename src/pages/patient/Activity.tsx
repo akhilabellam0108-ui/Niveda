@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { Eye, FilePlus2, PencilLine, ShieldCheck, ShieldOff, TimerOff, Inbox, LogIn, LogOut, KeyRound, FileUp, Trash2, Download, Siren, UserPlus, Ban, Check, X, UserRound, MonitorSmartphone, ScrollText, SlidersHorizontal, Smartphone, Link2, Unlink, Undo2, MessageSquareWarning } from 'lucide-react';
+import { Eye, FilePlus2, PencilLine, ShieldCheck, ShieldOff, TimerOff, Inbox, LogIn, LogOut, KeyRound, FileUp, Trash2, Download, Siren, UserPlus, Ban, Check, X, UserRound, MonitorSmartphone, ScrollText, SlidersHorizontal, Smartphone, Link2, Unlink, Undo2, MessageSquareWarning, Baby, UsersRound, UserMinus, KeyRound as Key, HeartHandshake } from 'lucide-react';
 import type { AuditAction, AuditLog } from '../../types';
 import { auditService } from '../../services';
 import { useLive, useDocumentTitle } from '../../state/hooks';
+import { useSession } from '../../state/SessionContext';
 import { brand } from '../../config/brand';
 import { fmtLongDate, fmtTime } from '../../lib/dates';
 import { Badge, Card, EmptyState, ErrorState, SkeletonList, Avatar } from '../../components/ui';
@@ -43,6 +44,13 @@ export const ACTION_LABEL: Record<AuditAction, string> = {
   deletion_requested: t('Asked to delete the account'),
   deletion_cancelled: t('Cancelled account deletion'),
   grievance_filed: t('Raised a grievance'),
+  profile_created: t('Created this child’s record'),
+  guardian_invited: t('Invited a parent or guardian'),
+  guardian_added: t('Joined as a parent or guardian'),
+  guardian_left: t('Stopped managing the record'),
+  handover_started: t('Made a handover code'),
+  handover_completed: t('Took over the record'),
+  carer_added: t('Let someone keep helping'),
 };
 
 const ICON: Record<AuditAction, [LucideIcon, string]> = {
@@ -56,6 +64,8 @@ const ICON: Record<AuditAction, [LucideIcon, string]> = {
   phone_verified: [Smartphone, 'tone-ok'], abha_linked: [Link2, 'tone-ok'], abha_unlinked: [Unlink, ''],
   consent_given: [ShieldCheck, 'tone-ok'], consent_withdrawn: [ShieldOff, 'tone-warn'],
   deletion_requested: [Trash2, 'tone-danger'], deletion_cancelled: [Undo2, ''], grievance_filed: [MessageSquareWarning, 'tone-warn'],
+  profile_created: [Baby, 'tone-accent'], guardian_invited: [UserPlus, 'tone-info'], guardian_added: [UsersRound, 'tone-ok'], guardian_left: [UserMinus, ''],
+  handover_started: [Key, 'tone-warn'], handover_completed: [Key, 'tone-ok'], carer_added: [HeartHandshake, 'tone-ok'],
 };
 
 const FILTERS: { key: string; label: string; match: (a: AuditLog) => boolean }[] = [
@@ -82,8 +92,13 @@ function metaBadges(a: AuditLog): string[] {
 }
 
 export function AuditRow({ a, showPatient }: { a: AuditLog & { patientName?: string }; showPatient?: boolean }) {
-  const [Icon, tone] = ICON[a.action];
-  const who = a.actor.role === 'patient' ? (showPatient ? a.actor.name : t('You')) : a.actor.name;
+  const { family, managing } = useSession();
+  const [Icon, tone] = ICON[a.action] ?? [ScrollText, ''];
+  const selfId = family?.self.id;
+  // A parent acting for a child is named; "You" only for the person reading.
+  const who = a.actor.guardian
+    ? (a.actor.guardian.id === selfId ? t('You') : a.actor.guardian.name)
+    : a.actor.role === 'patient' ? (showPatient || managing || (selfId && a.actor.id !== selfId) ? a.actor.name : t('You')) : a.actor.name;
   const badges = metaBadges(a);
   return (
     <div className="audit-item">

@@ -34,6 +34,8 @@ import { abhaService as demoAbha } from './abhaService';
 import { remoteAbhaService } from './remote/abha';
 import { privacyService as demoPrivacy } from './privacyService';
 import { remotePrivacyService } from './remote/privacy';
+import { familyService as demoFamily } from './familyService';
+import { remoteFamilyService } from './remote/family';
 
 export { isLive };
 export const authService = isLive ? remoteAuthService : demoAuth;
@@ -53,6 +55,7 @@ export const applicationService = isLive ? remoteApplicationService : demoApplic
 export const adminService = isLive ? remoteAdminService : demoAdmin;
 export const abhaService = isLive ? remoteAbhaService : demoAbha;
 export const privacyService = isLive ? remotePrivacyService : demoPrivacy;
+export const familyService = isLive ? remoteFamilyService : demoFamily;
 /** Pushed medicine reminders need a server, so the demo has none. */
 export const pushService = isLive ? remotePushService : {
   saveSubscription: async (..._a: [string, string, string, string]) => undefined,
@@ -80,5 +83,7 @@ export { AppError, friendlyError } from './core';
 export { formatAbhaNumber, validateAbhaInput } from './abhaService';
 export { CONSENT_DEFAULTS, CONSENT_PURPOSES, GRIEVANCE_CATEGORIES, DELETION_DAYS, GRIEVANCE_DAYS } from './privacyService';
 export type { Nominee } from './privacyService';
+export { RELATIONSHIPS, relationshipLabel, DELIVERY_TYPES, HANDOVER_DAYS, validateChild } from './familyService';
+export type { FamilyOverview, ManagedProfile, NewChildInput, PersonRef } from './familyService';
 export type { AbhaMethod, AbhaVerifyResult } from './abhaService';
 export { MEDICAL_COUNCILS, REGISTER_CHECK_URL, DEMO_ONLY_MESSAGE, validateApplication } from './applicationService';

@@ -7,6 +7,7 @@
  * allowed to see, so the brief never reveals a section the patient hasn't shared.
  */
 import type { MedicalRecord, PermissionKey } from '../types';
+import { doseLabel } from './immunization';
 import { ALLERGY_SEVERITY_RANK, PERMISSIONS, opt, recordTitle } from './recordMeta';
 import { addDays, fmtDate, parseDate, toISODate } from './dates';
 
@@ -158,7 +159,7 @@ export function buildBrief(records: MedicalRecord[], permissions: PermissionKey[
     if (!due || due > soon) continue;
     // A later dose of the same vaccine means this one is no longer due.
     if (of('vaccination').some((x) => x.id !== r.id && x.date > r.date && testKey(recordTitle(x)) === testKey(recordTitle(r)))) continue;
-    openItems.push({ kind: 'vaccine_due', recordId: r.id, date: due, title: due < today ? t('Overdue: {value}', { value: recordTitle(r) }) : t('Due: {value}', { value: recordTitle(r) }), detail: s(r.data.dose) || undefined, flag: due < today ? 'danger' : 'warn' });
+    openItems.push({ kind: 'vaccine_due', recordId: r.id, date: due, title: due < today ? t('Overdue: {value}', { value: recordTitle(r) }) : t('Due: {value}', { value: recordTitle(r) }), detail: s(r.data.dose) ? doseLabel(s(r.data.dose)) : undefined, flag: due < today ? 'danger' : 'warn' });
   }
   openItems.sort((a, b) => a.date.localeCompare(b.date));
 

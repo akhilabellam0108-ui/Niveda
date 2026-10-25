@@ -9,9 +9,10 @@ import { perTab } from '../mock/storage';
 import { addHours, nowISO } from '../lib/dates';
 import { hashPassword, patientCode, uid } from '../lib/ids';
 import { brand } from '../config/brand';
-import { AppError, SESSION_KEY, actorFor, audit, requireCtx } from './core';
+import { AppError, PROFILE_KEY, SESSION_KEY, actorFor, audit, requireCtx } from './core';
 import { otpService, type OtpChallenge } from './otpService';
 import { DEMO_ONLY_MESSAGE } from './applicationService';
+import { checkHandover, completeHandover } from './familyService';
 
 import { t } from '../i18n';
 const SESSION_HOURS = 12;
@@ -24,14 +25,12 @@ export interface SignUpInput {
   password: string;
   /** Optional purposes agreed to at sign-up (the record itself is always required). */
   consents?: { reminders?: boolean; productUpdates?: boolean };
+  /** From a parent or guardian: take over the record they kept for you. */
+  handoverCode?: string;
 }
 
-/** Must be 18 to open your own account (DPDP Act s.9). */
-export function isAdult(dateOfBirth: string, today = new Date()): boolean {
-  const d = new Date(`${dateOfBirth}T00:00:00`);
-  const eighteen = new Date(d.getFullYear() + 18, d.getMonth(), d.getDate());
-  return eighteen <= today;
-}
+export { isAdult } from '../lib/immunization';
+import { isAdult } from '../lib/immunization';
 
 interface PendingSignup extends SignUpInput { challengeId: string }
 interface PendingLogin { challengeId: string; userId: string; phone: string }
@@ -60,6 +59,7 @@ async function startSession(userId: string): Promise<Session> {
     const actor = actorFor(db, user);
     audit(db, { patientId: user.role === 'patient' ? user.profileId : undefined, actor, action: 'signed_in', target: { type: 'session', id: s.id, label: s.device } });
     perTab.set(SESSION_KEY, JSON.stringify({ sessionId: s.id }));
+    perTab.remove(PROFILE_KEY);
     return s;
   });
 }
@@ -76,6 +76,7 @@ export const authService = {
     if (db.users.some((u) => norm(u.email) === norm(input.email))) throw new AppError('CONFLICT', t('An account with this email already exists. Try signing in instead.'));
     if (db.users.some((u) => normPhone(u.phone) === normPhone(input.phone))) throw new AppError('CONFLICT', t('This phone number is already linked to an account.'));
     if (!isAdult(input.dateOfBirth)) throw new AppError('VALIDATION', t('You need to be 18 or older to create your own account. A parent or guardian can keep your records for now.'));
+    if (input.handoverCode?.trim()) await checkHandover(input.handoverCode, input.dateOfBirth);
     const challenge = otpService.request('signup', input.phone);
     pendingSignup = { ...input, challengeId: challenge.id };
     return challenge;
@@ -88,23 +89,34 @@ export const authService = {
     const input = pendingSignup;
     const salt = uid('salt');
     const hash = await hashPassword(input.password, salt);
+    if (input.handoverCode?.trim()) await checkHandover(input.handoverCode, input.dateOfBirth);
     const user = await mutate((db) => {
       const t = nowISO();
       const userId = uid('usr');
-      const patient: Patient = {
-        id: uid('pat'), userId, patientCode: patientCode(brand.patientIdPrefix), fullName: input.fullName.trim(),
-        dateOfBirth: input.dateOfBirth, email: input.email.trim(), phone: input.phone.trim(), emergencyCardEnabled: false, createdAt: t,
-      };
-      const u: User = { id: userId, role: 'patient', email: patient.email, phone: patient.phone, passwordHash: hash, passwordSalt: salt, createdAt: t, profileId: patient.id, onboarded: false };
+      const handover = input.handoverCode?.trim();
+      let patient: Patient;
+      if (handover) {
+        // The record a parent kept becomes this person's: same timeline, same patient ID.
+        patient = completeHandover(db, handover, userId, input.email.trim(), input.phone.trim());
+        patient.fullName = input.fullName.trim() || patient.fullName;
+      } else {
+        patient = {
+          id: uid('pat'), userId, patientCode: patientCode(brand.patientIdPrefix), fullName: input.fullName.trim(),
+          dateOfBirth: input.dateOfBirth, email: input.email.trim(), phone: input.phone.trim(), emergencyCardEnabled: false, createdAt: t,
+        };
+        db.patients.push(patient);
+      }
+      const u: User = { id: userId, role: 'patient', email: patient.email, phone: patient.phone, passwordHash: hash, passwordSalt: salt, createdAt: t, profileId: patient.id, onboarded: !!handover };
       db.users.push(u);
-      db.patients.push(patient);
       const version = brand.privacyNoticeVersion;
       db.consents = [...(db.consents ?? []),
         { id: uid('cns'), userId, purpose: 'core_record', granted: true, noticeVersion: version, at: t },
         ...(input.consents?.reminders !== undefined ? [{ id: uid('cns'), userId, purpose: 'reminders' as const, granted: input.consents.reminders, noticeVersion: version, at: t }] : []),
         ...(input.consents?.productUpdates !== undefined ? [{ id: uid('cns'), userId, purpose: 'product_updates' as const, granted: input.consents.productUpdates, noticeVersion: version, at: t }] : [])];
       audit(db, { patientId: patient.id, actor: { id: patient.id, role: 'patient', name: patient.fullName }, action: 'account_created', target: { type: 'account', label: 'Patient account' } });
-      db.notifications.push({ id: uid('ntf'), userId, kind: 'security', title: `Welcome to ${brand.name}`, body: 'Your record is private by default. Only doctors you grant access to can see it, and every view is logged.', createdAt: t, read: false, link: '/app/privacy' });
+      db.notifications.push(handover
+        ? { id: uid('ntf'), userId, kind: 'security', title: `Welcome to ${brand.name}`, body: 'The health record your parents kept for you is now yours. Only doctors you grant access to can see it, and every view is logged.', createdAt: t, read: false, link: '/app/family' }
+        : { id: uid('ntf'), userId, kind: 'security', title: `Welcome to ${brand.name}`, body: 'Your record is private by default. Only doctors you grant access to can see it, and every view is logged.', createdAt: t, read: false, link: '/app/privacy' });
       return u;
     });
     pendingSignup = null;
@@ -134,6 +146,11 @@ export const authService = {
     await startSession(userId);
     const db = await getDb();
     return db.users.find((u) => u.id === userId)!;
+  },
+
+  /** Live backend only: sign-up stopped on a handover code that didn't match (the demo checks it before sending the code). */
+  async retrySignUpHandover(_code: string | null): Promise<User> {
+    throw new AppError('OTP_EXPIRED', t('Your sign-up has timed out. Please start again.'));
   },
 
   resendCode(purpose: 'signup' | 'login'): OtpChallenge {

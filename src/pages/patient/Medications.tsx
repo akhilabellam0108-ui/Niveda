@@ -11,7 +11,8 @@ import { useLive, useDocumentTitle } from '../../state/hooks';
 import { useToast } from '../../state/ToastContext';
 import { brand } from '../../config/brand';
 import { fmtDate } from '../../lib/dates';
-import { ALLERGY_SEVERITY_RANK, isSevereAllergy, opt } from '../../lib/recordMeta';
+import { ALLERGY_SEVERITY_RANK, addedByLabel, isSevereAllergy, opt } from '../../lib/recordMeta';
+import { useSession } from '../../state/SessionContext';
 import { Badge, Button, Card, ConfirmDialog, EmptyState, ErrorState, Field, InlineError, Input, Modal, SkeletonList, Tabs } from '../../components/ui';
 import { StatusBadge, TypeIcon } from '../../components/records/RecordCard';
 import { usePatientUI } from '../../components/layout/PatientShell';
@@ -22,6 +23,7 @@ import { isLive, backend } from '../../config/backend';
 import { t } from '../../i18n';
 import { T } from '../../i18n/T';
 export function MedicationsPage() {
+  const selfId = useSession().family?.self.id;
   useDocumentTitle(`${t('Medications')} · ${brand.name}`);
   const ui = usePatientUI();
   const toast = useToast();
@@ -93,7 +95,7 @@ export function MedicationsPage() {
                 })()}
                 <div className="rec-meta">
                   <span><CalendarDays aria-hidden />{fmtDate(m.date)} → {m.data.discontinuedOn ? t('stopped {value}', { value: fmtDate(String(m.data.discontinuedOn)) }) : m.data.endDate ? fmtDate(String(m.data.endDate)) : 'ongoing'}</span>
-                  <span><UserRound aria-hidden />{m.data.prescriber ? String(m.data.prescriber) : m.createdBy.role === 'patient' ? t('Added by you') : m.createdBy.name}</span>
+                  <span><UserRound aria-hidden />{m.data.prescriber ? String(m.data.prescriber) : m.createdBy.role === 'doctor' ? m.createdBy.name : addedByLabel(m.createdBy, 'patient', selfId)}</span>
                 </div>
               </div>
               <div className="med-actions">

@@ -7,7 +7,7 @@ import { delay, mutate } from '../mock/db';
 import { addHours, nowISO } from '../lib/dates';
 import { randomDigits, uid } from '../lib/ids';
 import { brand } from '../config/brand';
-import { AppError, audit, requireCtx } from './core';
+import { AppError, audit, guardiansOf, managedBy, requireCtx, requireOwnProfile } from './core';
 import { otpService, type OtpChallenge } from './otpService';
 import { DEFAULT_PREFS } from './settingsService';
 
@@ -69,6 +69,7 @@ export const privacyService = {
 
   async setNominee(n: Nominee | null): Promise<void> {
     const ctx = await requireCtx('patient');
+    requireOwnProfile(ctx, t('A nominee is chosen by the record’s owner. Switch back to your own profile to name yours.'));
     if (n && (!n.name.trim() || !n.relationship.trim() || n.phone.replace(/\D/g, '').length < 10)) throw new AppError('VALIDATION', t('Give your nominee’s name, relationship and phone number.'));
     await mutate((db) => {
       const p = db.patients.find((x) => x.id === ctx.patient!.id) as unknown as { nominee?: Nominee | null };
@@ -95,6 +96,10 @@ export const privacyService = {
     otpService.verify(pendingDeletion.challengeId, code, 'delete_account');
     pendingDeletion = null;
     if ((ctx.db.deletionRequests ?? []).some((d) => d.userId === ctx.user.id && d.status === 'pending')) throw new AppError('CONFLICT', t('Your account is already scheduled for deletion.'));
+    const me = ctx.self ?? ctx.patient;
+    const stranded = me && managedBy(ctx.db, me.id).some((g) => g.kind === 'guardian' && !ctx.db.patients.find((p) => p.id === g.childId)?.userId
+      && guardiansOf(ctx.db, g.childId).filter((x) => x.kind === 'guardian').length <= 1);
+    if (stranded) throw new AppError('CONFLICT', t('You’re the only guardian of a child’s record. Invite another parent or guardian first, so the record isn’t lost.'));
     await delay();
     return mutate((db) => {
       const t = nowISO();
