@@ -16,10 +16,13 @@ import { testAlarm } from '../../components/medications/Doses';
 import { isLive } from '../../config/backend';
 import { AbhaCard } from '../../components/abha/AbhaCard';
 
+import { t } from '../../i18n';
+import { T } from '../../i18n/T';
+import { LanguagePicker } from '../../components/ui/LanguagePicker';
 /* ---------------- Profile ---------------- */
 
 export function ProfilePage() {
-  useDocumentTitle(`Profile · ${brand.name}`);
+  useDocumentTitle(`${t('Profile')} · ${brand.name}`);
   const { patient } = useSession();
   const toast = useToast();
   const [f, setF] = useState({ fullName: '', dateOfBirth: '', sex: '', phone: '', email: '', bloodGroup: '', ecName: '', ecRel: '', ecPhone: '' });
@@ -40,46 +43,45 @@ export function ProfilePage() {
         fullName: f.fullName, dateOfBirth: f.dateOfBirth, sex: f.sex as 'female' | 'male' | 'other' | '', phone: f.phone, email: f.email, bloodGroup: f.bloodGroup || undefined,
         emergencyContact: { name: f.ecName, relationship: f.ecRel, phone: f.ecPhone },
       });
-      toast('Profile saved');
+      toast(t('Profile saved'));
     } catch (x) { setErr(friendlyError(x)); } finally { setBusy(false); }
   };
 
   return (
     <>
-      <div className="page-head"><div><h1>Profile</h1><p>Your personal details. Doctors with access see your name, age and blood group.</p></div></div>
+      <div className="page-head"><div><h1>{t('Profile')}</h1><p>{t('Your personal details. Doctors with access see your name, age and blood group.')}</p></div></div>
       <section className="card card-pad row" style={{ '--gap': '18px', flexWrap: 'wrap' } as React.CSSProperties}>
         <Avatar name={patient.fullName} src={patient.photoDataUrl} size="xl" />
         <div className="grow">
           <h2 className="display" style={{ fontSize: 26 }}>{patient.fullName}</h2>
-          <div className="small muted">{ageFrom(patient.dateOfBirth)} years · born {fmtDate(patient.dateOfBirth)} · member since {fmtDate(patient.createdAt)}</div>
+          <div className="small muted">{t('{n} years', { n: ageFrom(patient.dateOfBirth) })} · {t('born {date}', { date: fmtDate(patient.dateOfBirth) })} · {t('member since {date}', { date: fmtDate(patient.createdAt) })}</div>
           <div className="row" style={{ marginTop: 8 }}>
-            <span className="small">Patient ID <b className="num">{patient.patientCode}</b></span>
-            <Button size="sm" variant="ghost" icon={Copy} onClick={() => { void navigator.clipboard?.writeText(patient.patientCode); toast('Patient ID copied'); }}>Copy</Button>
+            <span className="small">{t('Patient ID')}{' '}<b className="num">{patient.patientCode}</b></span>
+            <Button size="sm" variant="ghost" icon={Copy} onClick={() => { void navigator.clipboard?.writeText(patient.patientCode); toast(t('Patient ID copied')); }}>{t('Copy')}</Button>
           </div>
         </div>
         <label className="btn btn-secondary">
-          <Camera aria-hidden />Change photo
-          <input type="file" accept="image/*" hidden onChange={async (e) => { const file = e.target.files?.[0]; if (!file) return; try { await patientService.updateProfile({ photoDataUrl: await readImage(file) }); toast('Photo updated'); } catch { toast('That image couldn’t be used.', 'error'); } }} />
+          <Camera aria-hidden />{t('Change photo')}<input type="file" accept="image/*" hidden onChange={async (e) => { const file = e.target.files?.[0]; if (!file) return; try { await patientService.updateProfile({ photoDataUrl: await readImage(file) }); toast(t('Photo updated')); } catch { toast(t('That image couldn’t be used.'), 'error'); } }} />
         </label>
       </section>
       <form className="card card-pad stack" onSubmit={save}>
-        <h2 style={{ fontSize: 'var(--t-md)' }}>Personal details</h2>
+        <h2 style={{ fontSize: 'var(--t-md)' }}>{t('Personal details')}</h2>
         <div className="form-grid">
-          <Field label="Full name" required>{(p) => <Input {...p} value={f.fullName} onChange={set('fullName')} />}</Field>
-          <Field label="Date of birth" required>{(p) => <Input {...p} type="date" value={f.dateOfBirth} onChange={set('dateOfBirth')} />}</Field>
-          <Field label="Sex">{(p) => <Select {...p} value={f.sex} onChange={set('sex')} placeholder="Prefer not to say" options={[{ value: 'female', label: 'Female' }, { value: 'male', label: 'Male' }, { value: 'other', label: 'Other' }]} />}</Field>
-          <Field label="Blood group">{(p) => <Select {...p} value={f.bloodGroup} onChange={set('bloodGroup')} placeholder="Unknown" options={BLOOD_GROUPS} />}</Field>
-          <Field label="Mobile number" help="Used for one-time codes.">{(p) => <Input {...p} type="tel" value={f.phone} onChange={set('phone')} />}</Field>
-          <Field label="Email">{(p) => <Input {...p} type="email" value={f.email} onChange={set('email')} />}</Field>
+          <Field label={t('Full name')} required>{(p) => <Input {...p} value={f.fullName} onChange={set('fullName')} />}</Field>
+          <Field label={t('Date of birth')} required>{(p) => <Input {...p} type="date" value={f.dateOfBirth} onChange={set('dateOfBirth')} />}</Field>
+          <Field label={t('Sex')}>{(p) => <Select {...p} value={f.sex} onChange={set('sex')} placeholder={t('Prefer not to say')} options={[{ value: 'female', label: t('Female') }, { value: 'male', label: t('Male') }, { value: 'other', label: t('Other') }]} />}</Field>
+          <Field label={t('Blood group')}>{(p) => <Select {...p} value={f.bloodGroup} onChange={set('bloodGroup')} placeholder={t('Unknown')} options={BLOOD_GROUPS} />}</Field>
+          <Field label={t('Mobile number')} help={t('Used for one-time codes.')}>{(p) => <Input {...p} type="tel" value={f.phone} onChange={set('phone')} />}</Field>
+          <Field label={t('Email')}>{(p) => <Input {...p} type="email" value={f.email} onChange={set('email')} />}</Field>
         </div>
-        <h2 style={{ fontSize: 'var(--t-md)', marginTop: 8 }}>Emergency contact</h2>
+        <h2 style={{ fontSize: 'var(--t-md)', marginTop: 8 }}>{t('Emergency contact')}</h2>
         <div className="form-grid">
-          <Field label="Name" required className="wide">{(p) => <Input {...p} value={f.ecName} onChange={set('ecName')} />}</Field>
-          <Field label="Relationship" required>{(p) => <Input {...p} value={f.ecRel} onChange={set('ecRel')} />}</Field>
-          <Field label="Phone" required>{(p) => <Input {...p} type="tel" value={f.ecPhone} onChange={set('ecPhone')} />}</Field>
+          <Field label={t('Name')} required className="wide">{(p) => <Input {...p} value={f.ecName} onChange={set('ecName')} />}</Field>
+          <Field label={t('Relationship')} required>{(p) => <Input {...p} value={f.ecRel} onChange={set('ecRel')} />}</Field>
+          <Field label={t('Phone')} required>{(p) => <Input {...p} type="tel" value={f.ecPhone} onChange={set('ecPhone')} />}</Field>
         </div>
         <InlineError message={err} />
-        <div><Button type="submit" variant="primary" loading={busy}>Save changes</Button></div>
+        <div><Button type="submit" variant="primary" loading={busy}>{t('Save changes')}</Button></div>
       </form>
       <AbhaCard />
     </>
@@ -89,16 +91,16 @@ export function ProfilePage() {
 /* ---------------- Settings ---------------- */
 
 const SECTIONS = [
-  { key: 'account', label: 'Account', icon: UserRound },
-  { key: 'notifications', label: 'Notifications', icon: Bell },
-  { key: 'appearance', label: 'Appearance', icon: Palette },
-  { key: 'language', label: 'Language', icon: Languages },
-  { key: 'export', label: 'Data & export', icon: Download },
-  { key: 'help', label: 'Help & support', icon: LifeBuoy },
+  { key: 'account', label: t('Account'), icon: UserRound },
+  { key: 'notifications', label: t('Notifications'), icon: Bell },
+  { key: 'appearance', label: t('Appearance'), icon: Palette },
+  { key: 'language', label: t('Language'), icon: Languages },
+  { key: 'export', label: t('Data & export'), icon: Download },
+  { key: 'help', label: t('Help & support'), icon: LifeBuoy },
 ];
 
 export function SettingsPage({ base = '/app/settings', role = 'patient' }: { base?: string; role?: 'patient' | 'doctor' }) {
-  useDocumentTitle(`Settings · ${brand.name}`);
+  useDocumentTitle(`${t('Settings')} · ${brand.name}`);
   const { section = 'account' } = useParams();
   const { signOut, prefs, user } = useSession();
   const navigate = useNavigate();
@@ -106,82 +108,83 @@ export function SettingsPage({ base = '/app/settings', role = 'patient' }: { bas
   const [resetOpen, setResetOpen] = useState(false);
   const sections = SECTIONS.filter((s) => role === 'patient' || s.key !== 'export');
   const setPref = async (p: Partial<Preferences>) => {
-    try { const next = await settingsService.update(p); if (p.theme) applyTheme(next.theme); toast('Saved'); } catch (e) { toast(friendlyError(e), 'error'); }
+    try { const next = await settingsService.update(p); if (p.theme) applyTheme(next.theme); toast(t('Saved')); } catch (e) { toast(friendlyError(e), 'error'); }
   };
 
   return (
     <>
-      <div className="page-head"><div><h1>Settings</h1></div></div>
+      <div className="page-head"><div><h1>{t('Settings')}</h1></div></div>
       <div className="settings-layout">
-        <nav className="settings-nav" aria-label="Settings sections">
+        <nav className="settings-nav" aria-label={t('Settings sections')}>
           {sections.map((s) => <NavLink key={s.key} to={`${base}/${s.key}`} className={() => `nav-link ${section === s.key ? 'active' : ''}`}><s.icon aria-hidden />{s.label}</NavLink>)}
-          <button className="nav-link" style={{ border: 0, background: 'none', cursor: 'pointer' }} onClick={async () => { await signOut(); navigate('/login'); }}><LogOut aria-hidden />Log out</button>
+          <button className="nav-link" style={{ border: 0, background: 'none', cursor: 'pointer' }} onClick={async () => { await signOut(); navigate('/login'); }}><LogOut aria-hidden />{t('Log out')}</button>
         </nav>
         <div className="stack">
           {section === 'account' && (
-            <Card title="Account">
+            <Card title={t('Account')}>
               <ul className="list">
-                <li className="list-item"><div className="grow"><div className="small strong">Email</div><div className="xs muted">{user?.email}</div></div><Link className="btn btn-sm btn-secondary" to={role === 'patient' ? '/app/profile' : '/doctor/profile'}>Edit profile</Link></li>
-                <li className="list-item"><div className="grow"><div className="small strong">Privacy & security</div><div className="xs muted">Access, devices, password and one-time codes</div></div><Link className="btn btn-sm btn-secondary" to={role === 'patient' ? '/app/privacy' : '/doctor/security'}><LockKeyhole aria-hidden />Open</Link></li>
-                {role === 'patient' && <li className="list-item"><div className="grow"><div className="small strong">Doctors & access</div><div className="xs muted">Grant, change or revoke access</div></div><Link className="btn btn-sm btn-secondary" to="/app/access"><ShieldCheck aria-hidden />Open</Link></li>}
-                <li className="list-item"><div className="grow"><div className="small strong">Close account</div><div className="xs muted">Needs identity checks and a retention policy — available once a real backend exists.</div></div><Button size="sm" disabled>Unavailable in prototype</Button></li>
+                <li className="list-item"><div className="grow"><div className="small strong">{t('Email')}</div><div className="xs muted">{user?.email}</div></div><Link className="btn btn-sm btn-secondary" to={role === 'patient' ? '/app/profile' : '/doctor/profile'}>{t('Edit profile')}</Link></li>
+                <li className="list-item"><div className="grow"><div className="small strong">{t('Privacy & security')}</div><div className="xs muted">{t('Access, devices, password and one-time codes')}</div></div><Link className="btn btn-sm btn-secondary" to={role === 'patient' ? '/app/privacy' : '/doctor/security'}><LockKeyhole aria-hidden />{t('Open')}</Link></li>
+                {role === 'patient' && <li className="list-item"><div className="grow"><div className="small strong">{t('Doctors & access')}</div><div className="xs muted">{t('Grant, change or revoke access')}</div></div><Link className="btn btn-sm btn-secondary" to="/app/access"><ShieldCheck aria-hidden />{t('Open')}</Link></li>}
+                <li className="list-item"><div className="grow"><div className="small strong">{t('Close account')}</div><div className="xs muted">{t('Needs identity checks and a retention policy — available once a real backend exists.')}</div></div><Button size="sm" disabled>{t('Unavailable in prototype')}</Button></li>
               </ul>
             </Card>
           )}
           {section === 'notifications' && role === 'patient' && (
-            <Card title="Medicine reminders" pad>
+            <Card title={t('Medicine reminders')} pad>
               <div className="stack">
                 <NotificationPrompt />
-                <label className="check"><input type="checkbox" checked={prefs.medAlarms} onChange={(e) => setPref({ medAlarms: e.target.checked })} /><span><span className="strong">Remind me when a dose is due</span><br /><span className="xs muted">Opens a reminder with Taken, Skip and Snooze while {brand.name} is open, and a system notification if allowed</span></span></label>
-                <label className="check"><input type="checkbox" checked={prefs.medAlarmSound} disabled={!prefs.medAlarms} onChange={(e) => setPref({ medAlarmSound: e.target.checked })} /><span><span className="strong">Play a sound</span></span></label>
+                <label className="check"><input type="checkbox" checked={prefs.medAlarms} onChange={(e) => setPref({ medAlarms: e.target.checked })} /><span><span className="strong">{t('Remind me when a dose is due')}</span><br /><span className="xs muted">{t('Opens a reminder with Taken, Skip and Snooze while {app} is open, and a system notification if allowed', { app: brand.name })}</span></span></label>
+                <label className="check"><input type="checkbox" checked={prefs.medAlarmSound} disabled={!prefs.medAlarms} onChange={(e) => setPref({ medAlarmSound: e.target.checked })} /><span><span className="strong">{t('Play a sound')}</span></span></label>
                 <div className="row-wrap">
-                  <Button size="sm" icon={BellRing} onClick={() => testAlarm(prefs.medAlarmSound)}>Test reminder</Button>
-                  <Link className="btn btn-sm btn-ghost" to="/app/medications">Set times for each medicine</Link>
+                  <Button size="sm" icon={BellRing} onClick={() => testAlarm(prefs.medAlarmSound)}>{t('Test reminder')}</Button>
+                  <Link className="btn btn-sm btn-ghost" to="/app/medications">{t('Set times for each medicine')}</Link>
                 </div>
-                <p className="xs subtle">A web page can only ring while it’s open. For reminders when the app is closed, add your schedule to your phone’s calendar from Medications → Phone & smartwatch.</p>
+                <p className="xs subtle">{t('A web page can only ring while it’s open. For reminders when the app is closed, add your schedule to your phone’s calendar from Medications → Phone & smartwatch.')}</p>
               </div>
             </Card>
           )}
           {section === 'notifications' && (
-            <Card title="Notifications" pad>
+            <Card title={t('Notifications')} pad>
               <div className="stack">
-                {([['notifyRecords', 'New entries in my record', 'When a doctor adds or corrects something'], ['notifyAccess', 'Access changes', 'Requests, grants, revocations and expiry'], ['notifyReminders', 'Reminders', 'e.g. a doctor’s access ends within 24 hours']] as const).map(([k, l, d]) => (
+                {([['notifyRecords', t('New entries in my record'), t('When a doctor adds or corrects something')], ['notifyAccess', t('Access changes'), t('Requests, grants, revocations and expiry')], ['notifyReminders', 'Reminders', 'e.g. a doctor’s access ends within 24 hours']] as const).map(([k, l, d]) => (
                   <label key={k} className="check"><input type="checkbox" checked={prefs[k]} onChange={(e) => setPref({ [k]: e.target.checked })} /><span><span className="strong">{l}</span><br /><span className="xs muted">{d}</span></span></label>
                 ))}
-                <p className="xs subtle">Security alerts (new sign-ins, password changes) are always on. Medicine reminders can also come as phone or computer notifications (see Medicines). SMS alerts aren’t available yet.</p>
+                <p className="xs subtle">{t('Security alerts (new sign-ins, password changes) are always on. Medicine reminders can also come as phone or computer notifications (see Medicines). SMS alerts aren’t available yet.')}</p>
               </div>
             </Card>
           )}
           {section === 'appearance' && (
-            <Card title="Appearance" pad>
-              <div className="segmented" role="group" aria-label="Theme">
+            <Card title={t('Appearance')} pad>
+              <div className="segmented" role="group" aria-label={t('Theme')}>
                 {(['system', 'light', 'dark'] as const).map((t) => <button key={t} aria-pressed={prefs.theme === t} onClick={() => setPref({ theme: t })}>{t[0].toUpperCase() + t.slice(1)}</button>)}
               </div>
             </Card>
           )}
           {section === 'language' && (
-            <Card title="Language" pad>
+            <Card title={t('Language')} pad>
               <div className="stack">
-                <Field label="App language">{(p) => <Select {...p} value="en" onChange={() => undefined} options={[{ value: 'en', label: 'English' }]} />}</Field>
-                <p className="xs subtle">Hindi, Telugu, Tamil and more are planned. Translating medical terms needs clinical review, so they aren’t in this prototype.</p>
+                <LanguagePicker onChosen={(language) => settingsService.update({ language }).then(() => undefined)} />
+                <p className="xs subtle">{t('Niveda’s screens, buttons and messages change language. What you and your doctors write — diagnoses, medicine names, notes — always stays exactly as it was entered.')}</p>
+                <p className="xs subtle">{t('Translations are new. If something reads wrongly, tell us from Help & support.')}</p>
               </div>
             </Card>
           )}
           {section === 'export' && role === 'patient' && <ExportPanel />}
           {section === 'help' && (
-            <Card title="Help & support" pad>
+            <Card title={t('Help & support')} pad>
               <div className="stack">
-                <p className="small">Questions about your record or privacy? Email <a href={`mailto:${brand.supportEmail}`}>{brand.supportEmail}</a> (placeholder address).</p>
-                <p className="small muted">To report a wrong entry added by a doctor, ask them to correct it — corrections keep the original visible in the history.</p>
-                {!isLive && <div className="alert alert-warn"><FlaskConical aria-hidden /><div><div className="alert-title">Demo tools</div>Reset the prototype to its original demo data. This clears everything created in this browser.</div></div>}
-                {!isLive && <div><Button variant="danger-ghost" icon={RotateCcw} onClick={() => setResetOpen(true)}>Reset demo data</Button></div>}
+                <p className="small"><T text="Questions about your record or privacy? Email {email} (placeholder address)." email={<a href={`mailto:${brand.supportEmail}`}>{brand.supportEmail}</a>} /></p>
+                <p className="small muted">{t('To report a wrong entry added by a doctor, ask them to correct it — corrections keep the original visible in the history.')}</p>
+                {!isLive && <div className="alert alert-warn"><FlaskConical aria-hidden /><div><div className="alert-title">{t('Demo tools')}</div>{t('Reset the prototype to its original demo data. This clears everything created in this browser.')}</div></div>}
+                {!isLive && <div><Button variant="danger-ghost" icon={RotateCcw} onClick={() => setResetOpen(true)}>{t('Reset demo data')}</Button></div>}
               </div>
             </Card>
           )}
         </div>
       </div>
-      <ConfirmDialog open={resetOpen} onClose={() => setResetOpen(false)} danger confirmLabel="Reset and sign out" title="Reset demo data?"
-        body="All accounts, records, documents and logs created in this browser will be replaced with the original demo data."
+      <ConfirmDialog open={resetOpen} onClose={() => setResetOpen(false)} danger confirmLabel={t('Reset and sign out')} title={t('Reset demo data?')}
+        body={t('All accounts, records, documents and logs created in this browser will be replaced with the original demo data.')}
         onConfirm={async () => { await resetDemoData(); await signOut(); navigate('/login'); }} />
     </>
   );
@@ -205,27 +208,27 @@ function ExportPanel() {
       const { blob, filename, count } = await exportService.build(scopes, format);
       downloadBlob(blob, filename);
       setDone(`${filename} · ${count} items`);
-      toast('Export ready');
-    } catch (e) { setErr(friendlyError(e, 'The export couldn’t be created. Please try again.')); } finally { setBusy(false); }
+      toast(t('Export ready'));
+    } catch (e) { setErr(friendlyError(e, t('The export couldn’t be created. Please try again.'))); } finally { setBusy(false); }
   };
   return (
-    <Card title="Export my medical records" pad>
+    <Card title={t('Export my medical records')} pad>
       <div className="stack">
-        <p className="small muted">Download a copy of your record to keep or share. Exports are logged in your access log.</p>
+        <p className="small muted">{t('Download a copy of your record to keep or share. Exports are logged in your access log.')}</p>
         <div className="choice-grid">
           {EXPORT_SCOPES.map((s) => (
-            <button key={s.key} className="choice" role="checkbox" aria-checked={scopes.includes(s.key)} onClick={() => toggle(s.key)}><span className="choice-title">{s.label}</span></button>
+            <button key={s.key} className="choice" role="checkbox" aria-checked={scopes.includes(s.key)} onClick={() => toggle(s.key)}><span className="choice-title">{t(s.label)}</span></button>
           ))}
         </div>
-        <div className="xs subtle strong" style={{ textTransform: 'uppercase', letterSpacing: '.06em' }}>Format</div>
+        <div className="xs subtle strong" style={{ textTransform: 'uppercase', letterSpacing: '.06em' }}>{t('Format')}</div>
         <div className="grid-2">
-          <button className="choice" aria-pressed={format === 'html'} onClick={() => setFormat('html')}><span className="choice-title"><FileText aria-hidden />Readable summary</span><span className="choice-sub">Opens in a browser; print it to save as PDF</span></button>
-          <button className="choice" aria-pressed={format === 'json'} onClick={() => setFormat('json')}><span className="choice-title"><FileJson aria-hidden />Data file (JSON)</span><span className="choice-sub">Machine-readable, includes full version history</span></button>
+          <button className="choice" aria-pressed={format === 'html'} onClick={() => setFormat('html')}><span className="choice-title"><FileText aria-hidden />{t('Readable summary')}</span><span className="choice-sub">{t('Opens in a browser; print it to save as PDF')}</span></button>
+          <button className="choice" aria-pressed={format === 'json'} onClick={() => setFormat('json')}><span className="choice-title"><FileJson aria-hidden />{t('Data file (JSON)')}</span><span className="choice-sub">{t('Machine-readable, includes full version history')}</span></button>
         </div>
         <InlineError message={err} />
-        {done && <div className="alert alert-ok"><CheckCircle2 aria-hidden /><div>Downloaded {done}</div></div>}
-        <div><Button variant="primary" icon={Download} loading={busy} disabled={!scopes.length} onClick={run}>Export</Button></div>
-        <p className="xs subtle">{isLive ? 'The file is built on this device from your record. It lists your documents; download each file from Reports.' : 'Prototype: the file is built in your browser. In production, exports would be prepared on a server (including original document files and a FHIR format) and delivered through a secure, expiring link.'}</p>
+        {done && <div className="alert alert-ok"><CheckCircle2 aria-hidden /><div>{t('Downloaded {file}', { file: done })}</div></div>}
+        <div><Button variant="primary" icon={Download} loading={busy} disabled={!scopes.length} onClick={run}>{t('Export')}</Button></div>
+        <p className="xs subtle">{isLive ? t('The file is built on this device from your record. It lists your documents; download each file from Reports.') : t('Prototype: the file is built in your browser. In production, exports would be prepared on a server (including original document files and a FHIR format) and delivered through a secure, expiring link.')}</p>
       </div>
     </Card>
   );

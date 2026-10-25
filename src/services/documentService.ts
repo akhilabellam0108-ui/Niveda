@@ -9,6 +9,7 @@ import { RECORD_TYPES, recordTitle } from '../lib/recordMeta';
 import { brand } from '../config/brand';
 import { AppError, audit, recentlyLogged, requireCtx, requireGrant, type Ctx } from './core';
 
+import { t } from '../i18n';
 export interface NewFile {
   name: string;
   type: string;
@@ -21,7 +22,7 @@ export const ACCEPTED_TYPES = ['application/pdf', 'image/png', 'image/jpeg', 'im
 export const ACCEPT_ATTR = '.pdf,.png,.jpg,.jpeg,.webp,.heic,.txt,application/pdf,image/*,text/plain';
 
 export const DOC_CATEGORY_LABEL: Record<DocumentCategory, string> = {
-  report: 'Lab report', prescription: 'Prescription', scan: 'Scan / imaging', image: 'Photo', discharge: 'Discharge summary', other: 'Other',
+  report: t('Lab report'), prescription: t('Prescription'), scan: t('Scan / imaging'), image: t('Photo'), discharge: t('Discharge summary'), other: t('Other'),
 };
 
 /** Unattached documents are gated by a permission that matches their category. */
@@ -40,15 +41,15 @@ export function guessCategory(file: { name: string; type: string }): DocumentCat
 }
 
 export function validateFile(f: { name: string; type: string; size: number }) {
-  if (f.size > MAX_FILE_BYTES) throw new AppError('VALIDATION', `${f.name} is larger than 15 MB.`);
-  if (f.type && !ACCEPTED_TYPES.includes(f.type) && !f.type.startsWith('image/')) throw new AppError('VALIDATION', `${f.name}: use PDF, image or text files.`);
+  if (f.size > MAX_FILE_BYTES) throw new AppError('VALIDATION', t('{name} is larger than 15 MB.', { name: f.name }));
+  if (f.type && !ACCEPTED_TYPES.includes(f.type) && !f.type.startsWith('image/')) throw new AppError('VALIDATION', t('{name}: use PDF, image or text files.', { name: f.name }));
 }
 
 /** Saves a file and its metadata. Callers link it to a record. */
 export async function storeFile(ctx: Ctx, patientId: string, f: NewFile, date: string, recordId?: string): Promise<string> {
   validateFile({ name: f.name, type: f.type, size: f.blob.size });
   const check = scanFile(new Uint8Array(await f.blob.arrayBuffer()), f.type);
-  if (!check.ok) throw new AppError('VALIDATION', `${f.name} can’t be added: ${check.reason}`);
+  if (!check.ok) throw new AppError('VALIDATION', t('{name} can’t be added: {reason}', { name: f.name, reason: check.reason }));
   const id = uid('doc');
   await putBlob(id, f.blob);
   const doc: MedicalDocument = {
@@ -65,7 +66,7 @@ export async function storeFile(ctx: Ctx, patientId: string, f: NewFile, date: s
 function visibleDocs(ctx: Ctx, patientId: string): MedicalDocument[] {
   const docs = ctx.db.documents.filter((d) => d.patientId === patientId);
   if (ctx.user.role === 'patient') {
-    if (ctx.patient!.id !== patientId) throw new AppError('ACCESS_DENIED', 'You can only view your own documents.');
+    if (ctx.patient!.id !== patientId) throw new AppError('ACCESS_DENIED', t('You can only view your own documents.'));
     return docs;
   }
   const g = requireGrant(ctx.db, ctx.doctor!.id, patientId);
@@ -85,11 +86,11 @@ export const documentService = {
     await delay();
     const ctx = await requireCtx();
     const pid = patientId ?? ctx.patient?.id;
-    if (!pid) throw new AppError('VALIDATION', 'Choose a patient.');
+    if (!pid) throw new AppError('VALIDATION', t('Choose a patient.'));
     return visibleDocs(ctx, pid)
       .map((d) => {
         const rec = d.recordId ? ctx.db.records.find((r) => r.id === d.recordId) : undefined;
-        return { ...d, recordLabel: rec ? `${RECORD_TYPES[rec.type].label}: ${recordTitle(rec)}` : undefined };
+        return { ...d, recordLabel: rec ? `${t(RECORD_TYPES[rec.type].label)}: ${recordTitle(rec)}` : undefined };
       })
       .sort((a, b) => b.date.localeCompare(a.date) || b.uploadedAt.localeCompare(a.uploadedAt));
   },
@@ -98,9 +99,9 @@ export const documentService = {
     await delay();
     const ctx = await requireCtx();
     const pid = input.patientId ?? ctx.patient?.id;
-    if (!pid) throw new AppError('VALIDATION', 'Choose a patient.');
+    if (!pid) throw new AppError('VALIDATION', t('Choose a patient.'));
     if (ctx.doctor) requireGrant(ctx.db, ctx.doctor.id, pid, CATEGORY_PERMISSION[input.file.category]);
-    else if (ctx.patient!.id !== pid) throw new AppError('ACCESS_DENIED', 'You can only upload to your own record.');
+    else if (ctx.patient!.id !== pid) throw new AppError('ACCESS_DENIED', t('You can only upload to your own record.'));
     const id = await storeFile(ctx, pid, input.file, input.date);
     if (input.recordId) await this.attach(id, input.recordId);
     else await mutate(() => undefined);
@@ -111,8 +112,8 @@ export const documentService = {
     const ctx = await requireCtx();
     await mutate((db) => {
       const d = db.documents.find((x) => x.id === documentId);
-      if (!d) throw new AppError('NOT_FOUND', 'Document not found.');
-      if (ctx.patient && d.patientId !== ctx.patient.id) throw new AppError('ACCESS_DENIED', 'Not your document.');
+      if (!d) throw new AppError('NOT_FOUND', t('Document not found.'));
+      if (ctx.patient && d.patientId !== ctx.patient.id) throw new AppError('ACCESS_DENIED', t('Not your document.'));
       if (ctx.doctor) requireGrant(db, ctx.doctor.id, d.patientId);
       if (d.recordId) {
         const old = db.records.find((r) => r.id === d.recordId);
@@ -121,7 +122,7 @@ export const documentService = {
       d.recordId = recordId;
       if (recordId) {
         const rec = db.records.find((r) => r.id === recordId && r.patientId === d.patientId);
-        if (!rec) throw new AppError('NOT_FOUND', 'Record not found.');
+        if (!rec) throw new AppError('NOT_FOUND', t('Record not found.'));
         if (!rec.attachments.includes(d.id)) rec.attachments.push(d.id);
       }
     });
@@ -132,14 +133,14 @@ export const documentService = {
     await delay(200);
     const ctx = await requireCtx();
     const d = ctx.db.documents.find((x) => x.id === documentId);
-    if (!d) throw new AppError('NOT_FOUND', 'This document could not be found.');
-    if (!visibleDocs(ctx, d.patientId).some((x) => x.id === d.id)) throw new AppError('ACCESS_DENIED', 'You don’t have access to this document.');
+    if (!d) throw new AppError('NOT_FOUND', t('This document could not be found.'));
+    if (!visibleDocs(ctx, d.patientId).some((x) => x.id === d.id)) throw new AppError('ACCESS_DENIED', t('You don’t have access to this document.'));
     let blob = await getBlob(d.id);
     if (!blob && d.generated) {
       blob = makeTextPdf(d.generated.title, d.generated.lines, `${brand.name} demo document - fictional data`);
       await putBlob(d.id, blob);
     }
-    if (!blob) throw new AppError('NOT_FOUND', 'The file for this document is missing on this device.');
+    if (!blob) throw new AppError('NOT_FOUND', t('The file for this document is missing on this device.'));
     if (ctx.doctor && !recentlyLogged(ctx.db, ctx.actor.id, 'viewed_document', d.id, d.patientId)) await mutateQuiet((db) => audit(db, { patientId: d.patientId, actor: ctx.actor, action: 'viewed_document', target: { type: 'document', id: d.id, label: d.name } }));
     return { doc: d, blob };
   },
@@ -148,8 +149,8 @@ export const documentService = {
     await delay();
     const ctx = await requireCtx('patient');
     const d = ctx.db.documents.find((x) => x.id === documentId && x.patientId === ctx.patient!.id);
-    if (!d) throw new AppError('NOT_FOUND', 'This document could not be found.');
-    if (d.uploadedBy.role === 'doctor') throw new AppError('ACCESS_DENIED', 'Documents added by a doctor stay with the record they belong to.');
+    if (!d) throw new AppError('NOT_FOUND', t('This document could not be found.'));
+    if (d.uploadedBy.role === 'doctor') throw new AppError('ACCESS_DENIED', t('Documents added by a doctor stay with the record they belong to.'));
     await deleteBlob(d.id);
     await mutate((db) => {
       db.documents = db.documents.filter((x) => x.id !== documentId);

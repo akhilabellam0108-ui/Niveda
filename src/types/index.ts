@@ -352,7 +352,8 @@ export interface DoseLog {
 
 export interface Preferences {
   theme: 'system' | 'light' | 'dark';
-  language: 'en';
+  /** The interface language the person chose (absent until they choose; then it follows them to every device). */
+  language?: 'en' | 'hi' | 'bn' | 'mr' | 'te' | 'ta' | 'gu' | 'kn' | 'ml';
   medAlarms: boolean;
   medAlarmSound: boolean;
   notifyRecords: boolean;

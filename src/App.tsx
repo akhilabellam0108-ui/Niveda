@@ -28,8 +28,9 @@ import { DoctorActivity, DoctorHome, DoctorPatients, DoctorProfile, FindPatient 
 import { PatientView } from './pages/doctor/PatientView';
 import { AddEntryPage } from './pages/doctor/AddEntry';
 
+import { t } from './i18n';
 function Splash() {
-  return <div style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center' }} aria-busy="true" aria-label="Loading"><LogoMark size={44} /></div>;
+  return <div style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center' }} aria-busy="true" aria-label={t('Loading')}><LogoMark size={44} /></div>;
 }
 
 /** Route guard. Role checks here are for UX only — services enforce access. */
@@ -61,14 +62,14 @@ function RequireAdmin() {
 }
 
 function NotFound() {
-  return <div className="card"><EmptyState icon={Compass} title="Page not found" body="That page doesn’t exist or has moved." action={<a className="btn btn-primary" href="#/">Go home</a>} /></div>;
+  return <div className="card"><EmptyState icon={Compass} title={t('Page not found')} body={t('That page doesn’t exist or has moved.')} action={<a className="btn btn-primary" href="#/">{t('Go home')}</a>} /></div>;
 }
 
 function DoctorSettings() {
   return <SettingsPage base="/doctor/settings" role="doctor" />;
 }
 function DoctorSecurity() {
-  return <><div className="page-head"><div><h1>Security</h1><p>Devices, sign-ins and your password.</p></div></div><SecuritySection /></>;
+  return <><div className="page-head"><div><h1>{t('Security')}</h1><p>{t('Devices, sign-ins and your password.')}</p></div></div><SecuritySection /></>;
 }
 function SettingsRoute({ role }: { role: 'patient' | 'doctor' }) {
   const { section } = useParams();
@@ -85,8 +86,8 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean
     return (
       <div style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center', padding: 24 }}>
         <div className="card" style={{ maxWidth: 440 }}>
-          <EmptyState icon={RotateCcw} title="Something went wrong" body="The page hit an unexpected problem. Your record is safe — reload to continue."
-            action={<Button variant="primary" onClick={() => location.reload()}>Reload</Button>} />
+          <EmptyState icon={RotateCcw} title={t('Something went wrong')} body={t('The page hit an unexpected problem. Your record is safe — reload to continue.')}
+            action={<Button variant="primary" onClick={() => location.reload()}>{t('Reload')}</Button>} />
         </div>
       </div>
     );

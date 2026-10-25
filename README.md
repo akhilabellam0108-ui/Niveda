@@ -32,13 +32,14 @@ Niveda runs in two modes:
 9. [Corrections and versioning](#corrections-and-versioning)
 10. [The audit trail](#the-audit-trail)
 11. [Design](#design)
-12. [Technology](#technology)
-13. [Project structure](#project-structure)
-14. [Data model](#data-model)
-15. [Testing](#testing)
-16. [Demo vs live](#demo-vs-live)
-17. [What must be built before production](#what-must-be-built-before-production)
-18. [Roadmap ideas](#roadmap-ideas)
+12. [Languages](#languages)
+13. [Technology](#technology)
+14. [Project structure](#project-structure)
+15. [Data model](#data-model)
+16. [Testing](#testing)
+17. [Demo vs live](#demo-vs-live)
+18. [What must be built before production](#what-must-be-built-before-production)
+19. [Roadmap ideas](#roadmap-ideas)
 
 ---
 
@@ -295,6 +296,17 @@ The interface aims for calm and trustworthy rather than clinical: a deep green a
 - Every list has a useful empty state, every data view has a loading skeleton and a friendly error state with *Try again*, and important actions (revoke, delete, stop a medicine, correct an entry, approve access) ask for confirmation.
 - The product name, tagline and patient-ID prefix live in one file: [`src/config/brand.ts`](src/config/brand.ts). The logo is an original SVG mark in [`src/components/ui/Logo.tsx`](src/components/ui/Logo.tsx).
 
+## Languages
+
+Niveda's interface is available in **English, हिन्दी (Hindi), বাংলা (Bengali), मराठी (Marathi), తెలుగు (Telugu), தமிழ் (Tamil), ગુજરાતી (Gujarati), ಕನ್ನಡ (Kannada) and മലയാളം (Malayalam)** — every screen, error message, notification, medicine reminder (including pushed reminders and their buttons) and the downloadable record summary.
+
+- **Choosing a language:** the picker on the landing page, sign-in screens and *Settings → Language*. On a first visit Niveda uses the phone's language if it has it. The choice is saved to the account, so it follows the person to their other devices.
+- **What is translated:** only the interface. What patients and doctors write — diagnoses, medicine names, notes — is shown exactly as entered, because machine-translating medical content is unsafe. Drug and test names, *Niveda*, *ABHA* and *ABDM* stay in Latin script.
+- **Server text:** notifications and access-log entries are saved in English and translated when shown ([`src/i18n/serverText.ts`](src/i18n/serverText.ts)), so a doctor reading in Tamil and a patient reading in Hindi each see their own language.
+- **How it works:** every text is written in English inside `t('…')` (or `<T text="…">` when a sentence contains a link or bold name); the English text is the key in [`src/i18n/locales/<code>.json`](src/i18n/locales). Each language loads only when chosen. Dates use the language's month and day names with Western digits.
+- **Adding text:** run `npm run i18n:check` — it lists every text that still needs translating in each language. CI fails if a translation is missing or drops a `{placeholder}`.
+- **Before launch:** the translations are careful drafts, not yet reviewed by native-speaking clinicians. Have a clinician fluent in each language check the medical terms and the privacy notice. Urdu (right-to-left), Odia, Punjabi and Assamese are the natural next additions.
+
 ## Install on phones and laptops
 
 | Device | How |
@@ -430,6 +442,8 @@ User    1 ── * Notification, Session
 
 **Live end-to-end tests** — `npm run test:live` (11 checks, [`tests/live`](tests/live/README.md)). A patient and a doctor each run the app's live code against the real Supabase Auth server and PostgREST, reading their codes from the emails the Auth server sends: sign-up, onboarding with an upload, two-step sign-in, granting access, a doctor's visit with a file, corrections, lab results, reminders, export, search, revocation, password change and reset, doctor verification, emergency access, and a pushed medicine reminder encrypted with Web Push, decrypted as the browser would, and marked taken from the notification.
 
+**Language tests** — `node --test tests/i18n.test.mjs` (4 checks): every one of the 8 language files covers every interface text, keeps every `{placeholder}` and the names that must stay in Latin script, `t()` switches language and fills in values, and server-made English notifications are shown in the reader's language with names untouched.
+
 All of these run in CI on every push.
 
 **Browser tests** — `tests/e2e_browser.py` walks the same flows through the real interface (sign-up, onboarding, adding a record, the full grant flow with codes, the doctor adding a visit with a prescription, lab order and PDF in a second tab, the patient seeing it, a correction, revocation, the access log), then checks the demo patient, search, dark mode and the mobile layout.
@@ -488,11 +502,12 @@ Still needs you (accounts, money or outside people):
 
 1. **Independent penetration test** by a CERT-In empanelled auditor — scope in [docs/SECURITY.md](docs/SECURITY.md#penetration-test-scope-for-the-auditor).
 2. **Legal review** of the privacy notice, terms and DPDP map; real grievance officer and support email in `src/config/brand.ts`.
-3. **Accounts and keys:** MSG91/Twilio (with DLT templates), ABDM sandbox → production credentials, Google Play Console, Apple Developer Program.
-4. **A full antivirus** for uploads (the built-in check blocks programs, packed files, web pages and PDFs that can run code, but doesn't know specific viruses) — see [docs/SECURITY.md](docs/SECURITY.md#uploaded-files).
-5. **ABDM M2/M3** — share and fetch records as FHIR with consent artefacts; FHIR R4 import/export.
-6. **Operations** — monitoring and alerts, point-in-time recovery, incident drill ([docs/INCIDENT_RESPONSE.md](docs/INCIDENT_RESPONSE.md)).
-7. Dedicated smartwatch app and Apple HealthKit / Google Health Connect sync.
+3. **Clinician review of the translations** — a native-speaking clinician for each of the 8 languages to check medical terms, reminders and the privacy notice.
+4. **Accounts and keys:** MSG91/Twilio (with DLT templates), ABDM sandbox → production credentials, Google Play Console, Apple Developer Program.
+5. **A full antivirus** for uploads (the built-in check blocks programs, packed files, web pages and PDFs that can run code, but doesn't know specific viruses) — see [docs/SECURITY.md](docs/SECURITY.md#uploaded-files).
+6. **ABDM M2/M3** — share and fetch records as FHIR with consent artefacts; FHIR R4 import/export.
+7. **Operations** — monitoring and alerts, point-in-time recovery, incident drill ([docs/INCIDENT_RESPONSE.md](docs/INCIDENT_RESPONSE.md)).
+8. Dedicated smartwatch app and Apple HealthKit / Google Health Connect sync.
 
 ## Roadmap ideas
 

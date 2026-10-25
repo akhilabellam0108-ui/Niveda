@@ -15,6 +15,7 @@ import { patientIdFor } from './context';
 import { uploadDocument } from './documents';
 
 
+import { t } from '../../i18n';
 export async function listRecords(patientId: string): Promise<MedicalRecord[]> {
   const rows = await all((from, to) => sb().from('records').select(RECORD_SELECT).eq('patient_id', patientId)
     .order('date', { ascending: false }).order('created_at', { ascending: false }).range(from, to));
@@ -30,7 +31,7 @@ async function byIds(ids: string[]): Promise<MedicalRecord[]> {
 
 async function one(id: string): Promise<MedicalRecord> {
   const [r] = await byIds([id]);
-  if (!r) throw new AppError('NOT_FOUND', 'This record could not be found, or it isn’t shared with you.');
+  if (!r) throw new AppError('NOT_FOUND', t('This record could not be found, or it isn’t shared with you.'));
   return r;
 }
 
@@ -84,7 +85,7 @@ export const remoteRecordService: typeof mockRecords = {
   },
 
   async amend(recordId: string, change: { date: string; data: RecordData; reason: string }): Promise<MedicalRecord> {
-    if (!change.reason.trim()) throw new AppError('VALIDATION', 'Give a reason for the correction.');
+    if (!change.reason.trim()) throw new AppError('VALIDATION', t('Give a reason for the correction.'));
     const current = await one(recordId);
     checkRecord(current.type, change.date, change.data);
     await write('amend_record', { p_id: recordId, p_date: change.date, p_data: change.data, p_reason: change.reason });

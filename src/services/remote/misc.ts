@@ -13,6 +13,7 @@ import { all, emit, nowIso, q, read, requireAccount, sb, subscribe, write } from
 import { toAudit, toDoctor, toDocument, toDoseLog, toHospital, toNotification, toPatient, toReminder } from './mappers';
 import { listRecords } from './records';
 
+import { t as tr } from '../../i18n';
 /* ---------------- medicines ---------------- */
 
 async function medicineData(sinceDays = 8) {
@@ -60,7 +61,7 @@ export const remoteMedicationService: typeof MockMeds = {
   async setReminder(recordId: string, times: string[], enabled: boolean) {
     const a = await requireAccount('patient');
     const t = normaliseTimes(times);
-    if (enabled && !t.length) throw new AppError('VALIDATION', 'Add at least one reminder time, or turn reminders off.');
+    if (enabled && !t.length) throw new AppError('VALIDATION', tr('Add at least one reminder time, or turn reminders off.'));
     await q(sb().from('medication_reminders').upsert({ record_id: recordId, patient_id: a.profileId, times: t, enabled, updated_at: nowIso() }, { onConflict: 'record_id' }));
     emit();
   },

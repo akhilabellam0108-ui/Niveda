@@ -1,11 +1,12 @@
 import { Building2, Lock, Paperclip, UserRound, History } from 'lucide-react';
 import type { MedicalRecord } from '../../types';
-import { RECORD_TYPES, recordSummary, recordTitle, isSevereAllergy } from '../../lib/recordMeta';
+import { RECORD_TYPES, opt, recordSummary, recordTitle, isSevereAllergy } from '../../lib/recordMeta';
 import { RECORD_ICON, RECORD_TONE } from '../../lib/icons';
 import { fmtDate } from '../../lib/dates';
 import { isMedicationActive } from '../../services';
 import { Badge } from '../ui';
 
+import { t } from '../../i18n';
 export function TypeIcon({ type, size }: { type: MedicalRecord['type']; size?: 'sm' }) {
   const Icon = RECORD_ICON[type];
   return <span className={`type-icon ${size ?? ''} ${RECORD_TONE[type]}`} aria-hidden><Icon /></span>;
@@ -15,8 +16,8 @@ export function StatusBadge({ record }: { record: MedicalRecord }) {
   const d = record.data;
   switch (record.type) {
     case 'medication':
-      if (d.medStatus === 'discontinued') return <Badge>Stopped</Badge>;
-      return isMedicationActive(record) ? <Badge tone="ok" dot>Active</Badge> : <Badge>Completed</Badge>;
+      if (d.medStatus === 'discontinued') return <Badge>{t('Stopped')}</Badge>;
+      return isMedicationActive(record) ? <Badge tone="ok" dot>{t('Active')}</Badge> : <Badge>{t('Completed')}</Badge>;
     case 'allergy':
       return isSevereAllergy(record) ? <Badge tone="danger">{String(d.severity)}</Badge> : <Badge tone="warn">{String(d.severity)}</Badge>;
     case 'lab_result': {
@@ -24,7 +25,7 @@ export function StatusBadge({ record }: { record: MedicalRecord }) {
       return <Badge tone={tone}>{String(d.status)}</Badge>;
     }
     case 'lab_test':
-      return d.status === 'Completed' ? <Badge tone="ok">Result in</Badge> : d.status === 'Cancelled' ? <Badge>Cancelled</Badge> : <Badge tone="info" dot>{String(d.status)}</Badge>;
+      return d.status === 'Completed' ? <Badge tone="ok">{t('Result in')}</Badge> : d.status === 'Cancelled' ? <Badge>{t('Cancelled')}</Badge> : <Badge tone="info" dot>{opt(d.status)}</Badge>;
     case 'diagnosis':
       return <Badge tone={d.status === 'Resolved' ? undefined : d.status === 'Active' ? 'violet' : 'info'}>{String(d.status)}</Badge>;
     default:
@@ -48,21 +49,21 @@ export function RecordCard({ record, onOpen, children, highlight, showDate, view
   return (
     <div className={`rec-card ${highlight ? 'highlight' : ''}`} onClick={() => onOpen(record.id)}>
       <div className="rec-top">
-        <span className="rec-type">{meta.label}</span>
+        <span className="rec-type">{t(meta.label)}</span>
         <StatusBadge record={record} />
         {record.version > 1 && <Badge icon={History}>v{record.version}</Badge>}
-        {meta.permission === 'mental_health' || meta.permission === 'sensitive' ? <Badge icon={Lock}>Private</Badge> : null}
+        {meta.permission === 'mental_health' || meta.permission === 'sensitive' ? <Badge icon={Lock}>{t('Private')}</Badge> : null}
         {showDate && <span className="subtle xs" style={{ marginLeft: 'auto' }}>{fmtDate(record.date)}</span>}
       </div>
       <button type="button" className="rec-title rec-open" onClick={(e) => { e.stopPropagation(); onOpen(record.id); }}>
-        {recordTitle(record)}<span className="sr-only">, {meta.label}, {fmtDate(record.date)}</span>
+        {recordTitle(record)}<span className="sr-only">, {t(meta.label)}, {fmtDate(record.date)}</span>
       </button>
       {summary && <div className="rec-summary truncate">{summary}</div>}
       {children}
       <div className="rec-meta">
-        <span><UserRound aria-hidden />{by.role === 'patient' ? (viewerIsPatient ? 'Added by you' : 'Added by patient') : by.name}</span>
+        <span><UserRound aria-hidden />{by.role === 'patient' ? (viewerIsPatient ? t('Added by you') : t('Added by patient')) : by.name}</span>
         {(record.organization?.name ?? by.organization) && <span><Building2 aria-hidden />{record.organization?.name ?? by.organization}</span>}
-        {record.attachments.length > 0 && <span><Paperclip aria-hidden />{record.attachments.length} attachment{record.attachments.length > 1 ? 's' : ''}</span>}
+        {record.attachments.length > 0 && <span><Paperclip aria-hidden />{record.attachments.length > 1 ? t('{n} attachments', { n: record.attachments.length }) : t('1 attachment')}</span>}
       </div>
     </div>
   );

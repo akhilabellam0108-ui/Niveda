@@ -9,6 +9,7 @@ import { now, nowISO } from '../lib/dates';
 import { uid } from '../lib/ids';
 import { RECORD_TYPES } from '../lib/recordMeta';
 
+import { t } from '../i18n';
 export type ErrorCode =
   | 'ACCESS_DENIED' | 'SESSION_EXPIRED' | 'NOT_SIGNED_IN' | 'NOT_FOUND' | 'VALIDATION'
   | 'OTP_INVALID' | 'OTP_EXPIRED' | 'AUTH_FAILED' | 'CONFLICT' | 'UNKNOWN';
@@ -20,8 +21,8 @@ export class AppError extends Error {
   }
 }
 
-export const friendlyError = (e: unknown, fallback = 'Something went wrong. Please try again.') =>
-  e instanceof AppError ? e.message : fallback;
+export const friendlyError = (e: unknown, fallback = t('Something went wrong. Please try again.')) =>
+  e instanceof AppError ? t(e.message) : fallback;
 
 export const SESSION_KEY = 'niveda.session';
 
@@ -46,16 +47,16 @@ export function actorFor(db: Database, user: User): Actor {
 export async function requireCtx(role?: User['role']): Promise<Ctx> {
   const db = await getDb();
   const raw = perTab.get(SESSION_KEY);
-  if (!raw) throw new AppError('NOT_SIGNED_IN', 'Please sign in to continue.');
+  if (!raw) throw new AppError('NOT_SIGNED_IN', t('Please sign in to continue.'));
   const { sessionId } = JSON.parse(raw) as { sessionId: string };
   const session = db.sessions.find((s) => s.id === sessionId);
   if (!session || new Date(session.expiresAt) <= now()) {
     perTab.remove(SESSION_KEY);
-    throw new AppError('SESSION_EXPIRED', 'Your session has expired. Please sign in again.');
+    throw new AppError('SESSION_EXPIRED', t('Your session has expired. Please sign in again.'));
   }
   const user = db.users.find((u) => u.id === session.userId);
-  if (!user) throw new AppError('NOT_SIGNED_IN', 'Please sign in to continue.');
-  if (role && user.role !== role) throw new AppError('ACCESS_DENIED', 'This area isn’t available for your account.');
+  if (!user) throw new AppError('NOT_SIGNED_IN', t('Please sign in to continue.'));
+  if (role && user.role !== role) throw new AppError('ACCESS_DENIED', t('This area isn’t available for your account.'));
   session.lastActiveAt = nowISO();
   return {
     db, user, session, actor: actorFor(db, user),
@@ -129,9 +130,9 @@ export function activeGrant(db: Database, doctorId: string, patientId: string): 
 export function requireGrant(db: Database, doctorId: string, patientId: string, permission?: PermissionKey): AccessGrant {
   sweepGrants(db);
   const g = activeGrant(db, doctorId, patientId);
-  if (!g) throw new AppError('ACCESS_DENIED', 'You no longer have access to this patient’s records. Ask the patient to grant access again.');
+  if (!g) throw new AppError('ACCESS_DENIED', t('You no longer have access to this patient’s records. Ask the patient to grant access again.'));
   if (permission && !g.permissions.includes(permission)) {
-    throw new AppError('ACCESS_DENIED', 'The patient hasn’t shared this part of their record with you.');
+    throw new AppError('ACCESS_DENIED', t('The patient hasn’t shared this part of their record with you.'));
   }
   return g;
 }

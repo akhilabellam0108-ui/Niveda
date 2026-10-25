@@ -3,6 +3,7 @@ import QRCode from 'qrcode';
 import { Camera, CameraOff } from 'lucide-react';
 import { Button } from '../ui';
 
+import { t } from '../../i18n';
 /** Renders a QR code for an identifier (patient ID or doctor access code). */
 export function QrCode({ value, size = 168, label }: { value: string; size?: number; label: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -52,18 +53,18 @@ export function QrScanner({ onResult }: { onResult: (text: string) => void }) {
     return (
       <div className="alert alert-warn">
         <CameraOff aria-hidden />
-        <div>{state === 'denied' ? 'Camera access was blocked.' : 'QR scanning isn’t supported in this browser.'} Type the code shown under the doctor’s QR instead.</div>
+        <div>{state === 'denied' ? t('Camera access was blocked.') : t('QR scanning isn’t supported in this browser.')}{' '}{t('Type the code shown under the doctor’s QR instead.')}</div>
       </div>
     );
   }
   return (
     <div className="stack" style={{ '--gap': '10px', alignItems: 'center' } as React.CSSProperties}>
       <div className="scan-frame">
-        {state === 'scanning' ? <video ref={video} muted playsInline aria-label="Camera preview" /> : <Camera color="#7fd3bf" aria-hidden />}
+        {state === 'scanning' ? <video ref={video} muted playsInline aria-label={t('Camera preview')} /> : <Camera color="#7fd3bf" aria-hidden />}
         <div className="scan-line" />
       </div>
-      {state === 'idle' && <Button variant="primary" icon={Camera} onClick={() => setState('starting')}>Start camera</Button>}
-      {state !== 'idle' && <p className="xs subtle">Point your camera at the QR code on your doctor’s screen or desk card.</p>}
+      {state === 'idle' && <Button variant="primary" icon={Camera} onClick={() => setState('starting')}>{t('Start camera')}</Button>}
+      {state !== 'idle' && <p className="xs subtle">{t('Point your camera at the QR code on your doctor’s screen or desk card.')}</p>}
     </div>
   );
 }

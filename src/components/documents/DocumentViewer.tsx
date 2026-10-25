@@ -6,6 +6,7 @@ import { fmtDate } from '../../lib/dates';
 import { Button, ErrorState, Modal, Skeleton } from '../ui';
 import { isNativeApp, shareFile } from '../../lib/nativeFiles';
 
+import { t } from '../../i18n';
 export const DOC_ICON = { report: ClipboardList, prescription: FileHeart, scan: ScanLine, image: ImageIcon, discharge: FileText, other: FileText };
 
 export function formatBytes(n: number) {
@@ -52,10 +53,10 @@ export function DocumentViewer({ docId, onClose }: { docId?: string; onClose: ()
 
   const { doc, url, text, error } = state;
   return (
-    <Modal open={!!docId} onClose={onClose} size="lg" title={doc?.name ?? 'Document'}
-      description={doc ? `${DOC_CATEGORY_LABEL[doc.category]} · ${fmtDate(doc.date)} · ${formatBytes(doc.size)} · added by ${doc.uploadedBy.name}` : undefined}
-      footer={doc && url ? <Button variant="primary" icon={Download} onClick={() => { const a = document.createElement('a'); a.href = url; a.download = doc.name; a.click(); }}>Download</Button> : undefined}>
-      {error ? <ErrorState error={error} title="Unable to open this document" /> : !url || !doc ? (
+    <Modal open={!!docId} onClose={onClose} size="lg" title={doc?.name ?? t('Document')}
+      description={doc ? t('{value} · {value2} · {value3} · added by {name}', { value: DOC_CATEGORY_LABEL[doc.category], value2: fmtDate(doc.date), value3: formatBytes(doc.size), name: doc.uploadedBy.name }) : undefined}
+      footer={doc && url ? <Button variant="primary" icon={Download} onClick={() => { const a = document.createElement('a'); a.href = url; a.download = doc.name; a.click(); }}>{t('Download')}</Button> : undefined}>
+      {error ? <ErrorState error={error} title={t('Unable to open this document')} /> : !url || !doc ? (
         <Skeleton h={420} r={10} />
       ) : doc.mimeType === 'application/pdf' ? (
         <iframe className="viewer-frame" src={url} title={doc.name} />
@@ -64,7 +65,7 @@ export function DocumentViewer({ docId, onClose }: { docId?: string; onClose: ()
       ) : text !== undefined ? (
         <pre className="inset small" style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{text}</pre>
       ) : (
-        <div className="empty compact"><p>Preview isn’t available for this file type. Download it to open.</p></div>
+        <div className="empty compact"><p>{t('Preview isn’t available for this file type. Download it to open.')}</p></div>
       )}
     </Modal>
   );

@@ -2,10 +2,11 @@ import type { AccessGrant, AccessRequest, Doctor, DoctorInvite, GrantMethod, Hos
 import { delay, mutate, mutateQuiet } from '../mock/db';
 import { addHours, now, nowISO } from '../lib/dates';
 import { uid } from '../lib/ids';
-import { permissionLabel } from '../lib/recordMeta';
+import { permissionLabelEn } from '../lib/recordMeta';
 import { AppError, activeGrant, audit, doctorUserId, notify, patientUserId, requireCtx, sweepGrants } from './core';
 import { otpService } from './otpService';
 
+import { t as tr } from '../i18n';
 export interface GrantView extends AccessGrant {
   doctor: Doctor;
   hospital?: Hospital;
@@ -28,8 +29,15 @@ export const DURATIONS: { label: string; hours: number }[] = [
   { label: '7 days', hours: 168 },
 ];
 
-export const durationLabel = (h: number) =>
+/** In English — for saved text (notifications, access log). Matches the database's _duration_label(). */
+export const durationLabelEn = (h: number) =>
   DURATIONS.find((d) => d.hours === h)?.label ?? (h % 24 === 0 ? `${h / 24} days` : `${h} hours`);
+/** In the interface language. */
+export const durationLabel = (h: number) => {
+  const preset = DURATIONS.find((d) => d.hours === h);
+  if (preset) return tr(preset.label);
+  return h % 24 === 0 ? tr('{n} days', { n: h / 24 }) : tr('{n} hours', { n: h });
+};
 
 const METHOD_LABEL: Record<GrantMethod, string> = {
   directory: 'Doctor directory', code: 'Doctor access code', qr: 'QR code', invite: 'Invitation', request: 'Approved request', emergency: 'Emergency access',
@@ -46,7 +54,8 @@ export type EmergencyReason = (typeof EMERGENCY_REASONS)[number]['value'];
 export const EMERGENCY_PERMISSIONS: PermissionKey[] = ['allergies', 'medications', 'history', 'surgeries'];
 export const EMERGENCY_HOURS = 4;
 export const EMERGENCY_DAILY_LIMIT = 3;
-export const emergencyReasonLabel = (v?: string) => EMERGENCY_REASONS.find((r) => r.value === v)?.label ?? v ?? '';
+/** In the interface language. */
+export const emergencyReasonLabel = (v?: string) => { const r = EMERGENCY_REASONS.find((x) => x.value === v); return r ? tr(r.label) : v ?? ''; };
 
 const withDoctor = <T extends { doctorId: string }>(db: Awaited<ReturnType<typeof requireCtx>>['db'], x: T) => {
   const doctor = db.doctors.find((d) => d.id === x.doctorId)!;
@@ -57,10 +66,10 @@ function createGrant(
   db: Awaited<ReturnType<typeof requireCtx>>['db'], patient: Patient, doctorId: string,
   permissions: PermissionKey[], hours: number, method: GrantMethod, requestId?: string,
 ): AccessGrant {
-  if (permissions.length === 0) throw new AppError('VALIDATION', 'Choose at least one part of your record to share.');
-  if (hours <= 0 || hours > 24 * 90) throw new AppError('VALIDATION', 'Access can last between 1 hour and 90 days.');
+  if (permissions.length === 0) throw new AppError('VALIDATION', tr('Choose at least one part of your record to share.'));
+  if (hours <= 0 || hours > 24 * 90) throw new AppError('VALIDATION', tr('Access can last between 1 hour and 90 days.'));
   const doctor = db.doctors.find((d) => d.id === doctorId);
-  if (!doctor) throw new AppError('NOT_FOUND', 'We couldn’t find that doctor.');
+  if (!doctor) throw new AppError('NOT_FOUND', tr('We couldn’t find that doctor.'));
   const t = nowISO();
   // Only one active grant per doctor: a new grant replaces the old one.
   for (const g of db.grants) {
@@ -77,10 +86,10 @@ function createGrant(
   audit(db, {
     patientId: patient.id, actor: { id: patient.id, role: 'patient', name: patient.fullName },
     action: 'access_granted', target: { type: 'doctor', id: doctorId, label: doctor.fullName },
-    metadata: { permissions: permissions.map(permissionLabel), duration: durationLabel(hours), method: METHOD_LABEL[method] },
+    metadata: { permissions: permissions.map(permissionLabelEn), duration: durationLabelEn(hours), method: METHOD_LABEL[method] },
   });
   const du = doctorUserId(db, doctorId);
-  if (du) notify(db, { userId: du, kind: 'access', title: 'Access granted', body: `${patient.fullName} gave you access to their records for ${durationLabel(hours)}.`, link: `/doctor/patients/${patient.id}` });
+  if (du) notify(db, { userId: du, kind: 'access', title: 'Access granted', body: `${patient.fullName} gave you access to their records for ${durationLabelEn(hours)}.`, link: `/doctor/patients/${patient.id}` });
   return grant;
 }
 
@@ -118,7 +127,7 @@ export const accessService = {
     const ctx = await requireCtx('patient');
     const c = code.trim().toUpperCase().replace(/\s/g, '');
     const d = ctx.db.doctors.find((x) => x.accessCode.replace('-', '') === c.replace('-', ''));
-    if (!d) throw new AppError('NOT_FOUND', 'No doctor matches that code. Check it with your doctor.');
+    if (!d) throw new AppError('NOT_FOUND', tr('No doctor matches that code. Check it with your doctor.'));
     return { ...d, hospital: ctx.db.hospitals.find((h) => h.id === d.hospitalId) };
   },
 
@@ -138,11 +147,11 @@ export const accessService = {
     await delay();
     const ctx = await requireCtx('patient');
     const g = ctx.db.grants.find((x) => x.id === grantId && x.patientId === ctx.patient!.id);
-    if (!g || g.status !== 'active') throw new AppError('NOT_FOUND', 'This access is no longer active.');
-    if (permissions.length === 0) throw new AppError('VALIDATION', 'Keep at least one permission, or revoke access instead.');
+    if (!g || g.status !== 'active') throw new AppError('NOT_FOUND', tr('This access is no longer active.'));
+    if (permissions.length === 0) throw new AppError('VALIDATION', tr('Keep at least one permission, or revoke access instead.'));
     const widening = permissions.some((p) => !g.permissions.includes(p));
     if (widening) {
-      if (!verification) throw new AppError('VALIDATION', 'Sharing more requires verification.');
+      if (!verification) throw new AppError('VALIDATION', tr('Sharing more requires verification.'));
       otpService.verify(verification.challengeId, verification.code, 'change_permissions');
     }
     await mutate((db) => {
@@ -152,7 +161,7 @@ export const accessService = {
       const doctor = db.doctors.find((d) => d.id === grant.doctorId)!;
       audit(db, {
         patientId: grant.patientId, actor: ctx.actor, action: 'access_changed', target: { type: 'doctor', id: doctor.id, label: doctor.fullName },
-        metadata: { added: permissions.filter((p) => !before.includes(p)).map(permissionLabel), removed: before.filter((p) => !permissions.includes(p)).map(permissionLabel) },
+        metadata: { added: permissions.filter((p) => !before.includes(p)).map(permissionLabelEn), removed: before.filter((p) => !permissions.includes(p)).map(permissionLabelEn) },
       });
       const du = doctorUserId(db, doctor.id);
       if (du) notify(db, { userId: du, kind: 'access', title: 'Permissions changed', body: `${ctx.patient!.fullName} changed what you can see.`, link: `/doctor/patients/${grant.patientId}` });
@@ -164,7 +173,7 @@ export const accessService = {
     const ctx = await requireCtx('patient');
     await mutate((db) => {
       const g = db.grants.find((x) => x.id === grantId && x.patientId === ctx.patient!.id);
-      if (!g || g.status !== 'active') throw new AppError('NOT_FOUND', 'This access has already ended.');
+      if (!g || g.status !== 'active') throw new AppError('NOT_FOUND', tr('This access has already ended.'));
       g.status = 'revoked';
       g.revokedAt = nowISO();
       const doctor = db.doctors.find((d) => d.id === g.doctorId)!;
@@ -181,7 +190,7 @@ export const accessService = {
     otpService.verify(verification.challengeId, verification.code, 'approve_request');
     return mutate((db) => {
       const r = db.requests.find((x) => x.id === requestId && x.patientId === ctx.patient!.id);
-      if (!r || r.status !== 'pending') throw new AppError('NOT_FOUND', 'This request has already been answered.');
+      if (!r || r.status !== 'pending') throw new AppError('NOT_FOUND', tr('This request has already been answered.'));
       r.status = 'approved';
       r.respondedAt = nowISO();
       const doctor = db.doctors.find((d) => d.id === r.doctorId)!;
@@ -195,7 +204,7 @@ export const accessService = {
     const ctx = await requireCtx('patient');
     await mutate((db) => {
       const r = db.requests.find((x) => x.id === requestId && x.patientId === ctx.patient!.id);
-      if (!r || r.status !== 'pending') throw new AppError('NOT_FOUND', 'This request has already been answered.');
+      if (!r || r.status !== 'pending') throw new AppError('NOT_FOUND', tr('This request has already been answered.'));
       r.status = 'declined';
       r.respondedAt = nowISO();
       const doctor = db.doctors.find((d) => d.id === r.doctorId)!;
@@ -209,7 +218,7 @@ export const accessService = {
   async inviteDoctor(doctorName: string, contact: string): Promise<DoctorInvite> {
     await delay();
     const ctx = await requireCtx('patient');
-    if (!doctorName.trim() || !contact.trim()) throw new AppError('VALIDATION', 'Enter the doctor’s name and email or phone.');
+    if (!doctorName.trim() || !contact.trim()) throw new AppError('VALIDATION', tr('Enter the doctor’s name and email or phone.'));
     return mutate((db) => {
       const inv: DoctorInvite = { id: uid('inv'), patientId: ctx.patient!.id, doctorName: doctorName.trim(), contact: contact.trim(), createdAt: nowISO(), status: 'sent' };
       db.invites.push(inv);
@@ -265,7 +274,7 @@ export const accessService = {
     const ctx = await requireCtx('doctor');
     const c = code.trim().toUpperCase().replace(/\s/g, '');
     const p = ctx.db.patients.find((x) => x.patientCode.replace(/-/g, '') === c.replace(/-/g, ''));
-    if (!p) throw new AppError('NOT_FOUND', 'No patient matches that ID. Check the ID or ask the patient to show their QR code.');
+    if (!p) throw new AppError('NOT_FOUND', tr('No patient matches that ID. Check the ID or ask the patient to show their QR code.'));
     await mutateQuiet((db) => sweepGrants(db));
     const g = activeGrant(ctx.db, ctx.doctor!.id, p.id);
     const pending = ctx.db.requests.some((r) => r.doctorId === ctx.doctor!.id && r.patientId === p.id && r.status === 'pending');
@@ -275,19 +284,19 @@ export const accessService = {
   async requestAccess(patientId: string, permissions: PermissionKey[], hours: number, reason: string): Promise<AccessRequest> {
     await delay();
     const ctx = await requireCtx('doctor');
-    if (!reason.trim()) throw new AppError('VALIDATION', 'Tell the patient why you need access.');
-    if (permissions.length === 0) throw new AppError('VALIDATION', 'Choose at least one part of the record.');
+    if (!reason.trim()) throw new AppError('VALIDATION', tr('Tell the patient why you need access.'));
+    if (permissions.length === 0) throw new AppError('VALIDATION', tr('Choose at least one part of the record.'));
     return mutate((db) => {
       const p = db.patients.find((x) => x.id === patientId);
-      if (!p) throw new AppError('NOT_FOUND', 'Patient not found.');
+      if (!p) throw new AppError('NOT_FOUND', tr('Patient not found.'));
       if (db.requests.some((r) => r.doctorId === ctx.doctor!.id && r.patientId === patientId && r.status === 'pending')) {
-        throw new AppError('CONFLICT', 'You already have a pending request with this patient.');
+        throw new AppError('CONFLICT', tr('You already have a pending request with this patient.'));
       }
       const r: AccessRequest = { id: uid('req'), patientId, doctorId: ctx.doctor!.id, permissions, durationHours: hours, reason: reason.trim(), createdAt: nowISO(), status: 'pending' };
       db.requests.push(r);
-      audit(db, { patientId, actor: ctx.actor, action: 'access_requested', target: { type: 'request', id: r.id, label: `${permissions.map(permissionLabel).join(', ')} · ${durationLabel(hours)}` } });
+      audit(db, { patientId, actor: ctx.actor, action: 'access_requested', target: { type: 'request', id: r.id, label: `${permissions.map(permissionLabelEn).join(', ')} · ${durationLabelEn(hours)}` } });
       const pu = patientUserId(db, patientId);
-      if (pu) notify(db, { userId: pu, kind: 'request', title: 'Access request', body: `${ctx.doctor!.fullName} (${ctx.actor.organization}) requested access to your ${permissions.map((k) => permissionLabel(k).toLowerCase()).join(', ')} for ${durationLabel(hours)}.`, link: '/app/access?tab=requests' });
+      if (pu) notify(db, { userId: pu, kind: 'request', title: 'Access request', body: `${ctx.doctor!.fullName} (${ctx.actor.organization}) requested access to your ${permissions.map((k) => permissionLabelEn(k).toLowerCase()).join(', ')} for ${durationLabelEn(hours)}.`, link: '/app/access?tab=requests' });
       return r;
     });
   },
@@ -306,17 +315,17 @@ export const accessService = {
     const d = ctx.doctor!;
     // Demo doctors are all verified; the live database checks verified_at.
     const reason = EMERGENCY_REASONS.find((r) => r.value === input.reason);
-    if (!reason) throw new AppError('VALIDATION', 'Choose why the patient can’t give consent.');
+    if (!reason) throw new AppError('VALIDATION', tr('Choose why the patient can’t give consent.'));
     const justification = input.justification.trim().replace(/\s+/g, ' ');
-    if (justification.length < 20) throw new AppError('VALIDATION', 'Describe the emergency in a sentence or two (at least 20 characters). The patient and the Niveda team will read it.');
+    if (justification.length < 20) throw new AppError('VALIDATION', tr('Describe the emergency in a sentence or two (at least 20 characters). The patient and the Niveda team will read it.'));
     const c = input.patientCode.trim().toUpperCase().replace(/[\s-]/g, '');
     const p = ctx.db.patients.find((x) => x.patientCode.replace(/-/g, '') === c);
-    if (!p) throw new AppError('NOT_FOUND', 'No patient matches that ID. Check the ID on their card or phone.');
+    if (!p) throw new AppError('NOT_FOUND', tr('No patient matches that ID. Check the ID on their card or phone.'));
     await mutateQuiet((db) => sweepGrants(db));
-    if (activeGrant(ctx.db, d.id, p.id)) throw new AppError('CONFLICT', 'You already have access to this patient’s record.');
+    if (activeGrant(ctx.db, d.id, p.id)) throw new AppError('CONFLICT', tr('You already have access to this patient’s record.'));
     const since = now().getTime() - 24 * 3600 * 1000;
     if (ctx.db.grants.filter((g) => g.doctorId === d.id && g.method === 'emergency' && new Date(g.grantedAt).getTime() > since).length >= EMERGENCY_DAILY_LIMIT) {
-      throw new AppError('ACCESS_DENIED', 'You’ve used emergency access 3 times in the last 24 hours. Contact the Niveda team if you need more.');
+      throw new AppError('ACCESS_DENIED', tr('You’ve used emergency access 3 times in the last 24 hours. Contact the Niveda team if you need more.'));
     }
     otpService.verify(input.challengeId, input.code, 'emergency_access');
     return mutate((db) => {
@@ -330,7 +339,7 @@ export const accessService = {
       audit(db, {
         patientId: p.id, actor: { id: d.id, role: 'doctor', name: d.fullName, organization: hospital },
         action: 'emergency_access', target: { type: 'doctor', id: d.id, label: d.fullName },
-        metadata: { reason: reason.label, justification, duration: '4 hours', permissions: EMERGENCY_PERMISSIONS.map(permissionLabel), method: 'Emergency access' },
+        metadata: { reason: reason.label, justification, duration: '4 hours', permissions: EMERGENCY_PERMISSIONS.map(permissionLabelEn), method: 'Emergency access' },
       });
       const pu = patientUserId(db, p.id);
       if (pu) notify(db, { userId: pu, kind: 'access', title: 'Emergency access to your record', link: '/app/access',

@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import type { RecordData, RecordType } from '../../types';
-import { RECORD_TYPE_LIST, RECORD_TYPES, validateData } from '../../lib/recordMeta';
+import { RECORD_TYPE_LIST, typeLabel, validateData } from '../../lib/recordMeta';
 import { RECORD_ICON } from '../../lib/icons';
 import { todayISO } from '../../lib/dates';
 import { recordService, friendlyError, type NewFile } from '../../services';
 import { Button, InlineError, Modal } from '../ui';
 import { FilePicker, RecordFields } from './RecordForm';
 
+import { t } from '../../i18n';
 interface Props {
   open: boolean;
   onClose: () => void;
@@ -39,7 +40,7 @@ export function AddRecordDialog({ open, onClose, initialType, onSaved }: Props) 
   const save = async () => {
     if (!type) return;
     const v = validateData(type, data);
-    if (!date) v.date = 'Date is required';
+    if (!date) v.date = t('Date is required');
     setErrors(v);
     if (Object.keys(v).length) return;
     setBusy(true);
@@ -48,7 +49,7 @@ export function AddRecordDialog({ open, onClose, initialType, onSaved }: Props) 
       const r = await recordService.create({ type, date, data, files });
       onSaved(r.id);
     } catch (e) {
-      setErr(friendlyError(e, 'Your record couldn’t be saved. Please try again.'));
+      setErr(friendlyError(e, t('Your record couldn’t be saved. Please try again.')));
     } finally {
       setBusy(false);
     }
@@ -59,13 +60,13 @@ export function AddRecordDialog({ open, onClose, initialType, onSaved }: Props) 
   return (
     <Modal
       open={open} onClose={() => !busy && onClose()} size="lg"
-      title={type ? `Add ${RECORD_TYPES[type].label.toLowerCase()}` : 'Add to your record'}
-      description={type ? 'It will appear in your timeline and records straight away.' : 'What would you like to add?'}
+      title={type ? t('Add {value}', { value: typeLabel(type) }) : t('Add to your record')}
+      description={type ? t('It will appear in your timeline and records straight away.') : t('What would you like to add?')}
       footer={type ? (
         <>
-          {!initialType && <Button variant="ghost" icon={ArrowLeft} onClick={() => setType(undefined)} disabled={busy} style={{ marginRight: 'auto' }}>Change type</Button>}
-          <Button onClick={onClose} disabled={busy}>Cancel</Button>
-          <Button variant="primary" onClick={save} loading={busy}>Save to my record</Button>
+          {!initialType && <Button variant="ghost" icon={ArrowLeft} onClick={() => setType(undefined)} disabled={busy} style={{ marginRight: 'auto' }}>{t('Change type')}</Button>}
+          <Button onClick={onClose} disabled={busy}>{t('Cancel')}</Button>
+          <Button variant="primary" onClick={save} loading={busy}>{t('Save to my record')}</Button>
         </>
       ) : undefined}
     >

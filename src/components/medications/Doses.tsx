@@ -10,6 +10,7 @@ import { Badge, Button, EmptyState, Modal } from '../ui';
 import { isNativeApp, syncNativeAlarms } from '../../lib/nativeAlarms';
 import { enableWebPush, webPushAvailable } from '../../lib/webPush';
 
+import { t as tr } from '../../i18n';
 /** Re-render on an interval so "due" / "missed" labels stay current. */
 export function useClock(ms = 30000) {
   const [t, setT] = useState(() => Date.now());
@@ -18,8 +19,8 @@ export function useClock(ms = 30000) {
 }
 
 const STATUS: Record<Dose['status'], { label: string; tone?: 'ok' | 'warn' | 'danger' | 'info' }> = {
-  taken: { label: 'Taken', tone: 'ok' }, skipped: { label: 'Skipped' }, due: { label: 'Due now', tone: 'warn' },
-  upcoming: { label: 'Upcoming', tone: 'info' }, missed: { label: 'Missed', tone: 'danger' },
+  taken: { label: tr('Taken'), tone: 'ok' }, skipped: { label: tr('Skipped') }, due: { label: tr('Due now'), tone: 'warn' },
+  upcoming: { label: tr('Upcoming'), tone: 'info' }, missed: { label: tr('Missed'), tone: 'danger' },
 };
 
 export function DoseList({ doses, compact }: { doses: Dose[]; compact?: boolean }) {
@@ -27,12 +28,12 @@ export function DoseList({ doses, compact }: { doses: Dose[]; compact?: boolean 
   const act = async (d: Dose, status: 'taken' | 'skipped' | 'undo') => {
     try {
       if (status === 'undo') await medicationService.undoDose(d.recordId, d.date, d.time);
-      else { await medicationService.logDose(d.recordId, d.date, d.time, status); toast(status === 'taken' ? `${d.name} marked as taken` : `${d.name} skipped`); }
+      else { await medicationService.logDose(d.recordId, d.date, d.time, status); toast(status === 'taken' ? tr('{name} marked as taken', { name: d.name }) : tr('{name} skipped', { name: d.name })); }
     } catch (e) { toast(friendlyError(e), 'error'); }
   };
-  if (!doses.length) return <EmptyState compact icon={Pill} title="No doses scheduled today" body="Medicines with reminder times appear here each day." />;
+  if (!doses.length) return <EmptyState compact icon={Pill} title={tr('No doses scheduled today')} body={tr('Medicines with reminder times appear here each day.')} />;
   return (
-    <ul className="list" aria-label="Today’s doses">
+    <ul className="list" aria-label={tr('Today’s doses')}>
       {doses.map((d) => {
         const done = d.status === 'taken' || d.status === 'skipped';
         return (
@@ -44,11 +45,11 @@ export function DoseList({ doses, compact }: { doses: Dose[]; compact?: boolean 
             </div>
             {(!compact || ['due', 'missed', 'taken'].includes(d.status)) && <Badge tone={STATUS[d.status].tone} dot={d.status === 'due'}>{STATUS[d.status].label}</Badge>}
             {done ? (
-              <Button size="sm" variant="ghost" iconOnly icon={Undo2} aria-label={`Undo ${d.name} at ${fmtClock(d.time)}`} onClick={() => act(d, 'undo')} />
+              <Button size="sm" variant="ghost" iconOnly icon={Undo2} aria-label={tr('Undo {name} at {value}', { name: d.name, value: fmtClock(d.time) })} onClick={() => act(d, 'undo')} />
             ) : (
               <div className="row" style={{ '--gap': '4px' } as React.CSSProperties}>
-                <Button size="sm" variant={d.status === 'upcoming' ? 'secondary' : 'primary'} icon={Check} iconOnly={compact} aria-label={`Mark ${d.name} at ${fmtClock(d.time)} as taken`} onClick={() => act(d, 'taken')}>{!compact && <span className="desktop-only">Taken</span>}</Button>
-                <Button size="sm" variant="ghost" iconOnly icon={SkipForward} aria-label={`Skip ${d.name} at ${fmtClock(d.time)}`} onClick={() => act(d, 'skipped')} />
+                <Button size="sm" variant={d.status === 'upcoming' ? 'secondary' : 'primary'} icon={Check} iconOnly={compact} aria-label={tr('Mark {name} at {value} as taken', { name: d.name, value: fmtClock(d.time) })} onClick={() => act(d, 'taken')}>{!compact && <span className="desktop-only">{tr('Taken')}</span>}</Button>
+                <Button size="sm" variant="ghost" iconOnly icon={SkipForward} aria-label={tr('Skip {name} at {value}', { name: d.name, value: fmtClock(d.time) })} onClick={() => act(d, 'skipped')} />
               </div>
             )}
           </li>
@@ -92,7 +93,7 @@ export function showSystemNotification(title: string, body: string, tag: string)
 
 export function testAlarm(sound: boolean) {
   if (sound) beep();
-  showSystemNotification(`${brand.name}: test reminder`, 'This is how medicine reminders will appear.', 'niveda-test');
+  showSystemNotification(tr('{app}: test reminder', { app: brand.name }), tr('This is how medicine reminders will appear.'), 'niveda-test');
 }
 
 /**
@@ -121,7 +122,7 @@ export function MedicationAlarms() {
     setOpen(true);
     if (prefs.medAlarmSound) beep();
     showSystemNotification(
-      fresh.length === 1 ? `Time to take ${fresh[0].name}` : `Time to take ${fresh.length} medicines`,
+      fresh.length === 1 ? tr('Time to take {name}', { name: fresh[0].name }) : tr('Time to take {n} medicines', { n: fresh.length }),
       fresh.map((d) => `${d.name} ${d.dosage} · ${fmtClock(d.time)}`).join('\n'),
       fresh[0].key,
     );
@@ -144,12 +145,12 @@ export function MedicationAlarms() {
     const until = Date.now() + 10 * 60000;
     due.forEach((d) => { snoozed.current.set(d.key, until); alerted.current.delete(d.key); });
     setOpen(false);
-    toast('We’ll remind you again in 10 minutes');
+    toast(tr('We’ll remind you again in 10 minutes'));
   };
 
   return (
-    <Modal open={open && due.length > 0} onClose={() => setOpen(false)} size="sm" title="Time for your medicine"
-      footer={<><Button icon={AlarmClock} onClick={snooze}>Snooze 10 min</Button><Button variant="ghost" onClick={() => setOpen(false)}>Later</Button></>}>
+    <Modal open={open && due.length > 0} onClose={() => setOpen(false)} size="sm" title={tr('Time for your medicine')}
+      footer={<><Button icon={AlarmClock} onClick={snooze}>{tr('Snooze 10 min')}</Button><Button variant="ghost" onClick={() => setOpen(false)}>{tr('Later')}</Button></>}>
       <div className="stack">
         <div className="alarm-ring" aria-hidden><BellRing /></div>
         <ul className="list card">
@@ -157,10 +158,10 @@ export function MedicationAlarms() {
             <li key={d.key} className="dose-row" style={{ padding: '12px 14px' }}>
               <div className="grow" style={{ minWidth: 0 }}>
                 <div className="strong">{d.name} <span className="muted" style={{ fontWeight: 400 }}>{d.dosage}</span></div>
-                <div className="xs muted">Due {fmtClock(d.time)}{d.instructions ? ` · ${d.instructions}` : ''}</div>
+                <div className="xs muted">{tr('Due')}{' '}{fmtClock(d.time)}{d.instructions ? ` · ${d.instructions}` : ''}</div>
               </div>
-              <Button size="sm" variant="primary" icon={Check} onClick={() => log(d, 'taken')}>Taken</Button>
-              <Button size="sm" variant="ghost" iconOnly icon={SkipForward} aria-label={`Skip ${d.name}`} onClick={() => log(d, 'skipped')} />
+              <Button size="sm" variant="primary" icon={Check} onClick={() => log(d, 'taken')}>{tr('Taken')}</Button>
+              <Button size="sm" variant="ghost" iconOnly icon={SkipForward} aria-label={tr('Skip {name}', { name: d.name })} onClick={() => log(d, 'skipped')} />
             </li>
           ))}
         </ul>

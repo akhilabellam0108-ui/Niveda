@@ -1,6 +1,7 @@
 import { ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
+import { t } from '../../i18n';
 /**
  * Goes back to the previous screen. If there is no previous Niveda screen (the page was
  * opened directly, reloaded, or reached from another site), it goes to `fallback` instead of
@@ -15,8 +16,8 @@ export function BackButton({ fallback, className, onBack }: { fallback: string; 
     else navigate(fallback, { replace: true });
   };
   return (
-    <button type="button" className={`back-btn${className ? ` ${className}` : ''}`} onClick={goBack} aria-label="Go back" title="Go back">
-      <ArrowLeft aria-hidden /><span className="back-btn-label">Back</span>
+    <button type="button" className={`back-btn${className ? ` ${className}` : ''}`} onClick={goBack} aria-label={t('Go back')} title={t('Go back')}>
+      <ArrowLeft aria-hidden /><span className="back-btn-label">{t('Back')}</span>
     </button>
   );
 }

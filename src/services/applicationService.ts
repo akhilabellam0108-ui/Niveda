@@ -8,7 +8,8 @@
 import type { DoctorApplication, DoctorApplicationInput, EmergencyAccessReview } from '../types';
 import { AppError } from './core';
 
-export const DEMO_ONLY_MESSAGE = 'Doctor sign-up works once Niveda is connected to its live backend. In this demo, use the demo doctor account to look around.';
+import { t } from '../i18n';
+export const DEMO_ONLY_MESSAGE = t('Doctor sign-up works once Niveda is connected to its live backend. In this demo, use the demo doctor account to look around.');
 
 export const MEDICAL_COUNCILS = [
   'National Medical Commission (Indian Medical Register)',
@@ -27,18 +28,18 @@ export const REGISTER_CHECK_URL = 'https://www.nmc.org.in/information-desk/india
 /** Checks the form in the browser; the database checks everything again. */
 export function validateApplication(f: DoctorApplicationInput): Record<string, string> {
   const v: Record<string, string> = {};
-  if (f.fullName.trim().length < 3) v.fullName = 'Enter your full name as it appears on your registration';
-  if (f.phone.replace(/\D/g, '').length < 10) v.phone = 'Enter a 10-digit mobile number';
-  if (f.registrationNumber.trim().length < 3) v.registrationNumber = 'Enter your medical registration number';
-  if (!f.medicalCouncil) v.medicalCouncil = 'Choose the council you are registered with';
+  if (f.fullName.trim().length < 3) v.fullName = t('Enter your full name as it appears on your registration');
+  if (f.phone.replace(/\D/g, '').length < 10) v.phone = t('Enter a 10-digit mobile number');
+  if (f.registrationNumber.trim().length < 3) v.registrationNumber = t('Enter your medical registration number');
+  if (!f.medicalCouncil) v.medicalCouncil = t('Choose the council you are registered with');
   const year = Number(f.registrationYear);
-  if (f.registrationYear && (!Number.isInteger(year) || year < 1940 || year > new Date().getFullYear())) v.registrationYear = 'Check the year';
-  if (f.specialization.trim().length < 2) v.specialization = 'Enter your specialisation';
-  if (f.qualifications.trim().length < 2) v.qualifications = 'For example MBBS, MD';
+  if (f.registrationYear && (!Number.isInteger(year) || year < 1940 || year > new Date().getFullYear())) v.registrationYear = t('Check the year');
+  if (f.specialization.trim().length < 2) v.specialization = t('Enter your specialisation');
+  if (f.qualifications.trim().length < 2) v.qualifications = t('For example MBBS, MD');
   const yrs = Number(f.yearsOfPractice || 0);
-  if (!Number.isInteger(yrs) || yrs < 0 || yrs > 70) v.yearsOfPractice = 'Check your years of practice';
-  if (f.hospitalName.trim().length < 2) v.hospitalName = 'Enter where you work';
-  if (f.hospitalCity.trim().length < 2) v.hospitalCity = 'Enter the city';
+  if (!Number.isInteger(yrs) || yrs < 0 || yrs > 70) v.yearsOfPractice = t('Check your years of practice');
+  if (f.hospitalName.trim().length < 2) v.hospitalName = t('Enter where you work');
+  if (f.hospitalCity.trim().length < 2) v.hospitalCity = t('Enter the city');
   return v;
 }
 
@@ -56,12 +57,12 @@ export const adminService = {
     return [];
   },
   async review(_id: string, _decision: 'approve' | 'decline', _note?: string): Promise<DoctorApplication> {
-    throw new AppError('ACCESS_DENIED', 'Only the Niveda team can do this.');
+    throw new AppError('ACCESS_DENIED', t('Only the Niveda team can do this.'));
   },
   async emergencyAccesses(_status: 'pending' | 'appropriate' | 'concern' | 'all' = 'pending'): Promise<EmergencyAccessReview[]> {
     return [];
   },
   async reviewEmergency(_id: string, _outcome: 'appropriate' | 'concern', _note?: string): Promise<void> {
-    throw new AppError('ACCESS_DENIED', 'Only the Niveda team can do this.');
+    throw new AppError('ACCESS_DENIED', t('Only the Niveda team can do this.'));
   },
 };

@@ -15,7 +15,9 @@
     "create-doctor": "node scripts/create-doctor.mjs",
     "android": "npm run build && npx cap sync android && npx cap open android",
     "ios": "npm run build && npx cap sync ios && npx cap open ios",
-    "test:edge": "node --test tests/edge.test.mjs"
+    "test:edge": "node --test tests/edge.test.mjs",
+    "i18n:extract": "node scripts/i18n-extract.mjs",
+    "i18n:check": "node scripts/i18n-extract.mjs --check"
   },
   "license": "UNLICENSED",
   "dependencies": {

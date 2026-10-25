@@ -1,19 +1,20 @@
 import { Plus, X, BellRing } from 'lucide-react';
 import { Button } from '../ui';
 
+import { t as tr } from '../../i18n';
 /** Edit a list of reminder times ("HH:MM"). */
-export function TimesEditor({ times, onChange, label = 'Reminder times', disabled }: { times: string[]; onChange: (t: string[]) => void; label?: string; disabled?: boolean }) {
+export function TimesEditor({ times, onChange, label = tr('Reminder times'), disabled }: { times: string[]; onChange: (t: string[]) => void; label?: string; disabled?: boolean }) {
   return (
     <fieldset className="times-editor" disabled={disabled}>
       <legend className="field-label"><BellRing size={14} aria-hidden /> {label}</legend>
       <div className="row-wrap">
         {times.map((t, i) => (
           <span key={i} className="time-chip">
-            <input type="time" value={t} aria-label={`Reminder ${i + 1}`} required onChange={(e) => onChange(times.map((x, j) => (j === i ? e.target.value : x)))} />
-            <button type="button" aria-label={`Remove reminder ${i + 1}`} onClick={() => onChange(times.filter((_, j) => j !== i))}><X size={14} /></button>
+            <input type="time" value={t} aria-label={tr('Reminder {value}', { value: i + 1 })} required onChange={(e) => onChange(times.map((x, j) => (j === i ? e.target.value : x)))} />
+            <button type="button" aria-label={tr('Remove reminder {value}', { value: i + 1 })} onClick={() => onChange(times.filter((_, j) => j !== i))}><X size={14} /></button>
           </span>
         ))}
-        <Button size="sm" icon={Plus} onClick={() => onChange([...times, times.length ? nextSlot(times[times.length - 1]) : '08:00'])}>Add time</Button>
+        <Button size="sm" icon={Plus} onClick={() => onChange([...times, times.length ? nextSlot(times[times.length - 1]) : '08:00'])}>{tr('Add time')}</Button>
       </div>
     </fieldset>
   );

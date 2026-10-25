@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { brand } from '../../config/brand';
 
+import { t } from '../../i18n';
 /** A continuous line that loops into a closed, protected shape: continuity + privacy. */
 export function LogoMark({ size = 30 }: { size?: number }) {
   return (
@@ -14,7 +15,7 @@ export function LogoMark({ size = 30 }: { size?: number }) {
 
 export function Brand({ to = '/', size }: { to?: string; size?: number }) {
   return (
-    <Link to={to} className="brand" aria-label={`${brand.name} home`}>
+    <Link to={to} className="brand" aria-label={t('{name} home', { name: brand.name })}>
       <LogoMark size={size} />
       <span className="brand-name">{brand.name}</span>
     </Link>

@@ -13,6 +13,7 @@ import { AppError, SESSION_KEY, actorFor, audit, requireCtx } from './core';
 import { otpService, type OtpChallenge } from './otpService';
 import { DEMO_ONLY_MESSAGE } from './applicationService';
 
+import { t } from '../i18n';
 const SESSION_HOURS = 12;
 
 export interface SignUpInput {
@@ -72,9 +73,9 @@ export const authService = {
   async startSignUp(input: SignUpInput): Promise<OtpChallenge> {
     await delay();
     const db = await getDb();
-    if (db.users.some((u) => norm(u.email) === norm(input.email))) throw new AppError('CONFLICT', 'An account with this email already exists. Try signing in instead.');
-    if (db.users.some((u) => normPhone(u.phone) === normPhone(input.phone))) throw new AppError('CONFLICT', 'This phone number is already linked to an account.');
-    if (!isAdult(input.dateOfBirth)) throw new AppError('VALIDATION', 'You need to be 18 or older to create your own account. A parent or guardian can keep your records for now.');
+    if (db.users.some((u) => norm(u.email) === norm(input.email))) throw new AppError('CONFLICT', t('An account with this email already exists. Try signing in instead.'));
+    if (db.users.some((u) => normPhone(u.phone) === normPhone(input.phone))) throw new AppError('CONFLICT', t('This phone number is already linked to an account.'));
+    if (!isAdult(input.dateOfBirth)) throw new AppError('VALIDATION', t('You need to be 18 or older to create your own account. A parent or guardian can keep your records for now.'));
     const challenge = otpService.request('signup', input.phone);
     pendingSignup = { ...input, challengeId: challenge.id };
     return challenge;
@@ -82,7 +83,7 @@ export const authService = {
 
   async completeSignUp(challengeId: string, code: string): Promise<User> {
     await delay();
-    if (!pendingSignup || pendingSignup.challengeId !== challengeId) throw new AppError('OTP_EXPIRED', 'Your sign-up has timed out. Please start again.');
+    if (!pendingSignup || pendingSignup.challengeId !== challengeId) throw new AppError('OTP_EXPIRED', t('Your sign-up has timed out. Please start again.'));
     otpService.verify(challengeId, code, 'signup');
     const input = pendingSignup;
     const salt = uid('salt');
@@ -118,7 +119,7 @@ export const authService = {
     const id = identifier.trim();
     const user = id.includes('@') ? db.users.find((u) => norm(u.email) === norm(id)) : db.users.find((u) => normPhone(u.phone) === normPhone(id) && normPhone(id).length >= 10);
     const ok = user && (await hashPassword(password, user.passwordSalt)) === user.passwordHash;
-    if (!user || !ok) throw new AppError('AUTH_FAILED', 'That email/phone and password don’t match our records.');
+    if (!user || !ok) throw new AppError('AUTH_FAILED', t('That email/phone and password don’t match our records.'));
     const challenge = otpService.request('login', user.phone);
     pendingLogin = { challengeId: challenge.id, userId: user.id, phone: user.phone };
     return challenge;
@@ -126,7 +127,7 @@ export const authService = {
 
   async completeLogin(challengeId: string, code: string): Promise<User> {
     await delay();
-    if (!pendingLogin || pendingLogin.challengeId !== challengeId) throw new AppError('OTP_EXPIRED', 'Your sign-in has timed out. Please start again.');
+    if (!pendingLogin || pendingLogin.challengeId !== challengeId) throw new AppError('OTP_EXPIRED', t('Your sign-in has timed out. Please start again.'));
     otpService.verify(challengeId, code, 'login');
     const userId = pendingLogin.userId;
     pendingLogin = null;
@@ -146,7 +147,7 @@ export const authService = {
       pendingLogin.challengeId = c.id;
       return c;
     }
-    throw new AppError('OTP_EXPIRED', 'Please start again.');
+    throw new AppError('OTP_EXPIRED', t('Please start again.'));
   },
 
   hasPending(purpose: 'signup' | 'login') {
@@ -161,14 +162,14 @@ export const authService = {
 
   async startPhoneVerification(phone: string): Promise<OtpChallenge> {
     await requireCtx();
-    if (normPhone(phone).length < 10) throw new AppError('VALIDATION', 'Enter a valid mobile number.');
+    if (normPhone(phone).length < 10) throw new AppError('VALIDATION', t('Enter a valid mobile number.'));
     const c = otpService.request('change_permissions', phone);
     pendingPhone = { challengeId: c.id, phone: phone.trim() };
     return c;
   },
 
   async confirmPhone(code: string): Promise<void> {
-    if (!pendingPhone) throw new AppError('OTP_EXPIRED', 'Please start again.');
+    if (!pendingPhone) throw new AppError('OTP_EXPIRED', t('Please start again.'));
     otpService.verify(pendingPhone.challengeId, code, 'change_permissions');
     const phone = pendingPhone.phone;
     pendingPhone = null;
@@ -195,7 +196,7 @@ export const authService = {
 
   async completePasswordReset(challengeId: string, code: string, newPassword: string): Promise<void> {
     await delay();
-    if (!pendingReset || pendingReset.challengeId !== challengeId) throw new AppError('OTP_EXPIRED', 'This reset link has expired. Please start again.');
+    if (!pendingReset || pendingReset.challengeId !== challengeId) throw new AppError('OTP_EXPIRED', t('This reset link has expired. Please start again.'));
     otpService.verify(challengeId, code, 'reset_password');
     const salt = uid('salt');
     const hash = await hashPassword(newPassword, salt);
@@ -213,7 +214,7 @@ export const authService = {
   async changePassword(current: string, next: string): Promise<void> {
     await delay();
     const ctx = await requireCtx();
-    if ((await hashPassword(current, ctx.user.passwordSalt)) !== ctx.user.passwordHash) throw new AppError('AUTH_FAILED', 'Your current password is incorrect.');
+    if ((await hashPassword(current, ctx.user.passwordSalt)) !== ctx.user.passwordHash) throw new AppError('AUTH_FAILED', t('Your current password is incorrect.'));
     const salt = uid('salt');
     const hash = await hashPassword(next, salt);
     await mutate((db) => {
@@ -255,7 +256,7 @@ export const authService = {
 
   async revokeSession(sessionId: string): Promise<void> {
     const ctx = await requireCtx();
-    if (sessionId === ctx.session.id) throw new AppError('VALIDATION', 'Use “Log out” to end this session.');
+    if (sessionId === ctx.session.id) throw new AppError('VALIDATION', t('Use “Log out” to end this session.'));
     await mutate((db) => {
       db.sessions = db.sessions.filter((s) => !(s.id === sessionId && s.userId === ctx.user.id));
       audit(db, { patientId: ctx.patient?.id, actor: ctx.actor, action: 'sessions_revoked', target: { type: 'session', id: sessionId, label: 'Signed out a device' } });

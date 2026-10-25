@@ -8,6 +8,7 @@ import { AppError, type ErrorCode } from '../core';
 import type { abhaService as DemoAbha, AbhaMethod, AbhaOtpStart, AbhaVerifyResult } from '../abhaService';
 import { validateAbhaInput } from '../abhaService';
 import { emit, read, resetCaches, sb, write } from './client';
+import { t } from '../../i18n';
 
 async function call<T>(body: Record<string, unknown>): Promise<T> {
   const { data, error } = await sb().functions.invoke('abdm', { body });
@@ -15,7 +16,7 @@ async function call<T>(body: Record<string, unknown>): Promise<T> {
     let payload: { error?: { code?: string; message?: string } } = {};
     try { payload = await (error as { context?: Response }).context!.json(); } catch { /* no body */ }
     const code = (payload.error?.code ?? 'UNKNOWN') as ErrorCode;
-    throw new AppError(code, payload.error?.message ?? 'ABHA linking isn’t available right now. Please try again later.');
+    throw new AppError(code, payload.error?.message ?? t('ABHA linking isn’t available right now. Please try again later.'));
   }
   return data as T;
 }

@@ -10,6 +10,7 @@ import { adherence, defaultTimes, dosesFor, normaliseTimes, takenOn, type Dose }
 import { brand } from '../config/brand';
 import { AppError, requireCtx } from './core';
 
+import { t as tr } from '../i18n';
 /** Creates a default reminder for a new medication (called whenever one is added). */
 export function ensureReminder(db: Database, record: MedicalRecord, times?: string[]) {
   if (record.type !== 'medication') return;
@@ -39,7 +40,7 @@ export const medicationService = {
   async logDose(recordId: string, date: string, time: string, status: DoseLog['status']): Promise<void> {
     const ctx = await requireCtx('patient');
     const pid = ctx.patient!.id;
-    if (!ctx.db.records.some((r) => r.id === recordId && r.patientId === pid)) throw new AppError('NOT_FOUND', 'Medication not found.');
+    if (!ctx.db.records.some((r) => r.id === recordId && r.patientId === pid)) throw new AppError('NOT_FOUND', tr('Medication not found.'));
     await mutate((db) => {
       const existing = db.doseLogs.find((l) => l.recordId === recordId && l.date === date && l.time === time);
       if (existing) { existing.status = status; existing.loggedAt = nowISO(); return; }
@@ -73,9 +74,9 @@ export const medicationService = {
     await delay(150);
     const ctx = await requireCtx('patient');
     const rec = ctx.db.records.find((r) => r.id === recordId && r.patientId === ctx.patient!.id && r.type === 'medication');
-    if (!rec) throw new AppError('NOT_FOUND', 'Medication not found.');
+    if (!rec) throw new AppError('NOT_FOUND', tr('Medication not found.'));
     const t = normaliseTimes(times);
-    if (enabled && !t.length) throw new AppError('VALIDATION', 'Add at least one reminder time, or turn reminders off.');
+    if (enabled && !t.length) throw new AppError('VALIDATION', tr('Add at least one reminder time, or turn reminders off.'));
     await mutate((db) => {
       const r = db.reminders.find((x) => x.recordId === recordId);
       if (r) Object.assign(r, { times: t, enabled, updatedAt: nowISO() });
@@ -98,7 +99,7 @@ export const medicationService = {
 export function buildCalendar(records: MedicalRecord[], reminders: MedicationReminder[]): { filename: string; blob: Blob; count: number } {
   const today = todayISO();
   const stamp = nowISO().replace(/[-:]/g, '').replace(/\.\d+/, '');
-  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', `PRODID:-//${brand.name}//Medicine reminders//EN`, 'CALSCALE:GREGORIAN', `X-WR-CALNAME:${brand.name} medicines`];
+  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', `PRODID:-//${brand.name}//Medicine reminders//EN`, 'CALSCALE:GREGORIAN', `X-WR-CALNAME:${tr('{app} medicines', { app: brand.name })}`];
   let count = 0;
   const esc = (s: string) => s.replace(/\\/g, '\\\\').replace(/([,;])/g, '\\$1').replace(/\n/g, '\\n');
   for (const rem of reminders.filter((r) => r.enabled)) {
@@ -115,16 +116,16 @@ export function buildCalendar(records: MedicalRecord[], reminders: MedicationRem
       lines.push(
         'BEGIN:VEVENT', `UID:${rec.id}-${t.replace(':', '')}@${brand.name.toLowerCase()}`, `DTSTAMP:${stamp}`,
         `DTSTART:${firstDate}T${hh}${mm}00`, `DURATION:PT10M`, `RRULE:FREQ=${weekly ? 'WEEKLY' : 'DAILY'}${until}`,
-        `SUMMARY:${esc(`Take ${rec.data.name} ${rec.data.dosage ?? ''}`.trim())}`,
-        `DESCRIPTION:${esc([rec.data.instructions, rec.data.reason ? `For ${rec.data.reason}` : '', `Mark it as taken in ${brand.name}.`].filter(Boolean).join('\n'))}`,
-        'BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${esc(`Time to take ${rec.data.name}`)}`, 'TRIGGER:PT0M', 'END:VALARM',
+        `SUMMARY:${esc(tr('Take {name}', { name: `${rec.data.name} ${rec.data.dosage ?? ''}`.trim() }))}`,
+        `DESCRIPTION:${esc([rec.data.instructions, rec.data.reason ? tr('For {value}', { value: rec.data.reason }) : '', tr('Mark it as taken in {app}.', { app: brand.name })].filter(Boolean).join('\n'))}`,
+        'BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${esc(tr('Time to take {name}', { name: rec.data.name }))}`, 'TRIGGER:PT0M', 'END:VALARM',
         'END:VEVENT',
       );
       count++;
     }
   }
   lines.push('END:VCALENDAR');
-  if (!count) throw new AppError('VALIDATION', 'There are no active reminders to add. Set reminder times for a medicine first.');
+  if (!count) throw new AppError('VALIDATION', tr('There are no active reminders to add. Set reminder times for a medicine first.'));
   return { filename: `${brand.name.toLowerCase()}-medicine-reminders.ics`, blob: new Blob([lines.join('\r\n')], { type: 'text/calendar' }), count };
 }
 

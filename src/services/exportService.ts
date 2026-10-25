@@ -6,6 +6,7 @@ import { brand } from '../config/brand';
 import { audit, requireCtx } from './core';
 import { DOC_CATEGORY_LABEL } from './documentService';
 
+import { t } from '../i18n';
 export const EXPORT_SCOPES: { key: string; label: string; types: RecordType[] | 'all' }[] = [
   { key: 'all', label: 'Complete record', types: 'all' },
   { key: 'consultations', label: 'Consultations', types: ['consultation', 'follow_up', 'clinical_note', 'diagnosis'] },
@@ -51,10 +52,10 @@ export function buildExport(p: Patient, allRecords: MedicalRecord[], allDocs: Me
   if (format === 'json') {
     const payload = {
       exportedAt: nowISO(), product: brand.name, formatVersion: 1,
-      note: 'A production export would also be offered as FHIR R4 bundle.',
+      note: t('A production export would also be offered as FHIR R4 bundle.'),
       patient: { patientId: p.patientCode, name: p.fullName, dateOfBirth: p.dateOfBirth, bloodGroup: p.bloodGroup ?? null, emergencyContact: p.emergencyContact ?? null },
       records: records.map((r) => ({ id: r.id, type: r.type, date: r.date, data: r.data, addedBy: r.createdBy, organization: r.organization?.name ?? null, createdAt: r.createdAt, version: r.version, history: r.versions, attachments: r.attachments })),
-      documents: docs.map((d) => ({ id: d.id, name: d.name, category: d.category, date: d.date, recordId: d.recordId ?? null, uploadedBy: d.uploadedBy.name, note: 'File contents are delivered separately.' })),
+      documents: docs.map((d) => ({ id: d.id, name: d.name, category: d.category, date: d.date, recordId: d.recordId ?? null, uploadedBy: d.uploadedBy.name, note: t('File contents are delivered separately.') })),
     };
     blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     filename = `${brand.name.toLowerCase()}-record-${stamp}.json`;
@@ -70,13 +71,13 @@ function renderHtml(name: string, code: string, dob: string, blood: string | und
   const rows = records.map((r) => {
     const fields = Object.entries(r.data)
       .filter(([k]) => !['medStatus', 'resultRecordId', 'orderRecordId'].includes(k))
-      .map(([k, v]) => `<div><b>${escapeHtml(k === 'discontinuedOn' ? 'Stopped on' : k === 'discontinueReason' ? 'Reason stopped' : fieldLabel(r.type, k))}:</b> ${escapeHtml(String(v))}</div>`).join('');
-    return `<section><h3>${fmtDate(r.date)} · ${escapeHtml(RECORD_TYPES[r.type].label)} — ${escapeHtml(recordTitle(r))}</h3>${fields}<p class="by">Added by ${escapeHtml(r.createdBy.name)}${r.organization ? `, ${escapeHtml(r.organization.name)}` : ''} on ${fmtDateTime(r.createdAt)}${r.version > 1 ? ` · version ${r.version}` : ''}</p></section>`;
+      .map(([k, v]) => `<div><b>${escapeHtml(k === 'discontinuedOn' ? t('Stopped on') : k === 'discontinueReason' ? t('Reason stopped') : fieldLabel(r.type, k))}:</b> ${escapeHtml(String(v))}</div>`).join('');
+    return `<section><h3>${fmtDate(r.date)} · ${escapeHtml(t(RECORD_TYPES[r.type].label))} — ${escapeHtml(recordTitle(r))}</h3>${fields}<p class="by">${escapeHtml(t('Added by {name} on {date}', { name: r.organization ? `${r.createdBy.name}, ${r.organization.name}` : r.createdBy.name, date: fmtDateTime(r.createdAt) }))}${r.version > 1 ? ` · ${escapeHtml(t('version {n}', { n: r.version }))}` : ''}</p></section>`;
   }).join('');
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(name)} — health record</title>
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(t('{name} — health record', { name }))}</title>
 <style>body{font:14px/1.5 system-ui,sans-serif;color:#1b2420;max-width:760px;margin:40px auto;padding:0 20px}h1{font-size:22px;margin:0}h3{font-size:15px;margin:0 0 6px}section{border-top:1px solid #dfe5e1;padding:14px 0}.by{color:#5c6b64;font-size:12px;margin:6px 0 0}.meta{color:#5c6b64}@media print{body{margin:0}}</style></head>
-<body><h1>${escapeHtml(name)}</h1><p class="meta">Patient ID ${escapeHtml(code)} · Born ${fmtDate(dob)}${blood ? ` · Blood group ${escapeHtml(blood)}` : ''}<br>Exported from ${brand.name} on ${fmtDateTime(nowISO())}. Use your browser’s Print → Save as PDF to keep a PDF copy.</p>
-${rows || '<p>No records in this selection.</p>'}
-${docs.length ? `<section><h3>Documents</h3>${docs.map((d) => `<div>${escapeHtml(d)}</div>`).join('')}</section>` : ''}
+<body><h1>${escapeHtml(name)}</h1><p class="meta">${escapeHtml(t('Patient ID {code}', { code }))} · ${escapeHtml(t('Born {date}', { date: fmtDate(dob) }))}${blood ? ` · ${escapeHtml(t('Blood group {value}', { value: blood }))}` : ''}<br>${escapeHtml(t('Exported from {app} on {date}. Use your browser’s Print → Save as PDF to keep a PDF copy.', { app: brand.name, date: fmtDateTime(nowISO()) }))}</p>
+${rows || `<p>${escapeHtml(t('No records in this selection.'))}</p>`}
+${docs.length ? `<section><h3>${escapeHtml(t('Documents'))}</h3>${docs.map((d) => `<div>${escapeHtml(d)}</div>`).join('')}</section>` : ''}
 </body></html>`;
 }

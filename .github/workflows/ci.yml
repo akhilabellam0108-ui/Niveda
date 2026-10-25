@@ -20,6 +20,8 @@ jobs:
       - run: npm test
       - name: Edge Function logic (SMS, ABDM, file check)
         run: node --test tests/edge.test.mjs
+      - name: Interface languages (every text translated, placeholders intact)
+        run: node --test tests/i18n.test.mjs
       - run: npm run build
       - uses: denoland/setup-deno@v2
         with:

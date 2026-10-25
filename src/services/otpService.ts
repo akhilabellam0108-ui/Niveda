@@ -7,6 +7,7 @@ import { randomDigits, uid } from '../lib/ids';
 import { now } from '../lib/dates';
 import { AppError } from './core';
 
+import { t } from '../i18n';
 export type OtpPurpose = 'signup' | 'login' | 'grant_access' | 'approve_request' | 'change_permissions' | 'reset_password' | 'export' | 'emergency_access' | 'delete_account';
 
 export interface OtpChallenge {
@@ -48,11 +49,11 @@ export const otpService = {
   /** Throws if the code is wrong, expired or reused. Consumes the challenge on success. */
   verify(challengeId: string, code: string, purpose: OtpPurpose): void {
     const c = challenges.get(challengeId);
-    if (!c || c.purpose !== purpose || c.used) throw new AppError('OTP_EXPIRED', 'This code is no longer valid. Request a new one.');
-    if (now().getTime() > c.expiresAt) throw new AppError('OTP_EXPIRED', 'This code has expired. Request a new one.');
+    if (!c || c.purpose !== purpose || c.used) throw new AppError('OTP_EXPIRED', t('This code is no longer valid. Request a new one.'));
+    if (now().getTime() > c.expiresAt) throw new AppError('OTP_EXPIRED', t('This code has expired. Request a new one.'));
     c.attempts++;
-    if (c.attempts > 5) throw new AppError('OTP_EXPIRED', 'Too many attempts. Request a new code.');
-    if (code.trim() !== c.prototypeCode) throw new AppError('OTP_INVALID', 'That code doesn’t match. Check it and try again.');
+    if (c.attempts > 5) throw new AppError('OTP_EXPIRED', t('Too many attempts. Request a new code.'));
+    if (code.trim() !== c.prototypeCode) throw new AppError('OTP_INVALID', t('That code doesn’t match. Check it and try again.'));
     c.used = true;
   },
 };

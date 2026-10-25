@@ -85,3 +85,14 @@
   --shadow-sm: 0 1px 2px rgba(0,0,0,.4); --shadow-md: 0 6px 20px -6px rgba(0,0,0,.6); --shadow-lg: 0 24px 60px -12px rgba(0,0,0,.7);
   --overlay: rgba(0, 0, 0, .6);
 }
+
+/* Indian-language scripts: the display serif has no Indic letters, so headings use the sans
+   stack too, with Noto fonts (preinstalled on Android) for each script. Indic text also needs
+   a little more line height for vowel signs above and below the line. */
+:root[data-lang]:not([data-lang='en']) {
+  --font-sans: 'Inter', 'Noto Sans', 'Noto Sans Devanagari', 'Noto Sans Bengali', 'Noto Sans Telugu', 'Noto Sans Tamil',
+    'Noto Sans Gujarati', 'Noto Sans Kannada', 'Noto Sans Malayalam', 'Nirmala UI', ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-sans);
+}
+:root[data-lang]:not([data-lang='en']) body { line-height: 1.65; }
+:root[data-lang]:not([data-lang='en']) :is(h1, h2, h3, h4) { letter-spacing: 0; line-height: 1.4; }

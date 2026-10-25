@@ -5,11 +5,12 @@ import { RECORD_TYPES, type FieldDef } from '../../lib/recordMeta';
 import { ACCEPT_ATTR, DOC_CATEGORY_LABEL, guessCategory, validateFile, friendlyError, type NewFile } from '../../services';
 import { Button, Field, Input, Select, Textarea } from '../ui';
 
+import { t } from '../../i18n';
 export const DATE_LABEL: Partial<Record<RecordType, string>> = {
-  consultation: 'Visit date', diagnosis: 'Date diagnosed', medication: 'Start date', allergy: 'Date identified',
-  surgery: 'Date of surgery', procedure: 'Date of procedure', lab_test: 'Date ordered', lab_result: 'Test date',
-  imaging: 'Date of scan', vaccination: 'Date given', hospitalization: 'Admission date', family_history: 'Date recorded',
-  follow_up: 'Follow-up date',
+  consultation: t('Visit date'), diagnosis: t('Date diagnosed'), medication: t('Start date'), allergy: t('Date identified'),
+  surgery: t('Date of surgery'), procedure: t('Date of procedure'), lab_test: t('Date ordered'), lab_result: t('Test date'),
+  imaging: t('Date of scan'), vaccination: t('Date given'), hospitalization: t('Admission date'), family_history: t('Date recorded'),
+  follow_up: t('Follow-up date'),
 };
 
 interface Props {
@@ -32,7 +33,7 @@ export function RecordFields({ type, date, onDate, data, onChange, errors = {}, 
   return (
     <div className="form-grid">
       {first && <FieldInput f={first} value={data[first.key]} onChange={(v) => set(first.key, v)} error={errors[first.key]} />}
-      <Field label={DATE_LABEL[type] ?? 'Date'} required error={errors.date}>
+      <Field label={DATE_LABEL[type] ?? t('Date')} required error={errors.date}>
         {(p) => <Input {...p} type="date" value={date} onChange={(e) => onDate(e.target.value)} />}
       </Field>
       {rest.map((f) => <FieldInput key={f.key} f={f} value={data[f.key]} onChange={(v) => set(f.key, v)} error={errors[f.key]} />)}
@@ -46,7 +47,7 @@ function FieldInput({ f, value, onChange, error }: { f: FieldDef; value: unknown
     <Field label={f.label} required={f.required} help={f.help} error={error} className={f.wide ? 'wide' : ''}>
       {(p) =>
         f.kind === 'textarea' ? <Textarea {...p} value={v} placeholder={f.placeholder} onChange={(e) => onChange(e.target.value)} rows={3} />
-        : f.kind === 'select' ? <Select {...p} value={v} options={f.options ?? []} placeholder={f.required ? 'Select…' : undefined} onChange={(e) => onChange(e.target.value)} />
+        : f.kind === 'select' ? <Select {...p} value={v} options={f.options ?? []} placeholder={f.required ? t('Select…') : undefined} onChange={(e) => onChange(e.target.value)} />
         : <Input {...p} type={f.kind === 'date' ? 'date' : f.kind === 'number' ? 'number' : 'text'} value={v} placeholder={f.placeholder} onChange={(e) => onChange(e.target.value)} />
       }
     </Field>
@@ -55,7 +56,7 @@ function FieldInput({ f, value, onChange, error }: { f: FieldDef; value: unknown
 
 /* ---------------- File picker for attachments ---------------- */
 
-export function FilePicker({ files, onChange, label = 'Attach reports or images', compact }: { files: NewFile[]; onChange: (f: NewFile[]) => void; label?: string; compact?: boolean }) {
+export function FilePicker({ files, onChange, label = t('Attach reports or images'), compact }: { files: NewFile[]; onChange: (f: NewFile[]) => void; label?: string; compact?: boolean }) {
   const ref = useRef<HTMLInputElement>(null);
   const [drag, setDrag] = useState(false);
   const [err, setErr] = useState<string>();
@@ -86,7 +87,7 @@ export function FilePicker({ files, onChange, label = 'Attach reports or images'
       >
         <Upload aria-hidden />
         <div className="small strong">{label}</div>
-        <div className="xs subtle">PDF, JPG or PNG up to 15 MB · drag and drop or browse</div>
+        <div className="xs subtle">{t('PDF, JPG or PNG up to 15 MB · drag and drop or browse')}</div>
         <input ref={ref} type="file" multiple accept={ACCEPT_ATTR} hidden onChange={(e) => { add(e.target.files); e.target.value = ''; }} />
       </div>
       {err && <div className="field-error">{err}</div>}
@@ -94,11 +95,11 @@ export function FilePicker({ files, onChange, label = 'Attach reports or images'
         <div key={i} className="file-row">
           <FileText aria-hidden />
           <span className="grow truncate">{f.name}</span>
-          <select className="select" style={{ width: 'auto', minHeight: 30, padding: '2px 30px 2px 8px', fontSize: 12 }} aria-label={`Type of ${f.name}`}
+          <select className="select" style={{ width: 'auto', minHeight: 30, padding: '2px 30px 2px 8px', fontSize: 12 }} aria-label={t('Type of {name}', { name: f.name })}
             value={f.category} onChange={(e) => onChange(files.map((x, j) => (j === i ? { ...x, category: e.target.value as DocumentCategory } : x)))}>
             {Object.entries(DOC_CATEGORY_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
           </select>
-          <Button size="sm" variant="ghost" iconOnly icon={X} aria-label={`Remove ${f.name}`} onClick={() => onChange(files.filter((_, j) => j !== i))} />
+          <Button size="sm" variant="ghost" iconOnly icon={X} aria-label={t('Remove {name}', { name: f.name })} onClick={() => onChange(files.filter((_, j) => j !== i))} />
         </div>
       ))}
     </div>

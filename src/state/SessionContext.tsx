@@ -4,6 +4,20 @@ import { authService, doctorService, patientService, settingsService, subscribe,
 import { AppError } from '../services/core';
 import { clearNativeAlarms } from '../lib/nativeAlarms';
 import { disableWebPush } from '../lib/webPush';
+import { changeLanguage, getLanguage, type LangCode } from '../i18n';
+
+/** A language chosen on another device follows the person here (once per visit, so a blocked
+ *  storage can never cause a reload loop). */
+function followAccountLanguage(lang: LangCode | undefined) {
+  if (!lang || lang === getLanguage()) return;
+  try {
+    if (sessionStorage.getItem('niveda.langSynced') === lang) return;
+    sessionStorage.setItem('niveda.langSynced', lang);
+  } catch {
+    return;
+  }
+  changeLanguage(lang);
+}
 
 interface SessionState {
   status: 'loading' | 'signed-out' | 'signed-in';
@@ -40,6 +54,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       }
       const prefs = await settingsService.get();
       applyTheme(prefs.theme);
+      followAccountLanguage(prefs.language);
       if (user.role === 'patient') {
         const patient = await patientService.me();
         setState((s) => ({ status: 'signed-in', user, patient, prefs, notice: s.notice }));

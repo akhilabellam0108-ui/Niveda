@@ -159,3 +159,11 @@
 .progress { height: 4px; border-radius: 2px; background: var(--surface-3); overflow: hidden; }
 .progress > div { height: 100%; background: var(--accent); transition: width .3s var(--ease); }
 .steps-dots { display: flex; gap: 6px; }
+
+/* Language picker (Settings, landing page, sign-in screens) */
+.lang-picker { display: inline-flex; align-items: center; gap: 8px; color: var(--text-2); }
+.lang-picker .select { min-width: 180px; }
+.lang-picker.compact .select { min-width: 0; width: auto; padding-top: 6px; padding-bottom: 6px; font-size: var(--t-sm); }
+.lang-picker-label { font-weight: 600; color: var(--text); }
+.auth-top { display: flex; align-items: center; justify-content: space-between; gap: var(--s1); }
+@media (max-width: 520px) { .landing-nav .lang-picker svg { display: none; } }
